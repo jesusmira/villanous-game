@@ -95,6 +95,14 @@ export function canPlayCard(
     }
   }
 
+  // Primavera / blocksCursePlay: no curses allowed at this location
+  if (card.cardType === CardType.CURSE) {
+    const curseBlocked = targetLocState.heroCardInstIds.some(id =>
+      state.allCards[id]?.effectIds.some(effId => getEffectDef(effId)?.blocksCursePlay),
+    );
+    if (curseBlocked) return fail('No se puede jugar una Maldición aquí (Primavera).');
+  }
+
   return ok;
 }
 

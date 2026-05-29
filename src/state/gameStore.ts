@@ -3,8 +3,9 @@ import { ActionType } from '../core/types';
 import type { GameState, GameSetupOptions, LocationId, CardInstId } from '../core/types';
 import { createInitialState, movePawn, gainPower, playCard, vanquish,
   moveItemAlly, moveHero, startFate, resolveFate, activateCard,
-  discardFromHand, endActivatePhase, drawCards, resolveCondition, skipMove,
-  resolveCuervo, resolveDemosles } from '../core/engine/GameEngine';
+  discardFromHand, endActivatePhase, drawCards, skipMove,
+} from '../core/engine/GameEngine';
+import { resolveCondition, resolveCuervo, resolveDemosles } from '../core/engine/PendingStateResolver';
 import { runAITurn } from '../core/ai/AIPlayer';
 
 interface GameStore {

@@ -8,7 +8,7 @@ import { useGameStore } from '../state/gameStore';
 interface Props { state: GameState }
 
 export function FateModal({ state }: Props) {
-  const store = useGameStore();
+  const doFateResolve = useGameStore(s => s.doFateResolve);
   const { pendingFate } = state;
   const [chosenId, setChosenId] = useState<string | null>(null);
   const [targetLocId, setTargetLocId] = useState<LocationId | null>(null);
@@ -48,7 +48,7 @@ export function FateModal({ state }: Props) {
     if (!chosenId) return;
     const loc = targetLocId ?? validLocs[0]?.id;
     if (!loc) return;
-    store.doFateResolve(chosenId, loc, targetCardId ? { targetCardInstId: targetCardId } : {});
+    doFateResolve(chosenId, loc, targetCardId ? { targetCardInstId: targetCardId } : {});
     setChosenId(null);
     setTargetLocId(null);
     setTargetCardId(null);

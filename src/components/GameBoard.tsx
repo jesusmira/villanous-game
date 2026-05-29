@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { TurnPhase } from '../core/types';
 import type { CardInst, GameState } from '../core/types';
+import { CardDefId } from '../core/villains/effectIds';
 import { PlayerBoard } from './PlayerBoard';
 import { ActionPanel } from './ActionPanel';
 import { FateModal } from './FateModal';
@@ -9,6 +10,8 @@ import { DemoslesModal } from './DemoslesModal';
 import { ConditionModal } from './ConditionModal';
 import { CardDetailModal } from './CardDetailModal';
 import { useGameStore } from '../state/gameStore';
+
+const LOG_ENTRIES_VISIBLE = 30;
 
 interface Props { state: GameState }
 
@@ -62,7 +65,7 @@ export function GameBoard({ state }: Props) {
             player={player}
             isActive={!state.winner && state.currentPlayerIndex === idx && !currentPlayer.isAI}
             onCardClick={setSelectedCardId}
-            onSlotClick={() => {}}
+            onDetailClick={setDetailCard}
             selectedCardId={selectedCardId}
           />
         ))}
@@ -86,7 +89,7 @@ export function GameBoard({ state }: Props) {
           <h3>
             Tu mano ({currentPlayer.handInstIds.length} cartas)
             {Object.values(currentPlayer.locationStates).some(ls =>
-              ls.heroCardInstIds.some(id => state.allCards[id]?.defId === 'mal_f_flora'),
+              ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.MAL_FLORA),
             ) && <span className="hand-revealed-badge">MANO AL DESCUBIERTO</span>}
           </h3>
           <div className="hand-cards">
@@ -138,7 +141,7 @@ export function GameBoard({ state }: Props) {
 
       {/* Game log */}
       <div className="log-panel" ref={logRef}>
-        {state.log.slice(-30).map((entry, i) => (
+        {state.log.slice(-LOG_ENTRIES_VISIBLE).map((entry, i) => (
           <div key={i} className="log-entry">{entry}</div>
         ))}
       </div>

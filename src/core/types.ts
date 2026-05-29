@@ -178,6 +178,7 @@ export interface VillainPlugin {
   id: VillainId;
   name: string;
   color: string;
+  description: string;
   locations: LocationDef[];
   villainCardDefs: CardDef[];
   fateCardDefs: CardDef[];
@@ -186,6 +187,7 @@ export interface VillainPlugin {
   startingLocationId: LocationId;
   handSize: number;
   checkWinCondition: (state: GameState, playerId: PlayerId) => boolean;
+  getWinProgress: (state: GameState, player: PlayerState) => string;
 }
 
 export interface GameSetupOptions {

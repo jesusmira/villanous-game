@@ -1,5 +1,5 @@
 import { CardDeck } from '../core/types';
-import type { LocationDef, LocationState, GameState, CardInstId } from '../core/types';
+import type { LocationDef, LocationState, GameState, CardInstId, CardInst } from '../core/types';
 import { CardComponent } from './CardComponent';
 
 const ACTION_ICONS: Record<string, string> = {
@@ -32,14 +32,15 @@ interface Props {
   coveredSlotIndices: number[];
   availableSlotIndices: number[];
   selectedCardId: CardInstId | null;
-  onSlotClick: (slotIndex: number) => void;
+  onSlotClick?: (slotIndex: number) => void;
   onCardClick: (cardInstId: CardInstId) => void;
+  onDetailClick?: (card: CardInst) => void;
 }
 
 export function LocationTile({
   locDef, locState, state, isCurrentPawn,
   coveredSlotIndices, availableSlotIndices, selectedCardId,
-  onSlotClick, onCardClick,
+  onSlotClick, onCardClick, onDetailClick,
 }: Props) {
   const allFromVillainSlot = locState.villainCardInstIds.map(id => state.allCards[id]).filter(Boolean);
   // Fate-deck items (e.g. Polvo de Hada, Burla) live in villainCardInstIds but render with heroes
@@ -59,6 +60,7 @@ export function LocationTile({
             small
             selected={selectedCardId === card.instId}
             onClick={() => onCardClick(card.instId)}
+            onDetailClick={onDetailClick}
           />
         ))}
         {fateItemCards.map(card => (
@@ -69,6 +71,7 @@ export function LocationTile({
             small
             selected={selectedCardId === card.instId}
             onClick={() => onCardClick(card.instId)}
+            onDetailClick={onDetailClick}
           />
         ))}
         {locState.isLocked && <div className="lock-badge">🔒</div>}
@@ -87,7 +90,7 @@ export function LocationTile({
               key={idx}
               className={`action-slot ${covered ? 'action-covered' : ''} ${available ? 'action-available' : ''}`}
               disabled={covered || !available}
-              onClick={() => onSlotClick(idx)}
+              onClick={() => onSlotClick?.(idx)}
               title={covered ? 'Tapado por un Héroe' : (ACTION_LABELS[slot.type] ?? slot.type)}
             >
               <span className="action-slot-icon">{ACTION_ICONS[slot.type] ?? '?'}</span>
@@ -108,6 +111,7 @@ export function LocationTile({
             small
             selected={selectedCardId === card.instId}
             onClick={() => onCardClick(card.instId)}
+            onDetailClick={onDetailClick}
           />
         ))}
       </div>

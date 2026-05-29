@@ -5,7 +5,7 @@ import { useGameStore } from '../state/gameStore';
 interface Props { state: GameState }
 
 export function DemoslesModal({ state }: Props) {
-  const store = useGameStore();
+  const doResolveDemosles = useGameStore(s => s.doResolveDemosles);
   const { pendingDemosles } = state;
 
   const [toDiscard, setToDiscard] = useState<Set<CardInstId>>(new Set());
@@ -32,7 +32,7 @@ export function DemoslesModal({ state }: Props) {
     const orderedKeep = needsOrder && topCardId
       ? [topCardId, ...keepIds.filter(id => id !== topCardId)]
       : keepIds;
-    store.doResolveDemosles([...toDiscard], orderedKeep);
+    doResolveDemosles([...toDiscard], orderedKeep);
   }
 
   const canConfirm = !needsOrder || topCardId !== null;
