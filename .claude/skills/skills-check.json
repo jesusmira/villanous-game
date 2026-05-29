@@ -1,0 +1,8 @@
+{
+  "name": "skills-check",
+  "description": "Checklist de calidad para mantener código limpio y componentes pequeños.",
+  "prompts": {
+    "check": "Aplica las reglas del archivo skills-check.md y genera un informe de calidad.",
+    "refactor": "Usa las reglas de skills-check.md para proponer un refactor limpio y modular."
+  }
+}

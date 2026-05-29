@@ -1,0 +1,18 @@
+{
+  "name": "clean-architecture-ui",
+  "description": "Mantiene componentes pequeños, modulares y con responsabilidades claras. Refactoriza lógica a hooks, subcomponentes y servicios.",
+  "capabilities": [
+    "Detectar componentes demasiado grandes",
+    "Extraer hooks personalizados",
+    "Crear subcomponentes reutilizables",
+    "Separar UI de lógica",
+    "Aplicar patrones de arquitectura limpia",
+    "Revisar consistencia de props y tipado",
+    "Sugerir estructura de carpetas modular"
+  ],
+  "prompts": {
+    "refactor": "Divide este componente en piezas pequeñas siguiendo clean architecture. Extrae hooks, subcomponentes y servicios.",
+    "audit": "Revisa este archivo y señala violaciones de clean code, responsabilidades mezcladas y oportunidades de modularización.",
+    "structure": "Propón una estructura de carpetas limpia y escalable para este módulo."
+  }
+}

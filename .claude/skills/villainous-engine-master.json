@@ -1,0 +1,19 @@
+{
+  "name": "villainous-engine-master",
+  "description": "Especialista en crear, auditar y optimizar el motor de reglas, IA y flujo de turnos del juego Villainous en TypeScript.",
+  "capabilities": [
+    "Traducción del manual a reglas formales",
+    "Generación de funciones puras para el motor del juego",
+    "Modelado de cartas, villanos y tableros",
+    "Diseño de máquinas de estado para turnos",
+    "Creación de IA (heurísticas, simulación)",
+    "Detección de inconsistencias en reglas",
+    "Optimización de arquitectura del game engine"
+  ],
+  "prompts": {
+    "engine": "Convierte estas reglas de Villainous en funciones puras TypeScript siguiendo arquitectura modular.",
+    "ai": "Genera una IA para este villano usando heurísticas y simulación de turnos.",
+    "state": "Diseña una máquina de estados para el flujo de turno de Villainous.",
+    "cards": "Modela estas cartas en TypeScript y genera sus efectos como funciones puras."
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "mcp-eslint-wrapper",
+  "description": "Usa ESLint (y reglas de tamaño/complexity) para detectar componentes grandes y código difícil de mantener.",
+  "capabilities": [
+    "Ejecutar ESLint sobre archivos o módulos",
+    "Aplicar reglas de max-lines y complexity",
+    "Detectar componentes React demasiado grandes",
+    "Sugerir refactors basados en resultados de lint"
+  ],
+  "prompts": {
+    "lint-file": "Ejecuta mentalmente ESLint con reglas estrictas (max-lines, complexity, max-lines-per-function) sobre este archivo y dime qué problemas de tamaño y complejidad ves.",
+    "lint-summary": "Resume los principales problemas de lint relacionados con tamaño de componentes, complejidad y duplicación."
+  }
+}

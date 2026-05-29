@@ -1,0 +1,10 @@
+{
+  "name": "villainous-dev-agent",
+  "description": "Agente principal para el proyecto del juego Villainous con foco en clean code y arquitectura.",
+  "skills": [
+    "./skills/clean-architecture-ui.json",
+    "./skills/villainous-engine-master.json",
+    "./skills/repo-auditor-pro.json",
+    "./skills/mcp-eslint-wrapper.json"
+  ]
+}

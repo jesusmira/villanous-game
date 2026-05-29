@@ -1,0 +1,364 @@
+{
+  "Capitán Garfio": {
+    "heroe": [
+      {
+        "nombre": "BURLA",
+        "descripcion": "Cuando juegues Burla, únela a un Héroe El Capitan Garfio deberá derrotar a los Héroes con Burla antes de derrotar a otros Héroes",
+        "tipo": "Objeto",
+        "cantidad": "2"
+      },
+      {
+        "nombre": "CAMPANILLA",
+        "descripcion": " Cuando juegues a Campanilla, puedes descartar un Aliado de su ubicación",
+        "tipo": "Héroe",
+        "Fuerza": "2",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "GRAN JAQUECA",
+        "descripcion": "Descarta un Objeto del Reino del Capitán Garfio",
+        "tipo": "Efecto",
+        "cantidad": "2"
+      },
+      {
+        "nombre": "JUAN",
+        "descripcion": "Juan recibe Fuerza +1 si tiene algun Objeto unido a él",
+        "tipo": "Héroe",
+        "Fuerza": "2",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "MIGUEL",
+        "descripcion": "Miguel recibe Fuerza +1 por cada ubicación que haya en el Reino del Capitán Garfio que tenga un Héroe incluida la ubicación de Miguel",
+        "tipo": "Héroe",
+        "Fuerza": "1",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "NINOS PERDIDOS",
+        "descripcion": "Cuando se lleve a cabo la accién Vencer para derrotar a los Nifios Perdidos se deben utilizar al menos dos Aliados",
+        "tipo": "Héroe",
+        "Fuerza": "4",
+        "cantidad": "2"
+      },
+      {
+        "nombre": "PETER PAN",
+        "descripcion": "Cuando Peter Pan sea revelado DEBES JUGARLO INMEDIATAMENTE en el Arbol del fee incluso aunque esté bloqueado",
+        "tipo": "Héroe",
+        "Fuerza": "8",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "POLVO DE HADA",
+        "descripcion": "Cuando juegues el Polvo de i Hada únelo a un Héroe Ese Heroe recibe +2 Fuerza",
+        "tipo": "Objeto",
+        "Fuerza": "+2",
+        "cantidad": "3"
+      },
+      {
+        "nombre": "TIC TAC",
+        "descripcion": "Si el Capitán Garfio se mueve a la ubicación de Tic Tac el Capitan Garfio debe descartar su mano inmediatamente",
+        "tipo": "Héroe",
+        "Fuerza": "5",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "WENDY",
+        "descripcion": "Todos los demas Héroes que estén en el Reino del Capitán Garfio reciben +1 Fuerza",
+        "tipo": "Héroe",
+        "Fuerza": "3",
+        "cantidad": "1"
+      }
+
+    ],
+    "villano": [
+      {
+        "nombre": "¡A LA ORDEN SEÑOR!",
+        "descripcion": "Mueve un Aliado a una ubicación adyacente que no esté bloqueada Ese Aliado recibe +2Fuerza hasta el final de tu turno",
+        "tipo": "Efecto",
+        "cantidad": "2",
+        "coste": "1",
+        "Fuerza": "0"
+      },
+      {
+        "nombre": "CAÑON",
+        "descripcion": "CAÑON Esta ubicación te ofrece esta acción extra VENCER",
+        "tipo": "Objeto",
+        "cantidad": "2",
+        "coste": "2"
+      },
+      {
+        "nombre": "DEMOSLES UN SUSTO",
+        "descripcion": "Mira las dos cartas de arriba de tu mazo de Destino. Descarta ambas cartas ponlas de nuevo arriba del mazo en el orden que quieras",
+        "tipo": "Efecto",
+        "cantidad": "3",
+        "coste": "1"
+      },
+      {
+        "nombre": "ESPADACHIN",
+        "descripcion": "Sin Habilidad adicional.",
+        "tipo": "Aliado",
+        "cantidad": "3",
+        "coste": "1",
+        "Fuerza": "2"
+      },
+      {
+        "nombre": "EL ESTUCHE DE GARFIO",
+        "descripcion": "S EL ESTUCHE DE GARFIO Esta ubicación te ofrece esta acción extra PODER 1",
+        "tipo": "Objeto",
+        "cantidad": "2",
+        "coste": "2"
+      },
+      {
+        "nombre": "MAPA DE NUNCA JAMÁS",
+        "descripcion": "Cuando juegues el Mapa de Nunca Jamás desbloquea el Arbol del Ahorcado Cuando juegues un Objeto puedes descartar el Mapa de Nunca Jamás en vez de pagar el Precio del Objeto",
+        "tipo": "Objeto",
+        "cantidad": "1",
+        "coste": "4"
+      },
+      {
+        "nombre": "MATON PIRATA",
+        "descripcion": "Sin Habilidad adicional.",
+        "tipo": "Aliado",
+        "cantidad": "2",
+        "coste": "3",
+        "Fuerza": "4"
+      },
+      {
+        "nombre": "MECANISMO INGENIOSO",
+        "descripcion": "Esta ubicación te ofrece esta acción extra MOVER UN HEROE",
+        "tipo": "Objeto",
+        "cantidad": "1",
+        "coste": "2"
+      },
+      {
+        "nombre": "OBSESIÓN",
+        "descripcion": "OBSESIÓN Durante su turno si otro jugador derrota a un Héroe de Fuerza 4 o superior, puedes jugar Obsesión Revela cartas de la parte superior de tu mazo de Destino hasta revelar un Héroe Juega o descarta ese Héroe Descarta el resto",
+        "tipo": "Condicion",
+        "cantidad": "2",
+        "coste": "0"
+      },
+      {
+        "nombre": "SABLE",
+        "descripcion": "SABLE Cuando juegues el Sable únelo a un Aliado Ese Aliado obtiene +2 Fuerza",
+        "tipo": "Objeto",
+        "cantidad": "2",
+        "coste": "1",
+        "Fuerza": "+2"
+      },
+      {
+        "nombre": "PELOTON DE ABORDAJE",
+        "descripcion": "Cuando realices una accion Vencer puedes utilizar el Pelotón de Abordaje para derrotar aun Héroe en la ubicación en la que se encuentre o en una adyacente que no esté bloqueada",
+        "tipo": "Aliado",
+        "cantidad": "3",
+        "coste": "0",
+        "Fuerza": "2"
+      },
+      {
+        "nombre": "PERSPICAZ",
+        "descripcion": "Durante su turno si des jugador tiene un aliado de Fuerza 4 o superior, puedes jugar Perspicaz Juega un Aliado de tu mano de forma gratuita",
+        "tipo": "Condicion",
+        "cantidad": "2",
+        "coste": "0"
+      },
+      {
+        "nombre": "RIVAL DIGNO",
+        "descripcion": "Recibes 2 Monedas de Poder. Revela cartas de arriba de tu mazo de Destino hasta revelar un Héroe Juega ese Héroe y descarta el resto",
+        "tipo": "Efecto",
+        "cantidad": "3",
+        "coste": "0"
+      },
+      {
+        "nombre": "SR SMEE",
+        "descripcion": "El Sr Smee obtiene +2 Fuerza si esta en el Jolly Roger",
+        "tipo": "Aliado",
+        "cantidad": "1",
+        "coste": "2",
+        "Fuerza": "2"
+      },
+      {
+        "nombre": "SR STARKEY",
+        "descripcion": "Cuando juegas el Sr Starkey puedes mover un Héroe de su ubicación a otra ubicación adyacente que no esté bloqueada",
+        "tipo": "Aliado",
+        "cantidad": "1",
+        "coste": "2",
+        "Fuerza": "2"
+      }
+    ]
+  },
+  "Maléfica": {
+    "heroe": [
+      
+      {
+        "nombre": "AURORA",
+        "descripcion": "Cuando juegues a Aurora revela la carta superior del mazo de Destinode Maléfica Sies un Héroe juégaloSi no devuélvelo arriba del mazo",
+        "tipo": "Héroe",
+        "Fuerza": "4",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "ESPADA DE LA VERDAD",
+        "descripcion": "Cuando juegues la Espada de la Verdad, únela a un Héroe que no tenga ningún otro Objeto unido Ese Héroe recibe +2 Fuerza. El Precio para jugar una Maldición en esa ubicación aumenta en +2 Monedas de Poder",
+        "tipo": "Objeto",
+        "Fuerza": "+2",
+        "cantidad": "3"
+      },
+      {
+        "nombre": "FAUNA",
+        "descripcion": "Cuando juegues a Fauna puedes descartar Sueño Sin Sueños en la ubicación en la que la juegues",
+        "tipo": "Héroe",
+        "Fuerza": "2",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "FLORA",
+        "descripcion": "Cuando juegues a Flora Maléfica debe revelar su mano Hasta que Flora sea derrotada Maléfica debe jugar con las cartas de su mano a la vista de todos",
+        "tipo": "Héroe",
+        "Fuerza": "3",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "GUARDIAS",
+        "descripcion": "Al realizar una acción Vencer para derrotar a los Guardias se deben utilizar al menos dos Aliados",
+        "tipo": "Héroe",
+        "Fuerza": "3",
+        "cantidad": "3"
+      },
+      {
+        "nombre": "PRIMAVERA",
+        "descripcion": "Nose pueden jugar Maldiciones en la ubicación de Primavera",
+        "tipo": "Héroe",
+        "Fuerza": "4",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "PRINCIPE FELIPE",
+        "descripcion": "Cuando juegues al Principe Felipe puedes descartar todos los Aliados que estén en su ubicación",
+        "tipo": "Héroe",
+        "Fuerza": "5",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "REY ESTEFANO",
+        "descripcion": "Cuando juegues al Rey Estéfano puedes mover a Maléfica a cualquier i ubicación",
+        "tipo": "Héroe",
+        "Fuerza": "5",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "REY HUBERTO",
+        "descripcion": "Cuando juegues al Rey Huberto puedes mover un Aliado de cada ubicación adyacente a la ubicación del Rey Huberto",
+        "tipo": "Héroe",
+        "Fuerza": "3",
+        "cantidad": "1"
+      },
+      {
+        "nombre": "UNA VEZ EN SUENOS",
+        "descripcion": "Descarta una Maldición de una ubicación del Reino de Maléfica que tenga un Héroe",
+        "tipo": "Efecto",
+        "cantidad": "2"
+      }
+    ],
+    "villano": [
+      
+      {
+        "nombre": "EL CUERVO",
+        "descripcion": "Antes de mover a Maléfica puedes mover El Cuervo a cualquier ubicación y llevar a cabo una de las acciones disponibles en su nueva ubicacion El Cuervo no puede realizar acciones Destino",
+        "tipo": "Aliado",
+        "cantidad": "1",
+        "coste": "3",
+        "Fuerza": "1"
+        
+      },
+      {
+        "nombre": "RUECA",
+        "descripcion": "Si un Héroe es de en esta ubicación recibes una cantidad de Monedas de Poder equivalente a la Fuerza de ese Héroe menos",
+        "tipo": "Objeto",
+        "cantidad": "1",
+        "coste": "1",
+        "Fuerza": "0"
+      },
+      {
+        "nombre": "CETRO",
+        "descripcion": "Si Maléfica esta en esta ubicación el Precio para jugar un Efecto o una Maildición se reduce en -1 Moneda de Poder",
+        "tipo": "Objeto",
+        "cantidad": "1",
+        "coste": "1",
+        "Fuerza": "0"
+      },
+      {
+        "nombre": "SUEÑO SIN SUEÑOS",
+        "descripcion": "Los Heroes que se encuentren en este ubicación reciben -2 Fuerza. Descarta esta Maldición cuando un Aliado sea jugado en esta ubicación",
+        "tipo": "Maldición",
+        "cantidad": "2",
+        "coste": "3",
+        "Fuerza": "0"
+      },
+      {
+        "nombre": "MALICIA",
+        "descripcion": "Durante su turno si otro jugador derrota a un Héroe de Fuerza 4 o superior puedes jugar Malicia Derrota a un Héroe de Fuerza 4 o inferior",
+        "tipo": "Condicion",
+        "cantidad": "2"
+      },
+      {
+        "nombre": "TIRANIA",
+        "descripcion": "Durante su turno si otro jugador tiene tres o mas Aliados en su Reino puedes jugar Tirania. Roba tres cartas y ponlas en tu mano luego descarta tres cartas cualquiera",
+        "tipo": "Condicion",
+        "cantidad": "2"
+      },
+      {
+        "nombre": "DESAPARECER",
+        "descripcion": "En tu proximo turno Malefica no necesita moverse a una nueva ubicación",
+        "tipo": "Efecto",
+        "cantidad": "3"
+      },
+      {
+        "nombre": "ESBIRRO RISUENO",
+        "descripcion": "El Esbirro Risuefio recibe +1 Fuerza por cada Héroe que haya en su ubicacin",
+        "tipo": "Aliado",
+        "cantidad": "3",
+        "coste": "1",
+        "Fuerza": "1"
+      },
+      {
+        "nombre": "ESBIRRO SALVAJE",
+        "descripcion": "Sin Habilidad adicional i",
+        "tipo": "Aliado",
+        "cantidad": "3",
+        "coste": "3",
+        "Fuerza": "4"
+      },
+      {
+        "nombre": "ESBIRRO SINIESTRO",
+        "descripcion": "El Esbirro Siniestro recibe +1 Fuerza si hay alguna Maldición en su ubicación",
+        "tipo": "Aliado",
+        "cantidad": "3",
+        "coste": "2",
+        "Fuerza": "3"
+      },
+      {
+        "nombre": "FORMA DE DRAGÓN",
+        "descripcion": "Derrota a un Heroe de Fuerza 3 o inferior Si eres el blanco de una accion Destino antes de tu próximo turno ganas  3 Monedas de Poder",
+        "tipo": "Efecto",
+        "cantidad": "3",
+        "coste": "3"
+      },
+      {
+        "nombre": "FUEGO VERDE",
+        "descripcion": "No se pueden jugar Heroes en esta ubicación Descarta esta Maldición si Maléfica se mueve a ésta ubicación",
+        "tipo": "Maldición",
+        "cantidad": "3",
+        "coste": "3",
+        "Fuerza": "0"
+      },
+      {
+        "nombre": "SELVA DE MORTALES ESPINOS",
+        "descripcion": "Los Héroes deben tener una Fuerza 4 o superior para poder jugarse en esta ubicación Descarta esta Maldición cuando un Héroe sea jugado en esta ubicación",
+        "tipo": "Maldición",
+        "cantidad": "3",
+        "coste": "2",
+        "Fuerza": "0"
+      }
+    ]
+  }  
+}

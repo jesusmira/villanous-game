@@ -1,0 +1,14 @@
+{
+  "name": "repo-auditor-pro",
+  "description": "Audita el repositorio completo buscando problemas de arquitectura, duplicación y componentes demasiado grandes.",
+  "capabilities": [
+    "Escanear múltiples archivos y módulos",
+    "Detectar componentes y servicios demasiado grandes",
+    "Señalar violaciones de arquitectura",
+    "Proponer un plan de refactor por fases"
+  ],
+  "prompts": {
+    "audit-repo": "Analiza la estructura de este repo y genera un informe de problemas de arquitectura, componentes grandes y duplicación.",
+    "plan": "Propón un plan de refactor por fases para mejorar la arquitectura y reducir el tamaño de los componentes."
+  }
+}
