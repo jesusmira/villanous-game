@@ -95,7 +95,7 @@ export function CuervoModal({ state }: Props) {
               className={`slot-btn ${selectedAction === a.type ? 'active' : ''}`}
               onClick={() => { setSelectedAction(a.type); resetSub(); }}>
               {ACTION_LABELS[a.type] ?? a.type}
-              {a.value && a.type === ActionType.GAIN_POWER ? ` (+${a.value})` : ''}
+              {a.value && a.type === ActionType.GAIN_POWER ? ` (${a.value})` : ''}
             </button>
           ))}
         </div>

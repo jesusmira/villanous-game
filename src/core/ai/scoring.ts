@@ -3,7 +3,7 @@ import type { GameState, PlayerState, CardInstId, LocationId } from '../types';
 import { getPlugin, getEffectDef } from '../villains/registry';
 import { CardDefId } from '../villains/effectIds';
 import { HookLocationId } from '../villains/hook/cards';
-import { getAvailableSlotIndices, getActionAtSlot } from '../engine/stateHelpers';
+import { getAvailableSlotIndices, getActionAtSlot, computeKingdomCostMod } from '../engine/stateHelpers';
 
 export function scoreLocation(state: GameState, player: PlayerState, locId: LocationId): number {
   const plugin = getPlugin(player.villainId);
@@ -71,7 +71,8 @@ export function scoreLocation(state: GameState, player: PlayerState, locId: Loca
 export function scoreCard(state: GameState, player: PlayerState, cardInstId: CardInstId): number {
   const card = state.allCards[cardInstId];
   if (!card) return 0;
-  const effectiveCost = Math.max(0, card.baseCost + card.costModifier);
+  const kingdomCostMod = computeKingdomCostMod(state, player.id, card, player.pawnLocationId);
+  const effectiveCost = Math.max(0, card.baseCost + card.costModifier + kingdomCostMod);
   if (player.power < effectiveCost) return -1;
 
   let score = 1;

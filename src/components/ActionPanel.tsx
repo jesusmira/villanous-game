@@ -23,7 +23,7 @@ function SlotButtons({ ap, state }: { ap: ActionPanelCtx; state: GameState }) {
             onClick={() => ap.handleSlotClick(idx)}
           >
             {ACTION_LABELS[slot.type] ?? slot.type.replace(/_/g, ' ')}
-            {slot.value && slot.type === 'GAIN_POWER' ? ` (+${slot.value})` : ''}
+            {slot.value && slot.type === 'GAIN_POWER' ? ` (${slot.value})` : ''}
             {slot.value && slot.type === 'FATE' ? ` (×${slot.value})` : ''}
           </button>
         );
@@ -40,7 +40,7 @@ function SlotButtons({ ap, state }: { ap: ActionPanelCtx; state: GameState }) {
             title={`Extra de: ${itemName}`}
           >
             {ACTION_LABELS[slot.type] ?? slot.type.replace(/_/g, ' ')}
-            {slot.value && slot.type === 'GAIN_POWER' ? ` (+${slot.value})` : ''}
+            {slot.value && slot.type === 'GAIN_POWER' ? ` (${slot.value})` : ''}
             <span className="item-slot-badge">{itemName}</span>
           </button>
         );

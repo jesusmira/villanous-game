@@ -51,8 +51,12 @@ export const effects: EffectDef[] = [
     description: 'Descarta una Maldición (Sueño Sin Sueños) de la ubicación donde se juega Fauna',
     execute: (state, ctx) => {
       if (!ctx.targetLocationId) return state;
-      const player = getPlayer(state, ctx.actingPlayerId);
+      // Fauna is a fate card — ownerId is the target villain (Maleficent), not actingPlayerId
+      const card = state.allCards[ctx.cardInstId];
+      if (!card) return state;
+      const player = getPlayer(state, card.ownerId);
       const locState = player.locationStates[ctx.targetLocationId];
+      if (!locState) return state;
       const curseId = locState.villainCardInstIds.find(
         id => state.allCards[id]?.cardType === CardType.CURSE,
       );

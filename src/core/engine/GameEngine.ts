@@ -129,6 +129,28 @@ export function createInitialState(options: GameSetupOptions): GameState {
   };
 }
 
+// ─── PAWN ARRIVAL AFTER EFFECT ───────────────────────────────────────────────
+
+// Detects if any effect (e.g. Rey Estéfano) moved a pawn and fires ON_PAWN_ARRIVES.
+function firePawnArrivalIfMoved(stateBefore: GameState, stateAfter: GameState): GameState {
+  let s = stateAfter;
+  for (const prevPlayer of stateBefore.players) {
+    const newPawn = getPlayer(s, prevPlayer.id).pawnLocationId;
+    if (newPawn !== prevPlayer.pawnLocationId) {
+      const newLocState = getPlayer(s, prevPlayer.id).locationStates[newPawn];
+      for (const cId of [
+        ...(newLocState?.villainCardInstIds ?? []),
+        ...(newLocState?.heroCardInstIds ?? []),
+      ]) {
+        s = runEffects(s, cId, 'ON_PAWN_ARRIVES', {
+          actingPlayerId: prevPlayer.id, cardInstId: cId, targetLocationId: newPawn,
+        });
+      }
+    }
+  }
+  return s;
+}
+
 // ─── CHECK WIN ────────────────────────────────────────────────────────────────
 
 export function checkWin(state: GameState): GameState {
@@ -273,12 +295,14 @@ export function playCard(
   s = addLog(s, `${player.name} juega ${card.name} en ${targetLocationId}.`);
 
   // Run ON_PLAY effects
+  const statePreEffects = s;
   s = runEffects(s, cardInstId, 'ON_PLAY', {
     actingPlayerId: playerId,
     cardInstId,
     targetLocationId,
     ...ctx,
   });
+  s = firePawnArrivalIfMoved(statePreEffects, s);
 
   // Discard EFFECT and CONDITION cards immediately after their ON_PLAY effects fire
   if (card.cardType === CardType.EFFECT || card.cardType === CardType.CONDITION) {
@@ -307,8 +331,12 @@ export function playCard(
       s = checkConditions(s, 'ALLY_3PLUS', playerId);
     }
     if (!s.pendingCondition) {
-      const allyStr = getEffectiveStrength(s, cardInstId);
-      if (allyStr >= 4) {
+      const allLocStates2 = Object.values(getPlayer(s, playerId).locationStates);
+      const anyAlly4Plus = allLocStates2
+        .flatMap(ls => ls.villainCardInstIds)
+        .filter(id => s.allCards[id]?.cardType === CardType.ALLY)
+        .some(id => getEffectiveStrength(s, id) >= 4);
+      if (anyAlly4Plus) {
         s = checkConditions(s, 'ALLY_4PLUS_STR', playerId);
       }
     }
@@ -351,17 +379,9 @@ export function vanquish(
 
   let s = state;
 
-  // Discard allies
+  // Discard allies (via discardCardFromKingdom to properly clean up attachments)
   for (const allyId of allyInstIds) {
-    const player = getPlayer(s, playerId);
-    const locState = player.locationStates[heroLocId];
-    s = updateLocationState(s, playerId, heroLocId, {
-      villainCardInstIds: locState.villainCardInstIds.filter(id => id !== allyId),
-    });
-    s = updatePlayer(s, playerId, {
-      villainDiscardInstIds: [...getPlayer(s, playerId).villainDiscardInstIds, allyId],
-    });
-    s = updateCard(s, allyId, { locationId: undefined });
+    s = discardCardFromKingdom(s, allyId);
   }
 
   // Check if Hook defeats Peter Pan at Jolly Roger
@@ -382,6 +402,15 @@ export function vanquish(
   s = discardCardFromKingdom(s, heroInstId);
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
   s = addLog(s, `${getPlayer(s, playerId).name} derrota a ${hero.name}.`);
+
+  // Fire ON_VANQUISH on villain cards at the hero's location
+  const locAfterVanquish = getPlayer(s, playerId).locationStates[heroLocId];
+  for (const cId of [...(locAfterVanquish?.villainCardInstIds ?? [])]) {
+    s = runEffects(s, cId, 'ON_VANQUISH', {
+      actingPlayerId: playerId, cardInstId: cId,
+      targetCardInstId: heroInstId, targetLocationId: heroLocId,
+    });
+  }
 
   // Trigger VANQUISH_4PLUS conditions
   if (heroStr >= 4) {
@@ -413,7 +442,14 @@ export function moveItemAlly(
   });
   s = updateCard(s, cardInstId, { locationId: targetLocationId });
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
-  return addLog(s, `${card.name} movido/a a ${targetLocationId}.`);
+  s = addLog(s, `${card.name} movido/a a ${targetLocationId}.`);
+  // Fire ON_PAWN_ARRIVES if the owner's pawn is already at the target location
+  if (getPlayer(s, playerId).pawnLocationId === targetLocationId) {
+    s = runEffects(s, cardInstId, 'ON_PAWN_ARRIVES', {
+      actingPlayerId: playerId, cardInstId, targetLocationId,
+    });
+  }
+  return s;
 }
 
 // ─── MOVE HERO ────────────────────────────────────────────────────────────────
@@ -598,12 +634,14 @@ export function resolveFate(
   }
 
   // Run ON_PLAY effects
+  const statePreFateEffects = s;
   s = runEffects(s, chosenInstId, 'ON_PLAY', {
     actingPlayerId,
     cardInstId: chosenInstId,
     targetLocationId,
     ...ctx,
   });
+  s = firePawnArrivalIfMoved(statePreFateEffects, s);
 
   // Discard effect card immediately after playing
   if (card.cardType === CardType.EFFECT) {
@@ -662,7 +700,8 @@ export function drawCards(state: GameState, playerId: PlayerId): GameState {
 // ─── END TURN ─────────────────────────────────────────────────────────────────
 
 export function endActivatePhase(state: GameState): GameState {
-  return { ...state, turnPhase: TurnPhase.DRAW };
+  const s = { ...state, turnPhase: TurnPhase.DRAW };
+  return checkWin(s);
 }
 
 export function endTurn(state: GameState): GameState {
@@ -687,6 +726,15 @@ export function endTurn(state: GameState): GameState {
   };
   s = addLog(s, `--- Turno de ${s.players[nextIndex].name} ---`);
   s = checkWin(s);
+  // Fire AT_TURN_START for all cards in the new current player's kingdom
+  const nextPlayer = s.players[nextIndex];
+  for (const locState of Object.values(nextPlayer.locationStates)) {
+    for (const cId of [...locState.villainCardInstIds, ...locState.heroCardInstIds]) {
+      s = runEffects(s, cId, 'AT_TURN_START', {
+        actingPlayerId: nextPlayer.id, cardInstId: cId,
+      });
+    }
+  }
   return s;
 }
 

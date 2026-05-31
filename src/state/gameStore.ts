@@ -61,6 +61,9 @@ function maybeRunAI(state: GameState): GameState {
   const current = s.players[s.currentPlayerIndex];
   if (!current.isAI) return s;
   s = runAITurn(s);
+  // Resolve any pending states the AI triggered during its own turn
+  s = maybeAutoResolveCondition(s);
+  s = maybeAutoResolveCuervo(s);
   s = maybeAutoResolveDemosles(s);
   return s;
 }

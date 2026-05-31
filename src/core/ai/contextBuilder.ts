@@ -33,14 +33,15 @@ export function buildPlayCtx(
     );
     if (ppAtJolly3) {
       const plugin3 = getPlugin(player3.villainId);
-      const skullrockLs = player3.locationStates[HookLocationId.SKULL_ROCK];
-      const allyId = skullrockLs?.villainCardInstIds.find(
-        id => state.allCards[id]?.cardType === CardType.ALLY,
-      );
-      if (allyId) {
-        const allyLoc = state.allCards[allyId]?.locationId;
-        const allyLocDef = allyLoc ? plugin3.locations.find(l => l.id === allyLoc) : undefined;
-        if (allyLocDef?.adjacentIds.includes(HookLocationId.JOLLY_ROGER)) {
+      const jollyLocDef = plugin3.locations.find(l => l.id === HookLocationId.JOLLY_ROGER);
+      const adjToJolly = jollyLocDef?.adjacentIds ?? [];
+      // Search all locations adjacent to Jolly Roger for an ally
+      for (const adjId of adjToJolly) {
+        const adjLs = player3.locationStates[adjId];
+        const allyId = adjLs?.villainCardInstIds.find(
+          id => state.allCards[id]?.cardType === CardType.ALLY,
+        );
+        if (allyId) {
           ctx.targetCardInstId = allyId;
           return { ...ctx, targetLocationId: HookLocationId.JOLLY_ROGER };
         }
