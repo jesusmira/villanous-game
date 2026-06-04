@@ -4,136 +4,178 @@ import type { GameState, LocationId, CardInstId } from '../core/types';
 import { getPlugin, getEffectDef } from '../core/villains/registry';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { useGameStore } from '../state/gameStore';
+import { CardComponent } from './CardComponent';
 
-interface Props { state: GameState }
+const BTN = 'px-3 py-1.5 rounded border border-primary/50 bg-primary-container text-primary text-xs font-stats font-bold uppercase tracking-wide hover:bg-primary/20 transition-all disabled:opacity-40';
 
-export function FateModal({ state }: Props) {
+interface Props {
+  state: GameState;
+  onFateDragStart?: (cardId: string) => void;
+  onFateDragEnd?: () => void;
+}
+
+export function FateModal({ state, onFateDragStart, onFateDragEnd }: Props) {
   const doFateResolve = useGameStore(s => s.doFateResolve);
   const { pendingFate } = state;
-  const [chosenId, setChosenId] = useState<string | null>(null);
-  const [targetLocId, setTargetLocId] = useState<LocationId | null>(null);
+  const [chosenId,     setChosenId]    = useState<string | null>(null);
+  const [targetLocId,  setTargetLocId] = useState<LocationId | null>(null);
   const [targetCardId, setTargetCardId] = useState<CardInstId | null>(null);
 
   if (!pendingFate) return null;
 
-  const targetPlayer = state.players[pendingFate.targetPlayerIndex];
-  const targetPlugin = getPlugin(targetPlayer.villainId);
-  const revealedCards = pendingFate.revealedInstIds.map(id => state.allCards[id]).filter(Boolean);
+  const targetPlayer   = state.players[pendingFate.targetPlayerIndex];
+  const targetPlugin   = getPlugin(targetPlayer.villainId);
+  const revealedCards  = pendingFate.revealedInstIds.map(id => state.allCards[id]).filter(Boolean);
   const autoPlayedCards = (pendingFate.autoPlayedInstIds ?? []).map(id => state.allCards[id]).filter(Boolean);
-  const chosenCard = chosenId ? state.allCards[chosenId] : null;
+  const chosenCard     = chosenId ? state.allCards[chosenId] : null;
 
-  const validLocs = targetPlugin.locations.filter(
+  const allLocs = targetPlugin.locations.filter(
     l => !targetPlayer.locationStates[l.id]?.isLocked,
   );
 
-  // Determine if chosen card requires a target card (e.g. Polvo de Hada → HERO, Burla → HERO)
-  const reqTarget = chosenCard?.effectIds
-    .map(id => getEffectDef(id)?.requiresTargetCard)
-    .find(Boolean) ?? null;
-
-  const targetsAtLoc = (reqTarget && targetLocId)
+  const reqTarget = chosenCard?.effectIds.map(id => getEffectDef(id)?.requiresTargetCard).find(Boolean) ?? null;
+  const targetsAtLoc = (reqTarget && targetLocId && reqTarget !== 'CURSE')
     ? Object.values(state.allCards).filter(c =>
-        c.locationId === targetLocId &&
+        c.locationId === targetLocId && c.ownerId === targetPlayer.id &&
+        c.cardType === (reqTarget === 'ALLY' ? CardType.ALLY : CardType.HERO))
+    : [];
+
+  const availableCurses = reqTarget === 'CURSE'
+    ? Object.values(state.allCards).filter(c =>
         c.ownerId === targetPlayer.id &&
-        c.cardType === (reqTarget === 'ALLY' ? CardType.ALLY : CardType.HERO),
-      )
+        c.cardType === CardType.CURSE &&
+        c.locationId &&
+        (targetPlayer.locationStates[c.locationId]?.heroCardInstIds.length ?? 0) > 0)
     : [];
 
   const canConfirm = chosenId && (
-    chosenCard?.cardType === CardType.EFFECT ||
+    (chosenCard?.cardType === CardType.EFFECT && reqTarget !== 'CURSE') ||
+    (reqTarget === 'CURSE' && !!targetCardId) ||
     (targetLocId && (!reqTarget || targetsAtLoc.length === 0 || !!targetCardId))
   );
 
   function confirm() {
     if (!chosenId) return;
-    const loc = targetLocId ?? validLocs[0]?.id;
+    if (reqTarget === 'CURSE') {
+      if (!targetCardId) return;
+      const curse = state.allCards[targetCardId];
+      const loc = curse?.locationId ?? allLocs[0]?.id;
+      if (!loc) return;
+      doFateResolve(chosenId, loc, { targetCardInstId: targetCardId });
+      setChosenId(null); setTargetLocId(null); setTargetCardId(null);
+      return;
+    }
+    const loc = targetLocId ?? allLocs[0]?.id;
     if (!loc) return;
     doFateResolve(chosenId, loc, targetCardId ? { targetCardInstId: targetCardId } : {});
-    setChosenId(null);
-    setTargetLocId(null);
-    setTargetCardId(null);
+    setChosenId(null); setTargetLocId(null); setTargetCardId(null);
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal fate-modal">
-        <h2>Acción Destino</h2>
-        <p>Jugando contra <strong>{targetPlayer.name}</strong>. Elige una carta para jugar:</p>
+    /* Panel deslizante desde arriba — tablero completamente visible debajo */
+    <div className="fixed top-12 inset-x-0 z-50 bg-surface-container-highest/97 backdrop-blur-xl border-b border-error/30 shadow-2xl animate-slide-down">
 
-        <div className="fate-cards">
+      <div className="max-w-375 mx-auto px-4 py-3 flex flex-col gap-3">
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="font-serif text-sm font-bold text-error">Acción Destino</span>
+            <span className="text-on-surface-variant/60 text-[11px] ml-2">
+              contra <strong className="text-on-surface">{targetPlayer.name}</strong>
+              {' '}· Arrastra una carta al tablero o elige ubicación abajo
+            </span>
+          </div>
+          {canConfirm && (
+            <button className={BTN} onClick={confirm}>Confirmar</button>
+          )}
+        </div>
+
+        {/* Cards — fila horizontal, arrastrables al tablero */}
+        <div className="flex gap-3 overflow-x-auto pb-1">
           {autoPlayedCards.map(card => (
-            <div key={card.instId} className="fate-card-option fate-card-auto">
-              <div className="fate-card-name">{card.name}</div>
-              <div className="fate-card-type">{card.cardType}</div>
-              {card.baseStrength !== undefined && (
-                <div className="fate-card-strength">Fuerza: {card.baseStrength}</div>
-              )}
-              <div className="fate-card-auto-label">Jugado automáticamente</div>
+            <div key={card.instId} className="opacity-40 pointer-events-none shrink-0">
+              <CardComponent card={card} state={state} />
             </div>
           ))}
-          {revealedCards.map(card => (
-            <div
-              key={card.instId}
-              className={`fate-card-option ${chosenId === card.instId ? 'selected' : ''}`}
-              onClick={() => { setChosenId(card.instId); setTargetLocId(null); }}
-            >
-              <div className="fate-card-name">{card.name}</div>
-              <div className="fate-card-type">{card.cardType}</div>
-              {card.baseStrength !== undefined && (
-                <div className="fate-card-strength">Fuerza: {card.baseStrength}</div>
-              )}
-            </div>
-          ))}
+          {revealedCards.map(card => {
+            const isChosen = chosenId === card.instId;
+            return (
+              <div
+                key={card.instId}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', card.instId);
+                  setChosenId(card.instId);
+                  onFateDragStart?.(card.instId);
+                }}
+                onDragEnd={() => onFateDragEnd?.()}
+                onClick={() => { setChosenId(card.instId); setTargetLocId(null); setTargetCardId(null); }}
+                className={`shrink-0 cursor-grab active:cursor-grabbing select-none transition-all rounded-xl ${
+                  isChosen ? 'ring-2 ring-tertiary scale-105' : 'opacity-75 hover:opacity-100 hover:scale-105'
+                }`}
+              >
+                <CardComponent card={card} state={state} selected={isChosen} />
+              </div>
+            );
+          })}
         </div>
 
-        {chosenId && chosenCard?.cardType !== CardType.EFFECT && (
-          <>
-            <p>Elige ubicación en el Reino de {targetPlayer.name}:</p>
-            <div className="loc-select-list">
-              {validLocs.map(l => (
-                <button
-                  key={l.id}
-                  className={`loc-select-btn ${targetLocId === l.id ? 'selected' : ''}`}
-                  onClick={() => { setTargetLocId(l.id); setTargetCardId(null); }}
-                >
-                  {l.name}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {targetLocId && reqTarget && (
-          <>
-            <p>Adjuntar a {reqTarget === 'ALLY' ? 'un Aliado' : 'un Héroe'} en esa ubicación:</p>
-            {targetsAtLoc.length === 0
-              ? <p className="cond-warning">No hay {reqTarget === 'ALLY' ? 'Aliados' : 'Héroes'} aquí. Se jugará sin adjuntar.</p>
-              : (
-                <div className="card-select-list">
-                  {targetsAtLoc.map(c => (
-                    <button
-                      key={c.instId}
-                      className={`card-select-btn ${targetCardId === c.instId ? 'selected' : ''}`}
-                      onClick={() => setTargetCardId(c.instId)}
-                    >
-                      {c.name} (Fuerza: {getEffectiveStrength(state, c.instId)})
-                    </button>
-                  ))}
-                </div>
-              )
+        {/* Curse picker */}
+        {chosenId && reqTarget === 'CURSE' && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-on-surface-variant shrink-0">Maldición a descartar:</span>
+            {availableCurses.length === 0
+              ? <span className="text-xs text-error/60">No hay Maldiciones en ubicaciones con Héroes.</span>
+              : availableCurses.map(c => (
+                  <div
+                    key={c.instId}
+                    onClick={() => setTargetCardId(c.instId)}
+                    className={`cursor-pointer shrink-0 transition-all rounded-xl ${targetCardId === c.instId ? 'ring-2 ring-error scale-105' : 'opacity-70 hover:opacity-100 hover:scale-105'}`}
+                  >
+                    <CardComponent card={c} state={state} selected={targetCardId === c.instId} />
+                  </div>
+                ))
             }
-          </>
+          </div>
         )}
 
-        <div className="modal-footer">
-          <button
-            className="action-btn primary"
-            disabled={!canConfirm}
-            onClick={confirm}
-          >
-            Confirmar
-          </button>
-        </div>
+        {/* Location picker (fallback cuando no se puede arrastrar) */}
+        {chosenId && chosenCard?.cardType !== CardType.EFFECT && reqTarget !== 'CURSE' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] text-on-surface-variant/60 shrink-0">Ubicación:</span>
+            {allLocs.map(l => (
+              <button key={l.id}
+                onClick={() => { setTargetLocId(l.id); setTargetCardId(null); }}
+                className={targetLocId === l.id
+                  ? 'px-2 py-1 rounded border border-tertiary bg-tertiary/10 text-tertiary text-[11px] font-stats font-bold'
+                  : 'px-2 py-1 rounded border border-outline-variant/40 text-[11px] font-stats text-on-surface-variant bg-surface-container hover:border-primary hover:text-primary transition-all'}
+              >{l.name}</button>
+            ))}
+          </div>
+        )}
+
+        {/* Target card picker */}
+        {targetLocId && reqTarget && reqTarget !== 'CURSE' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] text-on-surface-variant/60 shrink-0">
+              {reqTarget === 'ALLY' ? 'Aliado:' : 'Héroe:'}
+            </span>
+            {targetsAtLoc.length === 0
+              ? <span className="text-[11px] text-error/70">No hay ninguno aquí. Se jugará sin adjuntar.</span>
+              : targetsAtLoc.map(c => (
+                  <button key={c.instId}
+                    className={targetCardId === c.instId
+                      ? 'px-2 py-1 rounded border border-tertiary bg-tertiary/10 text-tertiary text-[11px] font-stats font-bold'
+                      : 'px-2 py-1 rounded border border-outline-variant/40 text-[11px] font-stats text-on-surface-variant bg-surface-container hover:border-primary hover:text-primary transition-all'}
+                    onClick={() => setTargetCardId(c.instId)}>
+                    {c.name} (F:{getEffectiveStrength(state, c.instId)})
+                  </button>
+                ))
+            }
+          </div>
+        )}
       </div>
     </div>
   );

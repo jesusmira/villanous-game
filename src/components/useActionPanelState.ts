@@ -17,10 +17,11 @@ export function useActionPanelState(state: GameState, playerId: string) {
     doVanquish:        s.doVanquish,
     doMoveItemAlly:    s.doMoveItemAlly,
     doMoveHero:        s.doMoveHero,
-    doDrawCards:       s.doDrawCards,
-    doEndActivate:     s.doEndActivate,
-    doActivateCard:    s.doActivateCard,
-    doDiscardFromHand: s.doDiscardFromHand,
+    doDrawCards:        s.doDrawCards,
+    doEndActivate:      s.doEndActivate,
+    doRevertToActivate: s.doRevertToActivate,
+    doActivateCard:     s.doActivateCard,
+    doDiscardFromHand:  s.doDiscardFromHand,
   })));
   const player = getPlayer(state, playerId);
   const plugin = getPlugin(player.villainId);

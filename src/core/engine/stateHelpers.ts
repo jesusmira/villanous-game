@@ -209,9 +209,9 @@ export function discardCardFromKingdom(
     }
   }
 
-  // Detach any items
+  // Discard attached items along with the card (per rules: items go to discard when ally is defeated)
   for (const itemId of card.attachedItemInstIds) {
-    s = updateCard(s, itemId, { attachedToInstId: undefined });
+    s = discardCardFromKingdom(s, itemId);
   }
   if (card.attachedToInstId) {
     const host = s.allCards[card.attachedToInstId];

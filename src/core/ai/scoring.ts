@@ -65,6 +65,10 @@ export function scoreLocation(state: GameState, player: PlayerState, locId: Loca
         break;
     }
   }
+  // Small random noise to break ties between equal-scoring locations,
+  // preventing the AI from always picking the exact same path each game.
+  score += Math.random() * 1.2 - 0.6;
+
   return score;
 }
 

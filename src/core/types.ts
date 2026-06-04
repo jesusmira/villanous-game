@@ -117,7 +117,7 @@ export interface EffectDef {
   execute: EffectFn;
   computeStrengthBonus?: (state: GameState, cardInstId: CardInstId) => number;
   computePlayCostModifier?: (state: GameState, playerId: PlayerId, cardToPlay: CardInst, effectCardInstId: CardInstId, targetLocationId: LocationId) => number;
-  requiresTargetCard?: 'ALLY' | 'HERO';
+  requiresTargetCard?: 'ALLY' | 'HERO' | 'CURSE';
   requiresTargetHeroAnywhere?: boolean;
   requiresTargetLocation?: boolean;
   canVanquishFromAdjacent?: boolean;
@@ -171,6 +171,7 @@ export interface GameState {
   pendingCondition?: PendingCondition;
   pendingCuervo?: { playerId: PlayerId; locationId: LocationId };
   pendingDemosles?: { playerId: PlayerId; topCardIds: CardInstId[] };
+  pendingAuroraHero?: { heroInstId: CardInstId; targetPlayerId: PlayerId; actingPlayerId: PlayerId };
   log: string[];
 }
 

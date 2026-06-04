@@ -1,6 +1,6 @@
 import { CardType } from '../types';
 import type { GameState, CardInstId, LocationId, PlayerId } from '../types';
-import { getPlugin } from '../villains/registry';
+import { getPlugin, getEffectDef } from '../villains/registry';
 import { EffectId, CardDefId } from '../villains/effectIds';
 import { HookLocationId } from '../villains/hook/cards';
 import { getPlayer } from '../engine/stateHelpers';
@@ -10,9 +10,37 @@ export function buildPlayCtx(
   playerId: PlayerId,
   cardInstId: CardInstId,
   _targetLocId: LocationId,
-): { targetCardInstId?: CardInstId; auxiliaryInstIds?: CardInstId[]; targetLocationId?: LocationId } {
+): { targetCardInstId?: CardInstId; auxiliaryInstIds?: CardInstId[]; targetLocationId?: LocationId; mapaInstId?: CardInstId } {
   const card = state.allCards[cardInstId];
-  const ctx: { targetCardInstId?: CardInstId; targetLocationId?: LocationId } = {};
+  const ctx: { targetCardInstId?: CardInstId; targetLocationId?: LocationId; mapaInstId?: CardInstId } = {};
+
+  // Mapa de Nunca Jamás: auto-use when playing an ITEM the player can't afford otherwise
+  if (card.cardType === CardType.ITEM) {
+    const player = getPlayer(state, playerId);
+    const effectiveCost = Math.max(0, card.baseCost + card.costModifier);
+    if (player.power < effectiveCost) {
+      const mapaId = Object.values(state.allCards).find(
+        c => c.defId.startsWith('hook_v_mapa') && c.ownerId === playerId && !!c.locationId,
+      )?.instId;
+      if (mapaId) ctx.mapaInstId = mapaId;
+    }
+  }
+
+  // Generic: item/effect that needs an ALLY or HERO target at the chosen location
+  const reqTarget = card.effectIds.map(id => getEffectDef(id)?.requiresTargetCard).find(Boolean);
+  if (reqTarget && !ctx.targetCardInstId) {
+    const player = getPlayer(state, playerId);
+    const locState = player.locationStates[_targetLocId];
+    if (reqTarget === 'ALLY') {
+      const allyId = locState?.villainCardInstIds.find(
+        id => state.allCards[id]?.cardType === CardType.ALLY,
+      );
+      if (allyId) ctx.targetCardInstId = allyId;
+    } else if (reqTarget === 'HERO') {
+      const heroId = locState?.heroCardInstIds[0];
+      if (heroId) ctx.targetCardInstId = heroId;
+    }
+  }
 
   // Espada de la Verdad: needs a hero to attach to
   if (card.effectIds.includes(EffectId.ESPADA_ON_PLAY)) {

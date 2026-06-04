@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="es" style=""><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Villainous Duel Mode - Final Export Code</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&amp;family=Manrope:wght@400;500;600&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#93000a",
+                        "on-surface": "#e5e2e1",
+                        "background": "#131313",
+                        "surface-dim": "#131313",
+                        "tertiary-fixed": "#ffe088",
+                        "tertiary-container": "#cca830",
+                        "surface-container-low": "#1c1b1b",
+                        "surface": "#131313",
+                        "secondary-container": "#75fd00",
+                        "outline": "#948e99",
+                        "on-primary-fixed": "#231043",
+                        "surface-bright": "#393939",
+                        "on-secondary-fixed-variant": "#215100",
+                        "primary": "#d3bcf9",
+                        "outline-variant": "#49454e",
+                        "inverse-surface": "#e5e2e1",
+                        "on-tertiary-fixed": "#241a00",
+                        "on-primary": "#382759",
+                        "surface-container-highest": "#353534",
+                        "on-tertiary-container": "#4f3e00",
+                        "on-secondary-fixed": "#092100",
+                        "on-background": "#e5e2e1",
+                        "secondary": "#f8ffec",
+                        "on-secondary": "#153800",
+                        "secondary-fixed-dim": "#67e100",
+                        "on-secondary-container": "#307000",
+                        "on-tertiary": "#3c2f00",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-primary-container": "#9783bc",
+                        "on-primary-fixed-variant": "#4f3d71",
+                        "tertiary-fixed-dim": "#e9c349",
+                        "inverse-primary": "#68558a",
+                        "primary-container": "#2d1b4d",
+                        "surface-container-high": "#2a2a2a",
+                        "on-tertiary-fixed-variant": "#574500",
+                        "inverse-on-surface": "#313030",
+                        "error": "#ffb4ab",
+                        "primary-fixed": "#ebdcff",
+                        "on-surface-variant": "#cbc4cf",
+                        "primary-fixed-dim": "#d3bcf9",
+                        "on-error-container": "#ffdad6",
+                        "surface-container": "#201f1f",
+                        "surface-tint": "#d3bcf9",
+                        "on-error": "#690005",
+                        "surface-variant": "#353534",
+                        "secondary-fixed": "#80ff2c",
+                        "tertiary": "#e9c349"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "realm-padding": "3rem",
+                        "section-margin": "2rem",
+                        "gutter": "1.5rem",
+                        "card-gap": "1rem"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Libre Caslon Text"],
+                        "display-title": ["Libre Caslon Text"],
+                        "headline-lg": ["Libre Caslon Text"],
+                        "stats-num": ["Space Grotesk"],
+                        "label-caps": ["Space Grotesk"],
+                        "body-md": ["Manrope"],
+                        "card-title": ["Libre Caslon Text"],
+                        "body-sm": ["Manrope"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "display-title": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "stats-num": ["18px", {"lineHeight": "18px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "card-title": ["20px", {"lineHeight": "24px", "fontWeight": "600"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style class="">body { background: radial-gradient(circle at center, #1c1b1b 0%, #0e0e0e 100%); overflow-x: hidden; color: #e5e2e1; } .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; } .location-glow { box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 0 10px rgba(211, 188, 249, 0.1); } .gold-border { border: 1px solid #e9c349; } .scrollbar-hide::-webkit-scrollbar { display: none; } .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; } .card-slot { @apply border border-dashed border-outline-variant/30 rounded-lg flex items-center justify-center min-h-[120px] md:min-h-[160px] w-full relative; } .ally-zone { background: linear-gradient(to top, rgba(117, 253, 0, 0.08) 0%, transparent 100%); } .villainous-card { width: 70px; height: 105px; position: relative; border-radius: 6px; background: #1a1a1a; box-shadow: 0 10px 20px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.3); overflow: hidden; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; transition: all 0.3s ease; } @media (min-width: 768px) { .villainous-card { width: 100px; height: 150px; } } .card-inner-frame { position: absolute; inset: 3px; border: 1px solid #e9c349; pointer-events: none; z-index: 10; } @media (min-width: 768px) { .card-inner-frame { inset: 4px; border-width: 1.5px; } } .card-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; } .card-info-box { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(19, 19, 19, 0.95); backdrop-blur: 4px; padding: 2px; z-index: 20; border-top: 1px solid rgba(233, 195, 73, 0.3); min-height: 45%; display: flex; flex-direction: column; gap: 0.5px; } @media (min-width: 768px) { .card-info-box { padding: 4px 4px; min-height: 40%; gap: 1px; } } .card-name { font-family: 'Libre Caslon Text', serif; font-size: 7px; font-weight: 700; color: #e9c349; line-height: 1.1; text-transform: uppercase; letter-spacing: 0.02em; } @media (min-width: 768px) { .card-name { font-size: 9px; } } .card-type { font-family: 'Space Grotesk', sans-serif; font-size: 5px; font-weight: 600; color: #cbc4cf; text-transform: uppercase; letter-spacing: 0.05em; } @media (min-width: 768px) { .card-type { font-size: 7px; } } .card-ability { font-family: 'Manrope', sans-serif; font-size: 6px; color: #e5e2e1; line-height: 1.2; margin-top: 1px; } @media (min-width: 768px) { .card-ability { font-size: 8px; margin-top: 3px; } } .card-cost { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #2d1b4d; border: 1px solid #d3bcf9; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 30; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 7px; color: #d3bcf9; box-shadow: 0 2px 4px rgba(0,0,0,0.5); } @media (min-width: 768px) { .card-cost { top: 3px; left: 3px; width: 18px; height: 18px; border-width: 1px; font-size: 9px; } } .hero-card .card-inner-frame { border-color: #ffb4ab; } .hero-card .card-name { color: #ffb4ab; } .hero-card .card-cost { background: #93000a; border-color: #ffb4ab; color: #ffb4ab; }
+.toggle-active { border-color: #d3bcf9 !important; background-color: rgba(211, 188, 249, 0.1) !important; }
+</style>
+</head>
+<body class="font-body-md text-body-md min-h-screen pb-40">
+<nav class="fixed top-0 left-0 right-0 z-[100] h-14 md:h-12 bg-surface-container-low/95 backdrop-blur-md border-b border-outline-variant/30 flex items-center justify-between px-4 md:px-6 shadow-md">
+<div class="flex items-center gap-3 md:gap-6">
+<div class="flex items-center gap-2 md:gap-3">
+<span class="material-symbols-outlined text-primary-fixed-dim text-lg">grid_view</span>
+<span class="font-headline-lg italic text-base md:text-lg text-on-surface leading-none tracking-tight">Villainous</span>
+</div>
+<div class="hidden sm:block h-4 w-px bg-outline-variant/40"></div>
+<span class="hidden sm:inline font-label-caps text-[8px] md:text-[10px] text-on-surface-variant uppercase tracking-[0.1em] md:tracking-[0.2em]">Active Turn: Captain Hook</span>
+</div>
+<div class="flex items-center gap-3 md:gap-6 text-on-surface-variant">
+<button class="hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[18px] md:text-[20px]">history</span>
+</button>
+<button class="hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[18px] md:text-[20px]">settings</span>
+</button>
+<div class="flex items-center gap-2 md:gap-3 ml-1 md:ml-2">
+<span class="material-symbols-outlined text-[18px] md:text-[20px] cursor-pointer hover:text-primary">star</span>
+<span class="hidden xs:inline material-symbols-outlined text-[18px] md:text-[20px] cursor-pointer hover:text-primary">thumb_up</span>
+</div>
+</div>
+</nav>
+<!-- Main Scroll Container -->
+<main class="w-full pt-16 px-4 md:px-8">
+<section class="max-w-[1500px] mx-auto flex flex-col gap-12 md:gap-20">
+<!-- PLAYER 1: CAPTAIN HOOK -->
+<article class="space-y-6">
+<header class="w-full flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6"><div class="flex flex-wrap items-center justify-between w-full gap-4"><div class="flex items-center gap-4 flex-1"><div class="w-12 h-12 md:w-14 md:h-14 rounded-full border-2 border-tertiary overflow-hidden shadow-[0_0_15px_rgba(233,195,73,0.4)] flex-shrink-0"><div class="group relative">
+<img alt="Hook" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida/AP1WRLvlN87hRJBVCME6-VRGqnUKqaxnGkCui7b8ytT_I43mnIMp0DhfJ45uVIy7ypcRk3KQaIZOC9KbTN5qirDqJ9uU8iCaq1HeFz1gF-R0O-9I2PsSSULdMFSVGlRtRMj98x_41TM2CC8dtdrjCL_gf1ttcUiFQCq9hWUEziT_y5r5xLQ_k9gGAINtGyphP8bfR3XzDLcUIy1WW-a_nkK8K5m_SV1UNqa1m77Fg2Ekhx79hZrDYljOdR7oPHE"/>
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-surface-container-highest border border-tertiary rounded shadow-xl z-50 text-xs text-center font-body-sm pointer-events-none"><span class="text-tertiary font-bold block mb-1">OBJETIVO:</span>Derrotar a Peter Pan en el  rbol del Ahorcado</div>
+</div></div><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6"><div><h1 class="font-display-title text-2xl md:text-3xl text-primary leading-none">Capitán Garfio</h1><p class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-widest">Jugador 1</p></div><div class="flex flex-wrap items-center gap-x-3 text-error/80 border-l border-outline-variant/30 pl-4 h-8"><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[12px] md:text-[14px]" style='font-variation-settings: "FILL" 1;'>close</span><span class="font-label-caps text-[8px] md:text-[10px] uppercase tracking-wide">Árbol bloqueado</span></div><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[12px] md:text-[14px]" style='font-variation-settings: "FILL" 1;'>close</span><span class="font-label-caps text-[8px] md:text-[10px] uppercase tracking-wide">Peter Pan no encontrado</span></div><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[12px] md:text-[14px]" style='font-variation-settings: "FILL" 1;'>close</span><span class="font-label-caps text-[8px] md:text-[10px] uppercase tracking-wide">Peter Pan no derrotado</span></div></div></div></div><div class="bg-surface-container-low/40 backdrop-blur-md border border-outline-variant/40 px-4 py-2 rounded-full flex items-center gap-4 shadow-xl"><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-secondary-container text-lg md:text-xl" style='font-variation-settings: "FILL" 1;'>bolt</span><span class="font-stats-num text-base md:text-lg">12</span></div><div class="w-px h-4 bg-outline-variant/30"></div><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary text-lg md:text-xl">style</span><span class="font-stats-num text-base md:text-lg">4</span></div><div class="w-px h-4 bg-outline-variant/30"></div><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-on-surface-variant text-lg md:text-xl">layers</span><span class="font-stats-num text-base md:text-lg">18</span></div><div class="w-px h-4 bg-outline-variant/30"></div><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-error text-lg md:text-xl">auto_stories</span><span class="font-stats-num text-base md:text-lg">11</span></div></div></div></header>
+<!-- Board Grid -->
+<div class="overflow-x-auto lg:overflow-x-visible pb-4 scrollbar-hide">
+<div class="grid grid-cols-4 min-w-[800px] lg:min-w-0 gap-4 md:gap-6 items-start px-6 mx-auto origin-top scale-[0.85] -mb-[10%]">
+<!-- Column 1 -->
+<div class="flex flex-col gap-4">
+<div class="relative w-full aspect-[3/4] group">
+<div class="absolute inset-0 top-[15%] h-[85%] rounded-xl overflow-hidden gold-border location-glow cursor-pointer transition-transform hover:scale-[1.01]" style="height: 90%; top: 10%;">
+<div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCDidysrdWfKYBN7BDMWtFqG54jT33Fb_pd_i6sEwYFID1tQhG_3YNtwdUWCt_sFfJOjBO__Sa04KdtvYLjeKQbzymq5V9r_gBV3JH-HMyyOXNG8UHs_3XKw2Up4rDQ5io6UwFCjVUYVMxXoQMWU-M6hrV8xB95n3VQAOqWwDJpMrM3OKjEc4Apu3SMcsqdPqeaIuMy1jhJmqQz6hyvLQr5EzNgO8UWCadbp9vaThya7C3JRGDGRnPiIZRaC1cm2xW6r8GEcwGO6cZX');"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent"></div>
+<div class="absolute inset-0 p-4 flex flex-col justify-between items-center">
+<div class="flex justify-center gap-4 md:gap-6 w-full">
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-primary flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-primary scale-\[1\.43\] inline-block">payments</span></div>
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-primary flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-primary scale-\[1\.43\] inline-block">add_circle</span></div>
+</div>
+<div class="flex justify-center gap-4 md:gap-6 w-full mb-4 md:mb-8">
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-secondary-fixed flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-secondary-fixed scale-\[1\.43\] inline-block">auto_stories</span></div>
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-error flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-error scale-\[1\.43\] inline-block">delete_forever</span></div>
+</div>
+</div>
+<div class="absolute inset-0 p-3 md:p-4 flex flex-col justify-end items-center">
+<h3 class="font-headline-lg text-[10px] md:text-sm text-primary uppercase tracking-[0.2em]">Jolly Roger</h3>
+</div>
+</div>
+<!-- Hero Overlay -->
+<div class="absolute top-0 left-1/2 -translate-x-1/2 z-20 villainous-card hero-card shadow-[0_15px_30px_rgba(0,0,0,0.8)] scale-\[0\.7\] origin-center scale-[1.15]">
+<div class="card-inner-frame"></div>
+<div class="card-cost">4</div>
+<img alt="Peter Pan" class="card-art" src="https://lh3.googleusercontent.com/aida/AP1WRLuOUMsn7Qr5FgmHJYkhRLXNh2Rj6YPnhmq5eOXe6PbdqBWyN_5SULU5ClaxQCotlEgiUKjSaiyczKQCtt0GLg2kYnHSEN1K2x7kpcOrwQ1-hXrGvPmSczKNI7nI9jR6jUVnspfbBGQxkyGl3VcfMwCRQd9R3Jrlp_pW2-lnn6qEBD6qdLR5WlKObGwRXrIoPJSpbVo6TMKdK6twsN5T4HSKiQnAA0CjJwNEMGz8okeu43Y66ykQPCz5oCtm"/>
+<div class="card-info-box">
+<span class="card-name">Peter Pan</span>
+<span class="card-type">Hero</span>
+<p class="card-ability">Peter Pan cannot be defeated unless The Lost Boys are at his location.</p>
+</div>
+</div>
+</div>
+<div class="ally-zone card-slot group hover:border-secondary-container transition-colors p-2">
+<span class="absolute bottom-2 left-2 text-[6px] md:text-[8px] font-label-caps text-secondary-container/60 group-hover:text-secondary-container uppercase">Aliados y Objetos</span>
+<div class="flex gap-2 hover:space-x-2 transition-all -space-x-12 md:-space-x-16">
+<div class="villainous-card transform hover:z-30 hover:-translate-y-2 transition-transform duration-300 origin-center scale-[1.15]">
+<div class="card-inner-frame"></div>
+<div class="card-cost">2</div>
+<img alt="Mr. Smee" class="card-art" src="https://lh3.googleusercontent.com/aida/AP1WRLuOUMsn7Qr5FgmHJYkhRLXNh2Rj6YPnhmq5eOXe6PbdqBWyN_5SULU5ClaxQCotlEgiUKjSaiyczKQCtt0GLg2kYnHSEN1K2x7kpcOrwQ1-hXrGvPmSczKNI7nI9jR6jUVnspfbBGQxkyGl3VcfMwCRQd9R3Jrlp_pW2-lnn6qEBD6qdLR5WlKObGwRXrIoPJSpbVo6TMKdK6twsN5T4HSKiQnAA0CjJwNEMGz8okeu43Y66ykQPCz5oCtm"/>
+<div class="card-info-box"><span class="card-name">Sr. Smee</span><span class="card-type">Aliado</span><p class="card-ability">Mueve un Héroe.</p></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Column 2 -->
+<div class="flex flex-col gap-4">
+<div class="relative w-full aspect-[3/4] group">
+<div class="absolute inset-0 top-[15%] h-[85%] rounded-xl overflow-hidden gold-border location-glow cursor-pointer transition-transform hover:scale-[1.01]" style="height: 90%; top: 10%;">
+<div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida/AP1WRLugu9pARrhiO-oKeoco6CoomPZs-4GUEXfcvW-sGFJbJfCIm_EoQyjS9aUVT_DWUCIwgvcImX8liCfpw9cTjxCQoqNHm3vVI-bgfgdH3UIDuS0yxQZ8GZDkiflzqUGzMeYyqP6Y7U3jpPu2B7znZOWDcdi3XfmQxfM558DH57uJ9BVrHD0JmJVDHQte_q4zMtt7F3CF44atoibc-CyMGYc5d__vE8as7mrIq0FeWAT7oMP0aQO5nJDuJeZO');"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent"></div>
+<div class="absolute inset-0 p-4 flex flex-col justify-between items-center">
+<div class="flex justify-center gap-4 md:gap-6 w-full">
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-primary flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-primary scale-\[1\.43\] inline-block">payments</span></div>
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-secondary-fixed flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-secondary-fixed scale-\[1\.43\] inline-block">move_down</span></div>
+</div>
+<div class="flex justify-center gap-4 md:gap-6 w-full mb-4 md:mb-8">
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-primary flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-primary scale-\[1\.43\] inline-block">add_circle</span></div>
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-error flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-error scale-\[1\.43\] inline-block">bolt</span></div>
+</div>
+</div>
+<div class="absolute inset-0 p-3 md:p-4 flex flex-col justify-end items-center">
+<h3 class="font-headline-lg text-[10px] md:text-sm text-primary uppercase tracking-[0.2em]">Skull Rock</h3>
+</div>
+</div>
+</div>
+<div class="ally-zone card-slot group hover:border-secondary-container transition-colors p-2">
+<span class="absolute bottom-2 left-2 text-[6px] md:text-[8px] font-label-caps text-secondary-container/40 uppercase">Aliados y Objetos</span>
+</div>
+</div>
+<!-- Column 3 -->
+<div class="flex flex-col gap-4">
+<div class="relative w-full aspect-[3/4] group">
+<div class="absolute inset-0 top-[15%] h-[85%] rounded-xl overflow-hidden gold-border location-glow cursor-pointer transition-transform hover:scale-[1.01]" style="height: 90%; top: 10%;">
+<div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBJNlCvlc0Ok-t-vG1xivqzwfvHxukifWM9XrLmufCHAfbCZ8p389uYftlt1yZ1PhD69ibF0pILFt2hXV339qZk7g1p0VroeHYIem3BOkvQkZZ4ILnQ_D-OscpvkaSU3Kxo9b_mwMTWS_wifm7wgAU3OELQ4nBOHNHRP3euk2vAvSbsMe_lOBVTJwPSnR5iuI5LfXd-pjDoFc_VTupxubfFGJ0sL4if9-BQQcbt_vKZAnB00wEiF4jKgAsjt-TVwWrqjmIciP_crCBj');"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent"></div>
+<div class="absolute inset-0 p-4 flex flex-col justify-between items-center">
+<div class="flex justify-center gap-4 md:gap-6 w-full">
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-primary flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-primary scale-\[1\.43\] inline-block">payments</span></div>
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-primary flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-primary scale-\[1\.43\] inline-block">payments</span></div>
+</div>
+<div class="flex justify-center gap-4 md:gap-6 w-full mb-4 md:mb-8">
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-secondary-fixed flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-secondary-fixed scale-\[1\.43\] inline-block">auto_stories</span></div>
+<div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-black/80 border md:border-2 border-primary flex items-center justify-center shadow-lg scale-\[1\.43\] scale-[1.2]"><span class="material-symbols-outlined text-[16px] md:text-[20px] text-primary scale-\[1\.43\] inline-block">add_circle</span></div>
+</div>
+</div>
+<div class="absolute inset-0 p-3 md:p-4 flex flex-col justify-end items-center">
+<h3 class="font-headline-lg text-[10px] md:text-sm text-primary uppercase tracking-[0.2em]">Lagoon</h3>
+</div>
+</div>
+</div>
+<div class="ally-zone card-slot group hover:border-secondary-container transition-colors p-2">
+<span class="absolute bottom-2 left-2 text-[6px] md:text-[8px] font-label-caps text-secondary-container/40 uppercase">Aliados y Objetos</span>
+</div>
+</div>
+<!-- Column 4 Locked -->
+<div class="flex flex-col gap-4">
+<div class="relative w-full aspect-[3/4] group">
+<div class="absolute inset-0 top-[15%] h-[85%] rounded-xl overflow-hidden border border-outline-variant/40 location-glow cursor-not-allowed" style="height: 90%; top: 10%;">
+<div class="absolute inset-0 bg-cover bg-center grayscale opacity-40 blur-[2px]" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCDidysrdWfKYBN7BDMWtFqG54jT33Fb_pd_i6sEwYFID1tQhG_3YNtwdUWCt_sFfJOjBO__Sa04KdtvYLjeKQbzymq5V9r_gBV3JH-HMyyOXNG8UHs_3XKw2Up4rDQ5io6UwFCjVUYVMxXoQMWU-M6hrV8xB95n3VQAOqWwDJpMrM3OKjEc4Apu3SMcsqdPqeaIuMy1jhJmqQz6hyvLQr5EzNgO8UWCadbp9vaThya7C3JRGDGRnPiIZRaC1cm2xW6r8GEcwGO6cZX');"></div>
+<div class="absolute inset-0 bg-background/60"></div>
+<div class="absolute inset-0 flex items-center justify-center z-10">
+<div class="flex flex-col items-center gap-1 md:gap-2">
+<span class="material-symbols-outlined text-2xl md:text-4xl text-outline scale-\[1\.43\] inline-block" style='font-variation-settings: "FILL" 1;'>lock</span>
+<span class="font-label-caps text-[8px] md:text-[10px] text-outline tracking-widest">BLOQUEADO</span>
+</div>
+</div>
+<div class="absolute inset-0 p-3 md:p-4 flex flex-col justify-end items-center">
+<h3 class="font-headline-lg text-[10px] md:text-sm text-outline uppercase tracking-[0.2em]">Hangman's Tree</h3>
+</div>
+</div>
+</div>
+<div class="ally-zone card-slot group hover:border-secondary-container transition-colors p-2">
+<span class="absolute bottom-2 left-2 text-[6px] md:text-[8px] font-label-caps text-secondary-container/40 uppercase">Aliados y Objetos</span>
+</div>
+</div>
+</div>
+</div>
+</article>
+<!-- HAND DISPLAY: TU MANO -->
+<!-- PLAYER 2: MALEFICENT -->
+<article class="space-y-6 pb-20 mt-40">
+<header class="w-full flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6"><div class="flex flex-wrap items-center justify-between w-full gap-4"><div class="flex items-center gap-4 flex-1"><div class="w-12 h-12 md:w-14 md:h-14 rounded-full border-2 border-tertiary overflow-hidden shadow-[0_0_15px_rgba(233,195,73,0.4)] flex-shrink-0"><div class="group relative">
+<img alt="Maleficent" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida/AP1WRLuOUMsn7Qr5FgmHJYkhRLXNh2Rj6YPnhmq5eOXe6PbdqBWyN_5SULU5ClaxQCotlEgiUKjSaiyczKQCtt0GLg2kYnHSEN1K2x7kpcOrwQ1-hXrGvPmSczKNI7nI9jR6jUVnspfbBGQxkyGl3VcfMwCRQd9R3Jrlp_pW2-lnn6qEBD6qdLR5WlKObGwRXrIoPJSpbVo6TMKdK6twsN5T4HSKiQnAA0CjJwNEMGz8okeu43Y66ykQPCz5oCtm"/>
+<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-surface-container-highest border border-tertiary rounded shadow-xl z-50 text-xs text-center font-body-sm pointer-events-none">
+<span class="text-tertiary font-bold block mb-1">OBJETIVO:</span>
+    Empezar el turno con una Maldici n en cada localizaci n
+  </div>
+</div></div><div class="flex flex-col"><h1 class="font-display-title text-2xl md:text-3xl text-primary leading-none">Maléfica</h1><p class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-widest mt-1">Mistress of All Evil</p></div></div><div class="bg-surface-container-low/40 backdrop-blur-md border border-outline-variant/40 px-4 py-2 rounded-full flex items-center gap-4 shadow-xl"><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-secondary-container text-lg md:text-xl" style='font-variation-settings: "FILL" 1;'>bolt</span><span class="font-stats-num text-base md:text-lg">8</span></div><div class="w-px h-4 bg-outline-variant/30"></div><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-primary text-lg md:text-xl">style</span><span class="font-stats-num text-base md:text-lg">5</span></div><div class="w-px h-4 bg-outline-variant/30"></div><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-on-surface-variant text-lg md:text-xl">layers</span><span class="font-stats-num text-base md:text-lg">22</span></div><div class="w-px h-4 bg-outline-variant/30"></div><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-error text-lg md:text-xl">auto_stories</span><span class="font-stats-num text-base md:text-lg">9</span></div></div></div></header>
+<div class="overflow-x-auto lg:overflow-x-visible pb-4 scrollbar-hide">
+<div class="grid grid-cols-4 min-w-[800px] lg:min-w-0 gap-4 md:gap-6 items-start origin-top scale-[0.85] -mb-[10%]">
+<!-- Locations for Maleficent (simplified for layout) -->
+<div class="flex flex-col gap-4">
+<div class="relative w-full aspect-[3/4] group">
+<div class="absolute inset-0 top-[15%] h-[85%] rounded-xl overflow-hidden gold-border location-glow cursor-pointer transition-transform hover:scale-[1.01]" style="height: 90%; top: 10%;">
+<div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBJNlCvlc0Ok-t-vG1xivqzwfvHxukifWM9XrLmufCHAfbCZ8p389uYftlt1yZ1PhD69ibF0pILFt2hXV339qZk7g1p0VroeHYIem3BOkvQkZZ4ILnQ_D-OscpvkaSU3Kxo9b_mwMTWS_wifm7wgAU3OELQ4nBOHNHRP3euk2vAvSbsMe_lOBVTJwPSnR5iuI5LfXd-pjDoFc_VTupxubfFGJ0sL4if9-BQQcbt_vKZAnB00wEiF4jKgAsjt-TVwWrqjmIciP_crCBj');"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent"></div>
+<div class="absolute inset-0 p-3 md:p-4 flex flex-col justify-end items-center text-center">
+<h3 class="font-headline-lg text-[10px] md:text-sm text-primary uppercase tracking-[0.2em]">Forbidden Mts.</h3>
+</div>
+</div>
+</div>
+<div class="ally-zone card-slot"></div>
+</div>
+<div class="flex flex-col gap-4">
+<div class="relative w-full aspect-[3/4] group">
+<div class="absolute inset-0 top-[15%] h-[85%] rounded-xl overflow-hidden gold-border location-glow cursor-pointer transition-transform hover:scale-[1.01]" style="height: 90%; top: 10%;">
+<div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBJNlCvlc0Ok-t-vG1xivqzwfvHxukifWM9XrLmufCHAfbCZ8p389uYftlt1yZ1PhD69ibF0pILFt2hXV339qZk7g1p0VroeHYIem3BOkvQkZZ4ILnQ_D-OscpvkaSU3Kxo9b_mwMTWS_wifm7wgAU3OELQ4nBOHNHRP3euk2vAvSbsMe_lOBVTJwPSnR5iuI5LfXd-pjDoFc_VTupxubfFGJ0sL4if9-BQQcbt_vKZAnB00wEiF4jKgAsjt-TVwWrqjmIciP_crCBj');"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent"></div>
+<div class="absolute inset-0 p-3 md:p-4 flex flex-col justify-end items-center text-center">
+<h3 class="font-headline-lg text-[10px] md:text-sm text-primary uppercase tracking-[0.2em]">Castle</h3>
+</div>
+</div>
+</div>
+<div class="ally-zone card-slot"></div>
+</div>
+<div class="flex flex-col gap-4">
+<div class="relative w-full aspect-[3/4] group">
+<div class="absolute inset-0 top-[15%] h-[85%] rounded-xl overflow-hidden gold-border location-glow cursor-pointer transition-transform hover:scale-[1.01]" style="height: 90%; top: 10%;">
+<div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBJNlCvlc0Ok-t-vG1xivqzwfvHxukifWM9XrLmufCHAfbCZ8p389uYftlt1yZ1PhD69ibF0pILFt2hXV339qZk7g1p0VroeHYIem3BOkvQkZZ4ILnQ_D-OscpvkaSU3Kxo9b_mwMTWS_wifm7wgAU3OELQ4nBOHNHRP3euk2vAvSbsMe_lOBVTJwPSnR5iuI5LfXd-pjDoFc_VTupxubfFGJ0sL4if9-BQQcbt_vKZAnB00wEiF4jKgAsjt-TVwWrqjmIciP_crCBj');"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent"></div>
+<div class="absolute inset-0 p-3 md:p-4 flex flex-col justify-end items-center text-center">
+<h3 class="font-headline-lg text-[10px] md:text-sm text-primary uppercase tracking-[0.2em]">The Forest</h3>
+</div>
+</div>
+</div>
+<div class="ally-zone card-slot"></div>
+</div>
+<div class="flex flex-col gap-4">
+<div class="relative w-full aspect-[3/4] group">
+<div class="absolute inset-0 top-[15%] h-[85%] rounded-xl overflow-hidden gold-border location-glow cursor-pointer transition-transform hover:scale-[1.01]" style="height: 90%; top: 10%;">
+<div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBJNlCvlc0Ok-t-vG1xivqzwfvHxukifWM9XrLmufCHAfbCZ8p389uYftlt1yZ1PhD69ibF0pILFt2hXV339qZk7g1p0VroeHYIem3BOkvQkZZ4ILnQ_D-OscpvkaSU3Kxo9b_mwMTWS_wifm7wgAU3OELQ4nBOHNHRP3euk2vAvSbsMe_lOBVTJwPSnR5iuI5LfXd-pjDoFc_VTupxubfFGJ0sL4if9-BQQcbt_vKZAnB00wEiF4jKgAsjt-TVwWrqjmIciP_crCBj');"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent"></div>
+<div class="absolute inset-0 p-3 md:p-4 flex flex-col justify-end items-center text-center">
+<h3 class="font-headline-lg text-[10px] md:text-sm text-primary uppercase tracking-[0.2em]">Cottage</h3>
+</div>
+</div>
+</div>
+<div class="ally-zone card-slot"></div>
+</div>
+</div>
+</div>
+</article>
+</section>
+</main>
+<!-- Footer: Log & Game Status -->
+<div class="fixed bottom-24 left-0 right-0 z-50 pointer-events-none opacity-0 translate-y-10 transition-all duration-300 flex justify-center px-4" id="interactive-hand">
+<div class="bg-background/80 backdrop-blur-xl p-6 rounded-3xl border border-primary/20 shadow-2xl flex gap-4 md:gap-6 pointer-events-auto">
+<!-- Card 1 -->
+<div class="villainous-card hover:scale-110 hover:-translate-y-4 transition-all shadow-2xl border-primary/20 hover:border-primary/50 cursor-pointer scale-\[0\.7\] origin-center">
+<div class="card-inner-frame"></div>
+<div class="card-cost">2</div>
+<img alt="Ally Card" class="card-art" src="https://lh3.googleusercontent.com/aida/AP1WRLvlN87hRJBVCME6-VRGqnUKqaxnGkCui7b8ytT_I43mnIMp0DhfJ45uVIy7ypcRk3KQaIZOC9KbTN5qirDqJ9uU8iCaq1HeFz1gF-R0O-9I2PsSSULdMFSVGlRtRMj98x_41TM2CC8dtdrjCL_gf1ttcUiFQCq9hWUEziT_y5r5xLQ_k9gGAINtGyphP8bfR3XzDLcUIy1WW-a_nkK8K5m_SV1UNqa1m77Fg2Ekhx79hZrDYljOdR7oPHE"/>
+<div class="card-info-box"><span class="card-name">Sr. Smee</span><span class="card-type">Aliado</span><p class="card-ability">Mueve un Hroe.</p></div>
+</div>
+<!-- Card 2 -->
+<div class="villainous-card hover:scale-110 hover:-translate-y-4 transition-all shadow-2xl border-primary/20 hover:border-primary/50 cursor-pointer scale-\[0\.7\] origin-center">
+<div class="card-inner-frame"></div>
+<div class="card-cost">3</div>
+<img alt="Ally Card" class="card-art" src="https://lh3.googleusercontent.com/aida/AP1WRLvlN87hRJBVCME6-VRGqnUKqaxnGkCui7b8ytT_I43mnIMp0DhfJ45uVIy7ypcRk3KQaIZOC9KbTN5qirDqJ9uU8iCaq1HeFz1gF-R0O-9I2PsSSULdMFSVGlRtRMj98x_41TM2CC8dtdrjCL_gf1ttcUiFQCq9hWUEziT_y5r5xLQ_k9gGAINtGyphP8bfR3XzDLcUIy1WW-a_nkK8K5m_SV1UNqa1m77Fg2Ekhx79hZrDYljOdR7oPHE"/>
+<div class="card-info-box"><span class="card-name">Aliado Implacable</span><span class="card-type">Aliado</span><p class="card-ability">Gana 1 de Poder.</p></div>
+</div>
+<!-- Card 3 -->
+<div class="villainous-card hover:scale-110 hover:-translate-y-4 transition-all shadow-2xl border-primary/20 hover:border-primary/50 cursor-pointer scale-\[0\.7\] origin-center">
+<div class="card-inner-frame"></div>
+<div class="card-cost">2</div>
+<img alt="Item Card" class="card-art" src="https://lh3.googleusercontent.com/aida/AP1WRLugu9pARrhiO-oKeoco6CoomPZs-4GUEXfcvW-sGFJbJfCIm_EoQyjS9aUVT_DWUCIwgvcImX8liCfpw9cTjxCQoqNHm3vVI-bgfgdH3UIDuS0yxQZ8GZDkiflzqUGzMeYyqP6Y7U3jpPu2B7znZOWDcdi3XfmQxfM558DH57uJ9BVrHD0JmJVDHQte_q4zMtt7F3CF44atoibc-CyMGYc5d__vE8as7mrIq0FeWAT7oMP0aQO5nJDuJeZO"/>
+<div class="card-info-box"><span class="card-name">Brjula Maldita</span><span class="card-type">Objeto</span><p class="card-ability">Mueve un Hroe.</p></div>
+</div>
+<!-- Card 4 -->
+<div class="villainous-card hover:scale-110 hover:-translate-y-4 transition-all shadow-2xl border-primary/20 hover:border-primary/50 cursor-pointer scale-\[0\.7\] origin-center">
+<div class="card-inner-frame"></div>
+<div class="card-cost">4</div>
+<img alt="Item Card" class="card-art" src="https://lh3.googleusercontent.com/aida/AP1WRLugu9pARrhiO-oKeoco6CoomPZs-4GUEXfcvW-sGFJbJfCIm_EoQyjS9aUVT_DWUCIwgvcImX8liCfpw9cTjxCQoqNHm3vVI-bgfgdH3UIDuS0yxQZ8GZDkiflzqUGzMeYyqP6Y7U3jpPu2B7znZOWDcdi3XfmQxfM558DH57uJ9BVrHD0JmJVDHQte_q4zMtt7F3CF44atoibc-CyMGYc5d__vE8as7mrIq0FeWAT7oMP0aQO5nJDuJeZO"/>
+<div class="card-info-box"><span class="card-name">El Garfio</span><span class="card-type">Objeto</span><p class="card-ability">Derrota a un Hroe.</p></div>
+</div>
+</div>
+</div><div class="fixed bottom-[60px] md:bottom-[70px] right-4 md:right-8 z-[60] flex flex-col items-center cursor-pointer group" onclick="const hand = document.getElementById('interactive-hand'); const btn = this.querySelector('.bg-surface-container-lowest'); if(hand.classList.contains('opacity-0')) { hand.classList.remove('opacity-0', 'translate-y-10', 'pointer-events-none'); hand.classList.add('opacity-100', 'translate-y-0'); btn.classList.add('toggle-active'); } else { hand.classList.add('opacity-0', 'translate-y-10', 'pointer-events-none'); hand.classList.remove('opacity-100', 'translate-y-0'); btn.classList.remove('toggle-active'); }">
+<div class="relative w-24 h-32 md:w-28 md:h-40 group-hover:scale-110 transition-transform">
+<!-- Card 1 (Bottom) -->
+<div class="absolute inset-0 bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-2xl rotate-[-6deg] translate-x-[-10px] translate-y-[4px]">
+<div class="absolute inset-2 border border-outline-variant/10 rounded opacity-20 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.05)_50%,transparent_75%)] bg-[length:4px_4px]"></div>
+</div>
+<!-- Card 2 (Middle) -->
+<div class="absolute inset-0 bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-2xl rotate-[-3deg] translate-x-[-5px] translate-y-[2px]">
+<div class="absolute inset-2 border border-outline-variant/10 rounded opacity-20 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.05)_50%,transparent_75%)] bg-[length:4px_4px]"></div>
+</div>
+<!-- Card 3 (Top) -->
+<div class="absolute inset-0 bg-surface-container-lowest border border-outline-variant/40 rounded-lg shadow-2xl flex items-center justify-center transition-colors">
+<div class="absolute inset-2 border border-outline-variant/20 rounded opacity-30 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.05)_50%,transparent_75%)] bg-[length:4px_4px]"></div>
+<span class="material-symbols-outlined text-primary/20 text-3xl">layers</span>
+</div>
+</div>
+<span class="mt-2 font-label-caps text-[10px] md:text-xs text-primary/80 tracking-[0.2em] uppercase bg-background/60 backdrop-blur-sm px-2 py-0.5 rounded">MANO</span>
+</div><footer class="fixed bottom-0 left-0 right-0 z-50 bg-surface-container-highest/95 backdrop-blur-md border-t border-outline-variant flex items-center shadow-[0_-4px_20px_rgba(0,0,0,0.5)] h-10 md:h-12">
+<div class="flex-1 px-4 md:px-8 flex items-center gap-2 md:gap-4 overflow-hidden h-full">
+<span class="font-label-caps text-[9px] md:text-[10px] text-primary shrink-0">LOG:</span>
+<div class="flex gap-4 md:gap-6 text-[10px] md:text-[11px] font-body-sm text-on-surface/60 whitespace-nowrap overflow-hidden italic">
+<p class=""><span class="text-primary-fixed-dim not-italic">Hook</span> jugó <span class="text-secondary-fixed-dim">Mr. Smee</span></p>
+<span class="text-outline-variant/30">|</span>
+<p class=""><span class="text-error not-italic">Destino</span>: <span class="text-primary-fixed-dim">Peter Pan</span>!</p>
+<span class="hidden sm:inline text-outline-variant/30">|</span>
+<p class="hidden sm:block"><span class="text-primary not-italic">Maléfica</span> esperando turno...</p>
+</div>
+</div>
+<div class="px-4 md:px-8 flex items-center gap-2 md:gap-3 border-l border-outline-variant/30 h-full">
+<div class="hidden xs:flex -space-x-1 md:-space-x-2">
+<div class="w-4 h-6 md:w-6 md:h-8 rounded bg-surface-container-high border border-outline-variant/40 rotate-[-5deg] shadow-sm"></div>
+<div class="w-4 h-6 md:w-6 md:h-8 rounded bg-surface-container-high border border-outline-variant/40 rotate-[5deg] shadow-sm"></div>
+</div>
+</div>
+</footer>
+</body></html>

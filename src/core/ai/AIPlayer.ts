@@ -3,7 +3,7 @@ import type { GameState, CardInstId, LocationId } from '../types';
 import { getPlugin } from '../villains/registry';
 import { EffectId, CardDefId } from '../villains/effectIds';
 import { HookLocationId } from '../villains/hook/cards';
-import { getPlayer, getAvailableSlotIndices, getEffectiveStrength, getActionAtSlot } from '../engine/stateHelpers';
+import { getPlayer, getAvailableSlotIndices, getEffectiveStrength, getActionAtSlot, computeKingdomCostMod } from '../engine/stateHelpers';
 import {
   canPlayCard, canVanquish, canMoveItemAlly,
   canMoveHero, canFate, canActivateCard, canDiscard,
@@ -16,14 +16,10 @@ import {
 import { scoreLocation, scoreCard, pickBestPlayTarget } from './scoring';
 import { buildPlayCtx } from './contextBuilder';
 
-export interface AIDecision {
-  action: string;
-  apply: (state: GameState) => GameState;
-}
-
 // ─── AI TURN EXECUTION ────────────────────────────────────────────────────────
 
-export function runAITurn(state: GameState): GameState {
+export function runAITurn(state: GameState): GameState[] {
+  const steps: GameState[] = [];
   let s = state;
   const playerId = s.players[s.currentPlayerIndex].id;
 
@@ -45,9 +41,13 @@ export function runAITurn(state: GameState): GameState {
         if (any) s = movePawn(s, playerId, any.id);
       }
     }
+    steps.push(s);
   }
 
-  if (s.turnPhase !== TurnPhase.ACTIVATE) return s;
+  if (s.turnPhase !== TurnPhase.ACTIVATE) {
+    if (s.turnPhase === TurnPhase.DRAW) { s = drawCards(s, playerId); steps.push(s); }
+    return steps;
+  }
 
   // ACTIVATE phase — keep taking actions until none available
   const MAX_ACTIVATE_ITERATIONS = 20;
@@ -75,10 +75,15 @@ export function runAITurn(state: GameState): GameState {
 
       if (slot.type === ActionType.PLAY_CARD) {
         const freshPlayer = getPlayer(s, playerId);
+        // Include kingdom cost modifier to avoid attempting cards we can't actually afford
         const bestCard = freshPlayer.handInstIds
           .filter(id => {
             const card = s.allCards[id];
-            return card && freshPlayer.power >= Math.max(0, card.baseCost + card.costModifier);
+            if (!card) return false;
+            const targetLoc = pickBestPlayTarget(s, freshPlayer, id);
+            const costMod = computeKingdomCostMod(s, playerId, card, targetLoc);
+            const effectiveCost = Math.max(0, card.baseCost + card.costModifier + costMod);
+            return freshPlayer.power >= effectiveCost;
           })
           .sort((a, b) => scoreCard(s, freshPlayer, b) - scoreCard(s, freshPlayer, a))[0];
 
@@ -145,31 +150,27 @@ export function runAITurn(state: GameState): GameState {
       }
 
       if (slot.type === ActionType.MOVE_ITEM_ALLY) {
-        // Move a curse to fill a location missing one (Maleficent)
-        if (player.villainId === 'maleficent') {
-          const freshPlayer = getPlayer(s, playerId);
-          const plugin2 = getPlugin(freshPlayer.villainId);
-          for (const [locId, ls] of Object.entries(freshPlayer.locationStates)) {
-            const curseId = ls.villainCardInstIds.find(
-              id => s.allCards[id]?.cardType === CardType.CURSE,
-            );
-            if (!curseId) continue;
-            const curLocDef = plugin2.locations.find(l => l.id === locId);
-            if (!curLocDef) continue;
-            const adjNeedsCurse = curLocDef.adjacentIds.find(adjId => {
-              const adjLs = freshPlayer.locationStates[adjId];
-              return adjLs && !adjLs.isLocked && !adjLs.villainCardInstIds.some(
-                id => s.allCards[id]?.cardType === CardType.CURSE,
-              );
-            });
-            if (adjNeedsCurse && canMoveItemAlly(s, playerId, curseId, adjNeedsCurse, slotIdx).valid) {
-              s = moveItemAlly(s, playerId, curseId, adjNeedsCurse, slotIdx);
+        // Move an Item or Ally to a better location
+        const freshPlayer = getPlayer(s, playerId);
+        const plugin2 = getPlugin(freshPlayer.villainId);
+        for (const [locId, ls] of Object.entries(freshPlayer.locationStates)) {
+          const movableId = ls.villainCardInstIds.find(id => {
+            const c = s.allCards[id];
+            return c?.cardType === CardType.ITEM || c?.cardType === CardType.ALLY;
+          });
+          if (!movableId) continue;
+          const curLocDef = plugin2.locations.find(l => l.id === locId);
+          if (!curLocDef) continue;
+          for (const adjId of curLocDef.adjacentIds) {
+            if (canMoveItemAlly(s, playerId, movableId, adjId, slotIdx).valid) {
+              s = moveItemAlly(s, playerId, movableId, adjId, slotIdx);
               acted = true;
               break;
             }
           }
           if (acted) break;
         }
+        if (acted) break;
         continue;
       }
 
@@ -202,24 +203,53 @@ export function runAITurn(state: GameState): GameState {
         const oppIdx = (s.currentPlayerIndex + 1) % s.players.length;
         if (canFate(s, playerId, slotIdx).valid) {
           s = startFate(s, playerId, oppIdx, slotIdx);
-          // Resolve fate: pick the first card that can be played
           if (s.pendingFate) {
             const { revealedInstIds, targetPlayerIndex } = s.pendingFate;
             const oppPlayer = s.players[targetPlayerIndex];
-            // Pick first available non-blocked location
             const oppPlugin = getPlugin(oppPlayer.villainId);
-            const targetLoc = oppPlugin.locations.find(
-              l => !oppPlayer.locationStates[l.id]?.isLocked,
-            )?.id ?? oppPlugin.locations[0].id;
 
-            const chosen = revealedInstIds[0];
-            const fateCtx: { targetCardInstId?: CardInstId } = {};
+            // Choose best revealed card: prefer heroes, then items, then effects
+            const heroCard  = revealedInstIds.find(id => s.allCards[id]?.cardType === CardType.HERO);
+            const itemCard  = revealedInstIds.find(id => s.allCards[id]?.cardType === CardType.ITEM);
+            const effectCard = revealedInstIds.find(id => s.allCards[id]?.cardType !== CardType.HERO && s.allCards[id]?.cardType !== CardType.ITEM);
+            const chosen = heroCard ?? itemCard ?? effectCard ?? revealedInstIds[0];
             const chosenCard = s.allCards[chosen];
-            if (chosenCard?.cardType === CardType.ITEM) {
-              const heroAtLoc = oppPlayer.locationStates[targetLoc]?.heroCardInstIds[0];
-              if (heroAtLoc) fateCtx.targetCardInstId = heroAtLoc;
+
+            // Valid fate locations: all unlocked locations
+            const validFateLocs = oppPlugin.locations.filter(
+              l => !oppPlayer.locationStates[l.id]?.isLocked,
+            );
+            const fallbackLoc = oppPlugin.locations.find(l => !oppPlayer.locationStates[l.id]?.isLocked);
+
+            // For effects (no location needed) use any unlocked loc as placeholder
+            if (chosenCard?.cardType !== CardType.HERO && chosenCard?.cardType !== CardType.ITEM) {
+              const loc = fallbackLoc?.id ?? oppPlugin.locations[0].id;
+              s = resolveFate(s, chosen, loc, {});
+            } else {
+              // Find best target location (prefer location with least allies to maximize disruption)
+              const targetLocDef = validFateLocs.length > 0 ? validFateLocs[0] : fallbackLoc;
+              const targetLoc = targetLocDef?.id ?? oppPlugin.locations[0].id;
+
+              const fateCtx: { targetCardInstId?: CardInstId } = {};
+              // If item needs to attach to a hero, find one
+              if (chosenCard?.cardType === CardType.ITEM) {
+                const heroAtLoc = oppPlayer.locationStates[targetLoc]?.heroCardInstIds[0];
+                if (heroAtLoc) fateCtx.targetCardInstId = heroAtLoc;
+                // If no hero at chosen loc, try locations with heroes
+                if (!heroAtLoc) {
+                  const locWithHero = validFateLocs.find(
+                    l => oppPlayer.locationStates[l.id]?.heroCardInstIds.length > 0,
+                  );
+                  if (locWithHero) {
+                    fateCtx.targetCardInstId = oppPlayer.locationStates[locWithHero.id].heroCardInstIds[0];
+                    s = resolveFate(s, chosen, locWithHero.id, fateCtx);
+                    acted = true;
+                    break;
+                  }
+                }
+              }
+              s = resolveFate(s, chosen, targetLoc, fateCtx);
             }
-            s = resolveFate(s, chosen, targetLoc, fateCtx);
           }
           acted = true;
           break;
@@ -261,16 +291,13 @@ export function runAITurn(state: GameState): GameState {
       }
     }
 
+    if (acted) steps.push(s);
     if (!acted) break;
   }
 
   // DRAW phase
-  if (s.turnPhase === TurnPhase.ACTIVATE) {
-    s = endActivatePhase(s);
-  }
-  if (s.turnPhase === TurnPhase.DRAW) {
-    s = drawCards(s, playerId);
-  }
+  if (s.turnPhase === TurnPhase.ACTIVATE) s = endActivatePhase(s);
+  if (s.turnPhase === TurnPhase.DRAW) { s = drawCards(s, playerId); steps.push(s); }
 
-  return s;
+  return steps;
 }

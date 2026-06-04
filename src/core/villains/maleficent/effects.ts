@@ -99,9 +99,8 @@ export const effects: EffectDef[] = [
   {
     id: 'mal_aurora_reveal',
     trigger: EffectTrigger.ON_PLAY,
-    description: 'Revela la carta superior del mazo de Destino; si es Héroe, juégalo aquí',
+    description: 'Revela la carta superior del mazo de Destino; si es Héroe, elige dónde colocarlo',
     execute: (state, ctx) => {
-      if (!ctx.targetLocationId) return state;
       const aurora = state.allCards[ctx.cardInstId];
       if (!aurora) return state;
       const malfPlayer = getPlayer(state, aurora.ownerId);
@@ -113,12 +112,15 @@ export const effects: EffectDef[] = [
         fateDeckInstIds: malfPlayer.fateDeckInstIds.slice(1),
       });
       if (topCard.cardType === CardType.HERO) {
-        const locState = getPlayer(s, aurora.ownerId).locationStates[ctx.targetLocationId];
-        s = updateLocationState(s, aurora.ownerId, ctx.targetLocationId, {
-          heroCardInstIds: [...locState.heroCardInstIds, topId],
-        });
-        s = updateCard(s, topId, { locationId: ctx.targetLocationId });
-        return addLog(s, `Aurora revela ${topCard.name} y lo juega.`);
+        s = addLog(s, `Aurora revela ${topCard.name}. Elige una ubicación.`);
+        return {
+          ...s,
+          pendingAuroraHero: {
+            heroInstId: topId,
+            targetPlayerId: aurora.ownerId,
+            actingPlayerId: ctx.actingPlayerId,
+          },
+        };
       }
       s = updatePlayer(s, aurora.ownerId, {
         fateDeckInstIds: [topId, ...getPlayer(s, aurora.ownerId).fateDeckInstIds],
@@ -152,11 +154,13 @@ export const effects: EffectDef[] = [
       const card = state.allCards[ctx.cardInstId];
       if (!card) return state;
       const player = getPlayer(state, card.ownerId);
-      const best = Object.values(player.locationStates)
-        .sort((a, b) => b.heroCardInstIds.length - a.heroCardInstIds.length)[0];
-      if (!best || best.id === player.pawnLocationId) return state;
-      const s = updatePlayer(state, card.ownerId, { pawnLocationId: best.id });
-      return addLog(s, `Rey Estéfano mueve a Maléfica a ${best.id}.`);
+      const best = Object.entries(player.locationStates)
+        .filter(([locId]) => locId !== player.pawnLocationId)
+        .sort(([, a], [, b]) => b.heroCardInstIds.length - a.heroCardInstIds.length)[0];
+      if (!best) return state;
+      const [bestLocId] = best;
+      const s = updatePlayer(state, card.ownerId, { pawnLocationId: bestLocId });
+      return addLog(s, `Rey Estéfano mueve a Maléfica a ${bestLocId}.`);
     },
   },
   {
@@ -193,6 +197,7 @@ export const effects: EffectDef[] = [
   {
     id: 'mal_una_vez_suenos',
     trigger: EffectTrigger.ON_PLAY,
+    requiresTargetCard: 'CURSE',
     description: 'Descarta una Maldición de una ubicación con al menos un Héroe',
     execute: (state, ctx) => {
       const card = state.allCards[ctx.cardInstId];

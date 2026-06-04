@@ -3,13 +3,15 @@ import { ActionType } from '../core/types';
 import type { GameState, GameSetupOptions, LocationId, CardInstId } from '../core/types';
 import { createInitialState, movePawn, gainPower, playCard, vanquish,
   moveItemAlly, moveHero, startFate, resolveFate, activateCard,
-  discardFromHand, endActivatePhase, drawCards, skipMove,
+  discardFromHand, endActivatePhase, drawCards, skipMove, resolveAuroraHero,
+  revertToActivate,
 } from '../core/engine/GameEngine';
 import { resolveCondition, resolveCuervo, resolveDemosles } from '../core/engine/PendingStateResolver';
 import { runAITurn } from '../core/ai/AIPlayer';
 
 interface GameStore {
   state: GameState | null;
+  aiReplayQueue: GameState[];
   initGame: (opts: GameSetupOptions) => void;
   resetGame: () => void;
   // Turn actions
@@ -27,6 +29,8 @@ interface GameStore {
   doEndActivate: () => void;
   doDrawCards: () => void;
   doResolveCondition: (condInstId: string | null, ctx: Parameters<typeof resolveCondition>[2]) => void;
+  doResolveAuroraHero: (targetLocationId: string) => void;
+  doRevertToActivate: () => void;
   doResolveCuervo: (action: ActionType, params: Parameters<typeof resolveCuervo>[2]) => void;
   doResolveDemosles: (discardIds: Parameters<typeof resolveDemosles>[1], keepIds: Parameters<typeof resolveDemosles>[2]) => void;
 }
@@ -53,46 +57,49 @@ function maybeAutoResolveDemosles(state: GameState): GameState {
   return resolveDemosles(state, state.pendingDemosles.topCardIds, []);
 }
 
-function maybeRunAI(state: GameState): GameState {
+function maybeRunAI(state: GameState): [GameState, GameState[]] {
   let s = maybeAutoResolveCondition(state);
   s = maybeAutoResolveCuervo(s);
   s = maybeAutoResolveDemosles(s);
-  if (s.winner) return s;
+  if (s.winner) return [s, []];
   const current = s.players[s.currentPlayerIndex];
-  if (!current.isAI) return s;
-  s = runAITurn(s);
-  // Resolve any pending states the AI triggered during its own turn
-  s = maybeAutoResolveCondition(s);
-  s = maybeAutoResolveCuervo(s);
-  s = maybeAutoResolveDemosles(s);
-  return s;
+  if (!current.isAI) return [s, []];
+
+  const steps = runAITurn(s);
+  let final = steps.length > 0 ? steps[steps.length - 1] : s;
+  final = maybeAutoResolveCondition(final);
+  final = maybeAutoResolveCuervo(final);
+  final = maybeAutoResolveDemosles(final);
+  if (steps.length > 0) steps[steps.length - 1] = final;
+  return [final, steps];
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
   state: null,
+  aiReplayQueue: [],
 
   initGame: (opts) => {
     const initial = createInitialState(opts);
-    // If first player is AI, run immediately
-    const ready = maybeRunAI(initial);
-    set({ state: ready });
+    const [ready] = maybeRunAI(initial);
+    set({ state: ready, aiReplayQueue: [] });
   },
 
-  resetGame: () => set({ state: null }),
+  resetGame: () => set({ state: null, aiReplayQueue: [] }),
 
   doMovePawn: (locationId) => {
     const { state } = get();
     if (!state) return;
     const playerId = state.players[state.currentPlayerIndex].id;
-    const next = maybeRunAI(movePawn(state, playerId, locationId));
-    set({ state: next });
+    const [next, steps] = maybeRunAI(movePawn(state, playerId, locationId));
+    set({ state: next, aiReplayQueue: steps });
   },
 
   doSkipMove: () => {
     const { state } = get();
     if (!state) return;
     const playerId = state.players[state.currentPlayerIndex].id;
-    set({ state: maybeRunAI(skipMove(state, playerId)) });
+    const [next, steps] = maybeRunAI(skipMove(state, playerId));
+    set({ state: next, aiReplayQueue: steps });
   },
 
   doGainPower: (slotIndex, amountOverride) => {
@@ -167,14 +174,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (!state) return;
     const playerId = state.players[state.currentPlayerIndex].id;
-    const next = maybeRunAI(drawCards(state, playerId));
-    set({ state: next });
+    const [next, steps] = maybeRunAI(drawCards(state, playerId));
+    set({ state: next, aiReplayQueue: steps });
   },
 
   doResolveCondition: (condInstId, ctx = {}) => {
     const { state } = get();
     if (!state) return;
-    set({ state: maybeRunAI(resolveCondition(state, condInstId, ctx)) });
+    const [next, steps] = maybeRunAI(resolveCondition(state, condInstId, ctx));
+    set({ state: next, aiReplayQueue: steps });
+  },
+
+  doResolveAuroraHero: (targetLocationId) => {
+    const { state } = get();
+    if (!state) return;
+    set({ state: resolveAuroraHero(state, targetLocationId) });
+  },
+
+  doRevertToActivate: () => {
+    const { state } = get();
+    if (!state) return;
+    set({ state: revertToActivate(state) });
   },
 
   doResolveCuervo: (action, params = {}) => {

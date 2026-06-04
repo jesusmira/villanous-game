@@ -651,6 +651,45 @@ export function resolveFate(
   return checkWin(s);
 }
 
+// ─── RESOLVE AURORA HERO PLACEMENT ───────────────────────────────────────────
+
+export function resolveAuroraHero(state: GameState, targetLocationId: LocationId): GameState {
+  const pending = state.pendingAuroraHero;
+  if (!pending) return state;
+  const { heroInstId, targetPlayerId } = pending;
+  const hero = state.allCards[heroInstId];
+  if (!hero) return { ...state, pendingAuroraHero: undefined };
+
+  let s: GameState = { ...state, pendingAuroraHero: undefined };
+
+  const locState = getPlayer(s, targetPlayerId).locationStates[targetLocationId];
+  s = updateLocationState(s, targetPlayerId, targetLocationId, {
+    heroCardInstIds: [...locState.heroCardInstIds, heroInstId],
+  });
+  s = updateCard(s, heroInstId, { locationId: targetLocationId });
+  s = addLog(s, `${hero.name} colocado en ${targetLocationId}.`);
+
+  // Trigger ON_HERO_PLAYED_HERE on villain cards at the location
+  const locAfter = getPlayer(s, targetPlayerId).locationStates[targetLocationId];
+  for (const cId of [...locAfter.villainCardInstIds]) {
+    s = runEffects(s, cId, 'ON_HERO_PLAYED_HERE', {
+      actingPlayerId: pending.actingPlayerId,
+      cardInstId: cId,
+      targetCardInstId: heroInstId,
+      targetLocationId,
+    });
+  }
+
+  // Trigger ON_PLAY for the hero itself
+  s = runEffects(s, heroInstId, 'ON_PLAY', {
+    actingPlayerId: pending.actingPlayerId,
+    cardInstId: heroInstId,
+    targetLocationId,
+  });
+
+  return s;
+}
+
 // ─── DISCARD FROM HAND ────────────────────────────────────────────────────────
 
 export function discardFromHand(
@@ -702,6 +741,11 @@ export function drawCards(state: GameState, playerId: PlayerId): GameState {
 export function endActivatePhase(state: GameState): GameState {
   const s = { ...state, turnPhase: TurnPhase.DRAW };
   return checkWin(s);
+}
+
+export function revertToActivate(state: GameState): GameState {
+  if (state.turnPhase !== TurnPhase.DRAW) return state;
+  return { ...state, turnPhase: TurnPhase.ACTIVATE };
 }
 
 export function endTurn(state: GameState): GameState {

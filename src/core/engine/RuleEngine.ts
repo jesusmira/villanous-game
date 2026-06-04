@@ -179,8 +179,8 @@ export function canMoveItemAlly(
 
   const card = state.allCards[cardInstId];
   if (!card) return fail('Carta no encontrada.');
-  if (card.cardType !== CardType.ALLY && card.cardType !== CardType.ITEM && card.cardType !== CardType.CURSE)
-    return fail('Solo se pueden mover Aliados, Objetos o Maldiciones.');
+  if (card.cardType !== CardType.ALLY && card.cardType !== CardType.ITEM)
+    return fail('Solo se pueden mover Aliados u Objetos.');
   if (card.attachedToInstId) return fail('No se puede mover un Objeto unido a otro.');
 
   const srcLocId = card.locationId;
@@ -195,13 +195,6 @@ export function canMoveItemAlly(
   const targetLocState = player.locationStates[targetLocationId];
   if (targetLocState?.isLocked) return fail('Ubicación destino bloqueada.');
 
-  // Primavera / blocksCursePlay: no se puede mover una Maldición a esta ubicación
-  if (card.cardType === CardType.CURSE) {
-    const curseBlocked = targetLocState?.heroCardInstIds.some(id =>
-      state.allCards[id]?.effectIds.some(effId => getEffectDef(effId)?.blocksCursePlay),
-    );
-    if (curseBlocked) return fail('No se puede mover una Maldición aquí (Primavera).');
-  }
 
   return ok;
 }

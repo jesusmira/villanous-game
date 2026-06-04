@@ -231,7 +231,14 @@ export const effects: EffectDef[] = [
         s = updatePlayer(s, ctx.actingPlayerId, { fateDeckInstIds: reshuffled, fateDiscardInstIds: [] });
         s = addLog(s, 'Rival Digno: mazo de Destino barajado.');
       }
-      const deck = getPlayer(s, ctx.actingPlayerId).fateDeckInstIds;
+      // Cut the deck at a random point before searching so the hero that comes
+      // up is not always the same one across games.
+      let deck = getPlayer(s, ctx.actingPlayerId).fateDeckInstIds;
+      if (deck.length > 3) {
+        const cut = 1 + Math.floor(Math.random() * (deck.length - 1));
+        deck = [...deck.slice(cut), ...deck.slice(0, cut)];
+        s = updatePlayer(s, ctx.actingPlayerId, { fateDeckInstIds: deck });
+      }
       const heroIdx = deck.findIndex(id => s.allCards[id]?.cardType === CardType.HERO);
       if (heroIdx === -1) return addLog(s, 'Rival Digno: +2 Poder. No se encontró Héroe.');
       const heroId = deck[heroIdx];
