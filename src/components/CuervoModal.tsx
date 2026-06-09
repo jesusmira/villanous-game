@@ -5,12 +5,13 @@ import { getPlugin } from '../core/villains/registry';
 import { getPlayer, getEffectiveStrength } from '../core/engine/stateHelpers';
 import { useGameStore } from '../state/gameStore';
 import { ACTION_LABELS } from './shared/actionLabels';
+import { modalStyles } from '../styles/modalStyles';
 
-const OVL = 'fixed inset-0 bg-black/75 flex items-center justify-center z-100 backdrop-blur-sm';
-const SEL = 'px-2.5 py-1.5 rounded border border-outline-variant/40 text-xs font-stats text-on-surface-variant bg-surface-container hover:border-primary hover:text-primary transition-all';
-const ACT = 'px-2.5 py-1.5 rounded border border-tertiary bg-tertiary/10 text-tertiary text-xs font-stats font-bold';
-const BTN = 'px-3 py-1.5 rounded border border-primary/50 bg-primary-container text-primary text-xs font-stats font-bold uppercase tracking-wide hover:bg-primary/20 transition-all disabled:opacity-40';
-const PANEL = 'bg-surface-container-high border border-outline-variant/30 rounded-lg p-3 flex flex-col gap-2.5';
+const OVL = modalStyles.overlay;
+const SEL = modalStyles.buttonSelect;
+const ACT = modalStyles.buttonActive;
+const BTN = modalStyles.buttonPrimary;
+const PANEL = modalStyles.panel;
 
 interface Props { state: GameState }
 
@@ -49,11 +50,10 @@ export function CuervoModal({ state }: Props) {
   );
   const allUnlockedLocs = plugin.locations.filter(l => !player.locationStates[l.id]?.isLocked);
 
-  function getAdjLocs(cardLocId: string | undefined) {
-    return (plugin.locations.find(l => l.id === cardLocId)?.adjacentIds ?? [])
-      .filter(id => !player.locationStates[id]?.isLocked)
-      .map(adjId => plugin.locations.find(l => l.id === adjId))
-      .filter((l): l is NonNullable<typeof l> => !!l);
+  function getAdjLocs(_cardLocId: string | undefined) {
+    // Retorna todas las ubicaciones desbloqueadas (no solo adyacentes)
+    // para permitir que el Cuervo se mueva a cualquier ubicación
+    return plugin.locations.filter(l => !player.locationStates[l.id]?.isLocked);
   }
 
   function resetSub() {
@@ -89,9 +89,9 @@ export function CuervoModal({ state }: Props) {
 
   return (
     <div className={OVL}>
-      <div className="bg-surface-container border border-primary/50 rounded-xl p-5 w-120 max-w-[94vw] max-h-[90vh] overflow-y-auto flex flex-col gap-4 shadow-[0_0_40px_rgba(211,188,249,0.3)]">
-        <h2 className="font-serif text-lg font-bold text-primary">El Cuervo</h2>
-        <p className="text-xs text-on-surface-variant">
+      <div className={modalStyles.container}>
+        <h2 className={`${modalStyles.title} text-primary`}>El Cuervo</h2>
+        <p className={`${modalStyles.description} text-on-surface-variant`}>
           Elige una acción en <strong className="text-on-surface">{locDef.name}</strong> (no puede realizar acciones FATE):
         </p>
 

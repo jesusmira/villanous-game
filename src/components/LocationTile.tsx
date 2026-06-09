@@ -62,7 +62,7 @@ interface Props {
   onSlotClick?: (slotIndex: number) => void;
   onCardClick: (cardInstId: CardInstId) => void;
   /** MOVE phase: click the whole tile to move pawn here */
-  onLocationClick?: () => void;
+  onLocationClick?: (locId?: string) => void;
   /** MOVE phase: this location is a valid movement destination */
   isMovableTarget?: boolean;
   /** ACTIVATE phase: highlight when a hand card is selected */
@@ -94,13 +94,14 @@ export function LocationTile({
   onFateLocationClick,
 }: Props) {
   const [isDragOver, setIsDragOver] = useState(false);
+
   // CSS background-position: 4 equal sections → 0%, 33.33%, 66.67%, 100%
   const bgPos = `${locationIndex * (100 / 3)}% center`;
   const allFromVillainSlot = locState.villainCardInstIds.map(id => state.allCards[id]).filter(Boolean);
   // Fate items (Polvo de Hada, Burla, etc.) live in villainCardInstIds but belong at the TOP with heroes
-  const fateItemCards  = allFromVillainSlot.filter(c => c.deck === CardDeck.FATE);
-  const villainCards   = allFromVillainSlot.filter(c => c.deck !== CardDeck.FATE);
-  const heroCards      = locState.heroCardInstIds.map(id => state.allCards[id]).filter(Boolean);
+  const fateItemCards  = allFromVillainSlot.filter(c => c.deck === CardDeck.FATE && c.instId);
+  const villainCards   = allFromVillainSlot.filter(c => c.deck !== CardDeck.FATE && c.instId);
+  const heroCards      = locState.heroCardInstIds.map(id => state.allCards[id]).filter(c => c && c.instId);
   // TOP overlay: hero cards + fate items (enemies/threats)
   const topCards       = [...heroCards, ...fateItemCards];
   // BOTTOM ally zone: villain deck cards only (allies, items, curses, effects)
@@ -143,11 +144,11 @@ export function LocationTile({
 
         {/* ── Visual background — starts at 15% to leave room for hero overlay ── */}
         <div
-          onClick={onFateLocationClick && playHighlight?.playState === 'valid' ? onFateLocationClick : onLocationClick}
+          onClick={onFateLocationClick && playHighlight?.playState === 'valid' ? onFateLocationClick : onLocationClick ? () => onLocationClick(locDef.id) : undefined}
           onDragOver={onCardDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setIsDragOver(true); } : undefined}
           onDragLeave={onCardDrop ? () => setIsDragOver(false) : undefined}
           onDrop={onCardDrop ? (e) => { e.preventDefault(); setIsDragOver(false); onCardDrop(); } : undefined}
-          className={`absolute inset-x-0 bottom-0 rounded-xl overflow-hidden transition-all duration-150
+          className={`absolute inset-x-0 bottom-0 rounded-xl overflow-hidden transition-all duration-150 pointer-events-auto
             ${locState.isLocked
               ? 'border border-outline-variant/30 cursor-not-allowed'
               : isMovableTarget
@@ -179,7 +180,7 @@ export function LocationTile({
           {/* Board artwork image */}
           {boardImageUrl && (
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 pointer-events-none"
               style={{
                 backgroundImage: `url(${boardImageUrl})`,
                 backgroundSize: '400% auto',
@@ -190,11 +191,11 @@ export function LocationTile({
           )}
 
           {/* Gradient overlays for readability */}
-          <div className="absolute inset-0"
+          <div className="absolute inset-0 pointer-events-none"
             style={{ background: boardImageUrl
               ? `linear-gradient(160deg, ${villainColor}22 0%, rgba(14,14,14,0.2) 100%)`
               : `linear-gradient(160deg, ${villainColor}28 0%, #0e0e0e 65%)` }} />
-          <div className="absolute inset-0 bg-linear-to-t from-background/75 via-background/10 to-transparent" />
+          <div className="absolute inset-0 pointer-events-none bg-linear-to-t from-background/75 via-background/10 to-transparent" />
 
           {/* Locked overlay */}
           {locState.isLocked && (
@@ -243,10 +244,27 @@ export function LocationTile({
                 {playHighlight.cost > 0 && <span>{playHighlight.cost}</span>}
               </div>
             )}
-            <h3 className="font-serif text-[10px] md:text-xs uppercase tracking-[0.18em] text-center"
+            {/* Desktop: título normal */}
+            <h3 className="hidden lg:block font-serif text-[10px] md:text-xs uppercase tracking-[0.18em] text-center"
               style={{ color: locState.isLocked ? '#948e99' : '#d3bcf9' }}>
               {locDef.name}
             </h3>
+
+            {/* Mobile: botón clicable */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onLocationClick?.(locDef.id);
+              }}
+              disabled={!onLocationClick && !onCardDrop}
+              className="lg:hidden font-serif text-[10px] uppercase tracking-[0.18em] px-2 py-1 rounded border transition-all active:scale-95 min-h-8 w-full"
+              style={{
+                color: locState.isLocked ? '#948e99' : '#d3bcf9',
+                borderColor: !onLocationClick && !onCardDrop ? '#948e9955' : '#d3bcf9',
+                background: !onLocationClick && !onCardDrop ? '#0000' : '#d3bcf922',
+              }}>
+              {locDef.name}
+            </button>
           </div>
         </div>
 
@@ -290,12 +308,17 @@ export function LocationTile({
             Aliados y objetos
           </span>
         ) : (
-          /* Fan-out effect matching the design */
-          <div className="flex transition-all duration-200 group-hover:gap-1"
-            style={{ marginLeft: '2px' }}>
-            {allyZoneCards.map(card => (
+          /* Stacked cards - overlap based on count */
+          <div className="flex transition-all duration-200"
+            style={{
+              marginLeft: '2px',
+              gap: '0px',
+              marginRight: allyZoneCards.length > 1 ? `${(allyZoneCards.length - 1) * 20}px` : '0px'
+            }}>
+            {allyZoneCards.map((card, idx) => (
               <div key={card.instId}
-                className="hover:z-10 hover:-translate-y-2 transition-transform duration-200 -ml-3 first:ml-0">
+                className="hover:z-10 hover:-translate-y-2 transition-transform duration-200 shrink-0"
+                style={{ marginLeft: idx === 0 ? '0px' : '-40px' }}>
                 <CardComponent
                   card={card}
                   state={state}

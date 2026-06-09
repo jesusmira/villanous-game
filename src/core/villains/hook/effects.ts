@@ -306,12 +306,22 @@ export const effects: EffectDef[] = [
     execute: (state, ctx) => {
       const card = state.allCards[ctx.cardInstId];
       if (!card) return state;
+      const hookPlayer = getPlayer(state, card.ownerId);
+
       if (ctx.targetCardInstId) {
         const target = state.allCards[ctx.targetCardInstId];
         if (target?.cardType !== CardType.ITEM) return state;
+
+        // Validate that the item belongs to the villain (is in villainCardInstIds), not a hero
+        const itemBelongsToVillain = Object.values(hookPlayer.locationStates).some(ls =>
+          ls.villainCardInstIds.includes(ctx.targetCardInstId!)
+        );
+        if (!itemBelongsToVillain) return state;
+
         return addLog(discardCardFromKingdom(state, ctx.targetCardInstId), `Gran Jaqueca descarta ${target.name}.`);
       }
-      const hookPlayer = getPlayer(state, card.ownerId);
+
+      // Auto-select first available villain item
       for (const locState of Object.values(hookPlayer.locationStates)) {
         const itemId = locState.villainCardInstIds.find(id => state.allCards[id]?.cardType === CardType.ITEM);
         if (itemId) {

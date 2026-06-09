@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { TurnPhase, CardType, ActionType } from '../core/types';
 import type { CardInst, GameState } from '../core/types';
 import { CardDefId } from '../core/villains/effectIds';
-import { getCardDef, getEffectDef, getPlugin } from '../core/villains/registry';
+import { getEffectDef, getPlugin } from '../core/villains/registry';
 import { PlayerBoard } from './PlayerBoard';
 import { ActionPanel } from './ActionPanel';
 import { FateModal } from './FateModal';
@@ -13,12 +13,16 @@ import { HistoryModal } from './HistoryModal';
 import { AuroraModal } from './AuroraModal';
 import { VanquishModal } from './VanquishModal';
 import { FloraRevealModal } from './FloraRevealModal';
+import { VictoryModal } from './VictoryModal';
+import { CardComponent } from './CardComponent';
+import { TestPage } from './TestPage';
 import { useGameStore } from '../state/gameStore';
 import { useActionPanelState } from './useActionPanelState';
 import { canMovePawn, canPlayCard, canMoveItemAlly, canMoveHero } from '../core/engine/RuleEngine';
 import { getAvailableSlotIndices, getActionAtSlot, computeKingdomCostMod } from '../core/engine/stateHelpers';
 import { buildPlayCtx } from '../core/ai/contextBuilder';
-import { LayoutGrid, RotateCcw, X, Trophy, ScrollText } from 'lucide-react';
+import { LayoutGrid, RotateCcw, X, ScrollText, Beaker } from 'lucide-react';
+import { useSwipe } from '../hooks/useSwipe';
 
 interface Props { state: GameState }
 
@@ -39,6 +43,17 @@ export function GameBoard({ state }: Props) {
   const [dragBoardCardId, setDragBoardCardId] = useState<string | null>(null);
   const [dragHeroCardId, setDragHeroCardId]   = useState<string | null>(null);
   const [pendingItemDrop, setPendingItemDrop] = useState<{ cardId: string; locId: string; mapaId: string; normalCost: number } | null>(null);
+  const [showTests, setShowTests]           = useState(false);
+
+  // Swipe gesture for closing hand drawer
+  const handDrawerSwipe = useSwipe({
+    onSwipeRight: () => {
+      if (handOpen) {
+        setHandOpen(false);
+        setHoveredCardId(null);
+      }
+    },
+  });
 
   // ── AI replay ────────────────────────────────────────────────────────────
   const [replayIndex, setReplayIndex]       = useState(-1);
@@ -289,12 +304,50 @@ export function GameBoard({ state }: Props) {
     if (!card) return;
     const targetPlayer = state.players[state.pendingFate.targetPlayerIndex];
     const ctx: { targetCardInstId?: string } = {};
+
     if (card.cardType === CardType.ITEM) {
       const heroAtLoc = targetPlayer.locationStates[locId]?.heroCardInstIds[0];
       if (heroAtLoc) ctx.targetCardInstId = heroAtLoc;
     }
+
+    // EFFECT con requiresTargetCard CURSE: buscar maldición válida (en ubicación con héroe)
+    const needsCurse = card.effectIds.some(id => getEffectDef(id)?.requiresTargetCard === 'CURSE');
+    if (needsCurse) {
+      const validCurse = Object.values(state.allCards).find(c =>
+        c.ownerId === targetPlayer.id &&
+        c.cardType === CardType.CURSE &&
+        c.locationId &&
+        (targetPlayer.locationStates[c.locationId]?.heroCardInstIds.length ?? 0) > 0
+      );
+      if (!validCurse) return; // No hay maldición válida — no consumir la carta
+      ctx.targetCardInstId = validCurse.instId;
+    }
+
     doFateResolve(fateDragCardId, locId, ctx);
     setFateDragCardId(null);
+  }
+
+  // Mostrar página de pruebas si está activa
+  if (showTests) {
+    return (
+      <div className="flex flex-col min-h-screen bg-background">
+        <nav className="fixed top-0 inset-x-0 z-100 h-12 bg-surface-container-low/95 backdrop-blur-md border-b border-outline-variant/30 flex items-center justify-between px-4 md:px-6 shadow-md">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowTests(false)}
+              className="text-on-surface-variant hover:text-primary transition-colors text-xl"
+              title="Volver al juego"
+            >
+              ←
+            </button>
+            <span className="font-serif italic text-base text-on-surface leading-none">Villainous</span>
+          </div>
+        </nav>
+        <div className="pt-12">
+          <TestPage />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -337,6 +390,13 @@ export function GameBoard({ state }: Props) {
           >
             <ScrollText className="w-4 h-4" />
           </button>
+          <button
+            onClick={() => setShowTests(true)}
+            title="Pruebas de modales"
+            className="text-on-surface-variant hover:text-primary transition-colors"
+          >
+            <Beaker className="w-4 h-4" />
+          </button>
           <button onClick={resetGame} title="Nueva partida" className="text-on-surface-variant hover:text-primary transition-colors">
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -363,17 +423,7 @@ export function GameBoard({ state }: Props) {
 
       {/* ── Winner banner ───────────────────────────────────── */}
       {displayedState.winner && (
-        <div className="fixed top-12 inset-x-0 z-50 flex items-center justify-center gap-4 px-6 py-4"
-          style={{ background: 'linear-gradient(135deg, #e9c349, #f97316)' }}>
-          <Trophy className="w-6 h-6 text-black/80" fill="currentColor" />
-          <span className="font-serif text-lg font-bold text-black/90">
-            ¡{displayedState.players.find(p => p.id === displayedState.winner)?.name} ha ganado!
-          </span>
-          <button onClick={resetGame}
-            className="ml-4 px-4 py-1.5 bg-black/20 hover:bg-black/30 text-black/90 font-stats text-xs uppercase tracking-widest rounded-full transition-colors">
-            Jugar de nuevo
-          </button>
-        </div>
+        <VictoryModal state={displayedState} onPlayAgain={resetGame} />
       )}
 
       {/* ── Main scrollable content ─────────────────────────── */}
@@ -381,9 +431,9 @@ export function GameBoard({ state }: Props) {
         {displayedState.players.map((player, idx) => {
           const isActive  = isHumanTurn && displayedState.currentPlayerIndex === idx;
           const isFateTgt = state.pendingFate?.targetPlayerIndex === idx;
-          const isMoving   = isActive && displayedState.turnPhase === TurnPhase.MOVE;
-          const isActing  = isActive && displayedState.turnPhase === TurnPhase.ACTIVATE;
-          const movableLocIds = isMoving
+          const isMoving   = isActive && state.turnPhase === TurnPhase.MOVE;
+          const isActing  = isActive && state.turnPhase === TurnPhase.ACTIVATE;
+          const movableLocIds = isMoving && !player.skipNextMove
             ? ap.plugin.locations
                 .filter(l => canMovePawn(displayedState, player.id, l.id).valid)
                 .map(l => l.id)
@@ -395,7 +445,6 @@ export function GameBoard({ state }: Props) {
               player={player}
               isActive={isActive}
               onCardClick={(id) => {
-                setSelectedCardId(id);
                 const card = displayedState.allCards[id];
                 if (card) setDetailCard(card);
               }}
@@ -409,23 +458,29 @@ export function GameBoard({ state }: Props) {
                 activeFateCardId  ? (isFateTgt ? handleFateDrop         : undefined) :
                 dragBoardCardId   ? (isActive  ? handleBoardCardDrop    : undefined) :
                 dragHeroCardId    ? (isActive  ? handleHeroCardDrop     : undefined) :
-                (isActive && displayedState.turnPhase === TurnPhase.ACTIVATE ? handleCardDrop : undefined)
+                (isActive && state.turnPhase === TurnPhase.ACTIVATE ? handleCardDrop : undefined)
               }
               onVillainCardDragStart={
-                isActive && displayedState.turnPhase === TurnPhase.ACTIVATE
+                isActive && state.turnPhase === TurnPhase.ACTIVATE
                   ? (cardId) => setDragBoardCardId(cardId)
                   : undefined
               }
               onVillainCardDragEnd={() => setDragBoardCardId(null)}
               onHeroCardDragStart={
-                isActive && displayedState.turnPhase === TurnPhase.ACTIVATE
+                isActive && state.turnPhase === TurnPhase.ACTIVATE
                   ? (cardId) => setDragHeroCardId(cardId)
                   : undefined
               }
               onHeroCardDragEnd={() => setDragHeroCardId(null)}
               selectedCardId={selectedCardId}
               onActionSlotClick={isActing  ? ap.handleSlotClick  : undefined}
-              onLocationClick={isMoving  ? ap.store.doMovePawn : undefined}
+              onLocationClick={
+                isMoving ? (locId) => ap.store.doMovePawn(locId) :
+                (activeFateCardId && isFateTgt) ? (locId) => handleFateDrop(locId) :
+                (isActive && state.turnPhase === TurnPhase.ACTIVATE && selectedCardId)
+                  ? (locId) => handleCardDrop(locId)
+                  : undefined
+              }
               movableLocIds={movableLocIds}
             />
           );
@@ -435,7 +490,7 @@ export function GameBoard({ state }: Props) {
       {/* ── Action panel (human player only) ───────────────── */}
       {isHumanTurn && (
         <div className="fixed bottom-0 inset-x-0 z-40 max-w-375 mx-auto px-4 md:px-8">
-          <ActionPanel ap={ap} state={displayedState} playerId={currentPlayer.id} />
+          <ActionPanel ap={ap} state={displayedState} playerId={currentPlayer.id} selectedCardId={selectedCardId} detailCardOpen={!!detailCard} handCount={handCards.length} handRevealed={handRevealed} onToggleHand={() => setHandOpen(o => !o)} />
         </div>
       )}
 
@@ -451,10 +506,10 @@ export function GameBoard({ state }: Props) {
       {/* ── Hand drawer (human player only) ─────────────────── */}
       {isHumanTurn && handCards.length > 0 && (
         <>
-          {/* Pestaña disparadora */}
+          {/* Pestaña disparadora — DESKTOP (lateral derecha) */}
           <button
             onClick={() => setHandOpen(o => !o)}
-            className="fixed right-0 top-1/2 -translate-y-1/2 z-60 flex flex-col items-center gap-2 bg-surface-container-highest/95 backdrop-blur-md border border-r-0 border-outline-variant/40 rounded-l-xl px-2 py-4 hover:bg-surface-container/95 transition-colors shadow-xl"
+            className="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 z-60 flex-col items-center justify-center gap-2 bg-surface-container-highest/95 backdrop-blur-md border border-r-0 border-outline-variant/40 rounded-l-xl px-2 py-4 hover:bg-surface-container/95 transition-colors shadow-xl"
           >
             <span className={`w-5 h-5 rounded-full flex items-center justify-center font-stats text-[10px] font-bold ${handRevealed ? 'bg-error/20 text-error' : 'bg-primary/15 text-primary'}`}>
               {handCards.length}
@@ -475,64 +530,16 @@ export function GameBoard({ state }: Props) {
             />
           )}
 
+
           {/* Preview de carta al hover — aparece a la izquierda del cajón */}
           {handOpen && hoveredCardId && (() => {
-            const hc   = state.allCards[hoveredCardId];
-            const hDef = hc ? getCardDef(hc.defId) : null;
-            const hCost = hc ? Math.max(0, hc.baseCost + hc.costModifier) : 0;
-            const isCurse = hc?.cardType === CardType.CURSE;
+            const hc = state.allCards[hoveredCardId];
             if (!hc) return null;
             return (
-              <div className="fixed top-1/2 right-75 -translate-y-1/2 z-50 pointer-events-none w-72">
-                <div
-                  className="relative w-full rounded-2xl border overflow-hidden shadow-2xl"
-                  style={{
-                    aspectRatio: '70 / 95',
-                    background: CARD_GRADIENTS[hc.cardType] ?? '#0e0e0e',
-                    borderColor: isCurse ? 'rgba(147,51,234,0.6)' : 'rgba(211,188,249,0.3)',
-                    boxShadow: '0 0 30px rgba(0,0,0,0.8)',
-                  }}
-                >
-                  {/* Zona imagen — lista para imágenes futuras */}
-                  <div className="absolute inset-x-0 top-0 h-[55%] overflow-hidden">
-                    {/* TODO: <img src={`/images/cards/${hc.defId}.jpg`} className="w-full h-full object-cover" /> */}
-                    <div className="w-full h-full bg-linear-to-b from-white/5 to-transparent" />
-                  </div>
-
-                  {/* Coste */}
-                  <div
-                    className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full border-2 flex items-center justify-center font-stats text-sm font-bold z-10"
-                    style={{
-                      borderColor: isCurse ? '#a855f7' : '#6b7280',
-                      color:       isCurse ? '#e9d5ff' : '#d1d5db',
-                      background:  'rgba(0,0,0,0.7)',
-                    }}
-                  >
-                    {hCost}
-                  </div>
-
-                  {/* Fuerza */}
-                  {hc.baseStrength !== undefined && (
-                    <div className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-yellow-900/80 border border-yellow-500/60 flex items-center justify-center font-stats text-sm text-yellow-300 font-bold z-10">
-                      {hc.baseStrength}
-                    </div>
-                  )}
-
-                  {/* Info inferior */}
-                  <div className="absolute bottom-0 inset-x-0 px-3 pb-3 pt-2 flex flex-col gap-1.5"
-                    style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.90) 0%, transparent 100%)' }}
-                  >
-                    <div className="font-serif text-sm font-semibold text-on-surface leading-tight">
-                      {hc.name}
-                    </div>
-                    <div className="font-stats text-[9px] uppercase tracking-widest text-on-surface-variant/60">
-                      {TYPE_LABELS_ES[hc.cardType] ?? hc.cardType}
-                    </div>
-                    {hDef?.description && (
-                      <p className="text-[10px] text-on-surface/60 leading-relaxed border-t border-white/10 pt-1.5 mt-0.5">
-                        {hDef.description}
-                      </p>
-                    )}
+              <div className="hidden lg:block fixed top-1/2 -translate-y-1/2 z-50 pointer-events-none" style={{ right: 'calc(16rem + 90px)' }}>
+                <div className="villainous-card-preview-wrap">
+                  <div className="villainous-card-preview">
+                    <CardComponent card={hc} state={state} />
                   </div>
                 </div>
               </div>
@@ -540,9 +547,12 @@ export function GameBoard({ state }: Props) {
           })()}
 
           {/* Cajón deslizante */}
-          <div className={`fixed top-12 bottom-12 right-0 z-50 w-64 bg-surface-container-highest/98 backdrop-blur-xl border-l border-outline-variant/40 shadow-2xl flex flex-col transition-transform duration-300 ${
-            handOpen ? 'translate-x-0' : 'translate-x-full'
-          }`}>
+          <div
+            {...handDrawerSwipe}
+            className={`fixed bottom-0 lg:top-12 lg:bottom-12 lg:right-0 left-0 lg:left-auto right-0 z-50 w-full lg:w-64 max-h-[60vh] lg:max-h-none bg-surface-container-highest/98 backdrop-blur-xl border-t lg:border-t-0 lg:border-l border-outline-variant/40 shadow-2xl flex flex-col transition-transform duration-300 ${
+              handOpen ? 'translate-y-0 lg:translate-x-0' : 'translate-y-full lg:translate-y-0 lg:translate-x-full'
+            }`}
+          >
             {/* Cabecera */}
             <div className={`flex items-center justify-between px-4 py-3 border-b shrink-0 ${ap.pendingAction === ActionType.DISCARD ? 'border-error/30 bg-error/5' : 'border-outline-variant/20'}`}>
               <div>
@@ -560,8 +570,60 @@ export function GameBoard({ state }: Props) {
               </button>
             </div>
 
-            {/* Lista compacta */}
-            <div className="flex-1 overflow-y-auto py-1">
+            {/* ── MÓVIL/TABLET: fila de cartas reales, centradas ── */}
+            <div className="lg:hidden flex-1 overflow-x-auto overflow-y-hidden">
+              <div className="flex items-center gap-7 w-max max-w-full mx-auto px-6 py-4 h-full">
+                {handCards.map(card => {
+                  const isDiscardMode   = ap.pendingAction === ActionType.DISCARD;
+                  const isMarkedDiscard = discardIds.includes(card.instId);
+                  const isSelected = !isDiscardMode && selectedCardId === card.instId;
+
+                  return (
+                    <div
+                      key={card.instId}
+                      className={`relative shrink-0 transition-transform ${isMarkedDiscard ? 'opacity-50' : ''}`}
+                      style={{ transform: isSelected ? 'scale(1.45) translateY(-6px)' : 'scale(1.35)', transformOrigin: 'center', zIndex: isSelected ? 20 : 0 }}
+                    >
+                      <CardComponent
+                        card={card}
+                        state={state}
+                        selected={isSelected || isMarkedDiscard}
+                        onClick={() => {
+                          if (isDiscardMode) {
+                            setDiscardIds(prev =>
+                              prev.includes(card.instId) ? prev.filter(id => id !== card.instId) : [...prev, card.instId]
+                            );
+                          } else {
+                            setSelectedCardId(card.instId);
+                            setTimeout(() => setHandOpen(false), 120);
+                          }
+                        }}
+                      />
+
+                      {/* Marca de descarte */}
+                      {isDiscardMode && (
+                        <div className={`absolute top-1 left-1 w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${
+                          isMarkedDiscard ? 'border-error bg-error text-white' : 'border-white/60 bg-black/50 text-white/70'
+                        }`}>
+                          {isMarkedDiscard ? '✕' : ''}
+                        </div>
+                      )}
+
+                      {/* Botón detalle */}
+                      {!isDiscardMode && (
+                        <button
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-surface-container-highest border border-white/25 text-white/70 text-[10px] font-bold flex items-center justify-center shadow-md active:scale-90 transition-transform"
+                          onClick={e => { e.stopPropagation(); setDetailCard(card); }}
+                        >i</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── DESKTOP: lista vertical compacta ── */}
+            <div className="hidden lg:flex flex-1 overflow-y-auto py-1 flex-col">
               {handCards.map(card => {
                 const isDiscardMode   = ap.pendingAction === ActionType.DISCARD;
                 const isMarkedDiscard = discardIds.includes(card.instId);
@@ -569,6 +631,7 @@ export function GameBoard({ state }: Props) {
                 const isSelected = !isDiscardMode && selectedCardId === card.instId;
                 const isHovered  = hoveredCardId === card.instId;
                 const isCurse    = card.cardType === CardType.CURSE;
+
                 return (
                   <div
                     key={card.instId}
@@ -588,7 +651,8 @@ export function GameBoard({ state }: Props) {
                           prev.includes(card.instId) ? prev.filter(id => id !== card.instId) : [...prev, card.instId]
                         );
                       } else {
-                        setSelectedCardId(p => p === card.instId ? null : card.instId);
+                        setSelectedCardId(card.instId);
+                        setTimeout(() => setHandOpen(false), 100);
                       }
                     }}
                     className={`relative flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-all border-b border-outline-variant/10 last:border-b-0 ${
@@ -640,7 +704,7 @@ export function GameBoard({ state }: Props) {
                       </div>
                     </div>
 
-                    {/* Botón detalle (solo fuera de modo descarte) */}
+                    {/* Botón detalle */}
                     {!isDiscardMode && (
                       <button
                         className="shrink-0 w-4 h-4 rounded-full bg-white/5 border border-white/15 text-white/50 text-[8px] font-bold flex items-center justify-center hover:bg-white/10 transition-colors"
@@ -682,64 +746,14 @@ export function GameBoard({ state }: Props) {
 
       {/* ── Card preview (click en tablero) ─────────────────── */}
       {detailCard && (() => {
-        const dc    = detailCard;
-        const dcDef = getCardDef(dc.defId);
-        const dcCost = Math.max(0, dc.baseCost + dc.costModifier);
-        const dcCurse = dc.cardType === CardType.CURSE;
+        const dc = detailCard;
         return (
           <>
             <div className="fixed inset-0 z-70 bg-black/40" onClick={() => setDetailCard(null)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-71 pointer-events-none w-72">
-              <div
-                className="relative w-full rounded-2xl border overflow-hidden shadow-2xl"
-                style={{
-                  aspectRatio: '70 / 95',
-                  background: CARD_GRADIENTS[dc.cardType] ?? '#0e0e0e',
-                  borderColor: dcCurse ? 'rgba(147,51,234,0.6)' : 'rgba(211,188,249,0.3)',
-                  boxShadow: '0 0 40px rgba(0,0,0,0.9)',
-                }}
-              >
-                {/* Zona imagen — lista para imágenes futuras */}
-                <div className="absolute inset-x-0 top-0 h-[55%] overflow-hidden">
-                  {/* TODO: <img src={`/images/cards/${dc.defId}.jpg`} className="w-full h-full object-cover" /> */}
-                  <div className="w-full h-full bg-linear-to-b from-white/5 to-transparent" />
-                </div>
-
-                {/* Coste */}
-                <div
-                  className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full border-2 flex items-center justify-center font-stats text-sm font-bold z-10"
-                  style={{
-                    borderColor: dcCurse ? '#a855f7' : '#6b7280',
-                    color:       dcCurse ? '#e9d5ff' : '#d1d5db',
-                    background:  'rgba(0,0,0,0.7)',
-                  }}
-                >
-                  {dcCost}
-                </div>
-
-                {/* Fuerza */}
-                {dc.baseStrength !== undefined && (
-                  <div className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-yellow-900/80 border border-yellow-500/60 flex items-center justify-center font-stats text-sm text-yellow-300 font-bold z-10">
-                    {dc.baseStrength}
-                  </div>
-                )}
-
-                {/* Info inferior */}
-                <div
-                  className="absolute bottom-0 inset-x-0 px-3 pb-3 pt-2 flex flex-col gap-1.5"
-                  style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, transparent 100%)' }}
-                >
-                  <div className="font-serif text-sm font-semibold text-on-surface leading-tight">
-                    {dc.name}
-                  </div>
-                  <div className="font-stats text-[9px] uppercase tracking-widest text-on-surface-variant/60">
-                    {TYPE_LABELS_ES[dc.cardType] ?? dc.cardType}
-                  </div>
-                  {dcDef?.description && (
-                    <p className="text-[10px] text-on-surface/60 leading-relaxed border-t border-white/10 pt-1.5 mt-0.5">
-                      {dcDef.description}
-                    </p>
-                  )}
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-71 pointer-events-none flex flex-col items-center gap-3">
+              <div className="villainous-card-preview-lg-wrap">
+                <div className="villainous-card-preview-lg">
+                  <CardComponent card={dc} state={state} />
                 </div>
               </div>
             </div>
@@ -784,6 +798,8 @@ export function GameBoard({ state }: Props) {
           state={state}
           onFateDragStart={setFateDragCardId}
           onFateDragEnd={() => setFateDragCardId(null)}
+          onCardDetail={setDetailCard}
+          onFateSelect={setFateDragCardId}
         />
       )}
       {state.pendingCuervo    && <CuervoModal state={state} />}

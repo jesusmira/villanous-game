@@ -72,6 +72,7 @@ export interface CardDef {
   effectIds: EffectId[];
   description: string;
   grantsActionSlot?: ActionSlot;
+  imageFile?: string;
 }
 
 // Runtime card instance — carries everything needed so the engine
@@ -89,6 +90,7 @@ export interface CardInst {
   effectIds: EffectId[];
   activationCost?: number;
   grantsActionSlot?: ActionSlot;
+  imageFile?: string;
   // runtime position
   locationId?: LocationId;
   // attachment
@@ -171,7 +173,7 @@ export interface GameState {
   pendingCondition?: PendingCondition;
   pendingCuervo?: { playerId: PlayerId; locationId: LocationId };
   pendingDemosles?: { playerId: PlayerId; topCardIds: CardInstId[] };
-  pendingAuroraHero?: { heroInstId: CardInstId; targetPlayerId: PlayerId; actingPlayerId: PlayerId };
+  pendingAuroraHero?: { heroInstId: CardInstId; targetPlayerId: PlayerId; actingPlayerId: PlayerId; isHero?: boolean };
   log: string[];
 }
 

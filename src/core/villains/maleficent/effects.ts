@@ -2,7 +2,7 @@ import { CardType, EffectTrigger } from '../../types';
 import type { EffectDef } from '../../types';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
-  discardCardFromKingdom, addLog, getEffectiveStrength,
+  discardCardFromKingdom, addLog, getEffectiveStrength, shuffle,
 } from '../../engine/stateHelpers';
 import { locations } from './cards';
 
@@ -27,7 +27,7 @@ export const effects: EffectDef[] = [
     id: 'mal_raven_activate',
     trigger: EffectTrigger.ACTIVATED,
     requiresTargetLocation: true,
-    description: 'Mueve al Cuervo a una ubicación adyacente y realiza una acción allí (no FATE)',
+    description: 'Mueve al Cuervo a cualquier ubicación y realiza una acción allí (no FATE)',
     execute: (state, ctx) => {
       if (!ctx.targetLocationId) return state;
       const card = state.allCards[ctx.cardInstId];
@@ -103,12 +103,25 @@ export const effects: EffectDef[] = [
     execute: (state, ctx) => {
       const aurora = state.allCards[ctx.cardInstId];
       if (!aurora) return state;
-      const malfPlayer = getPlayer(state, aurora.ownerId);
-      if (malfPlayer.fateDeckInstIds.length === 0) return state;
+      let s = state;
+      let malfPlayer = getPlayer(s, aurora.ownerId);
+
+      // Si el mazo está vacío pero hay descarte, barajar y recargar
+      if (malfPlayer.fateDeckInstIds.length === 0 && malfPlayer.fateDiscardInstIds.length > 0) {
+        s = updatePlayer(s, aurora.ownerId, {
+          fateDeckInstIds: shuffle(malfPlayer.fateDiscardInstIds),
+          fateDiscardInstIds: [],
+        });
+        s = addLog(s, 'Se barajea el descarte de Destino.');
+        malfPlayer = getPlayer(s, aurora.ownerId);
+      }
+
+      // Si aún así no hay cartas, salir
+      if (malfPlayer.fateDeckInstIds.length === 0) return s;
       const topId = malfPlayer.fateDeckInstIds[0];
-      const topCard = state.allCards[topId];
-      if (!topCard) return state;
-      let s = updatePlayer(state, aurora.ownerId, {
+      const topCard = s.allCards[topId];
+      if (!topCard) return s;
+      s = updatePlayer(s, aurora.ownerId, {
         fateDeckInstIds: malfPlayer.fateDeckInstIds.slice(1),
       });
       if (topCard.cardType === CardType.HERO) {
@@ -119,13 +132,24 @@ export const effects: EffectDef[] = [
             heroInstId: topId,
             targetPlayerId: aurora.ownerId,
             actingPlayerId: ctx.actingPlayerId,
+            isHero: true,
           },
         };
       }
+      // No-héroe: devuelve al mazo y muestra brevemente la carta
       s = updatePlayer(s, aurora.ownerId, {
         fateDeckInstIds: [topId, ...getPlayer(s, aurora.ownerId).fateDeckInstIds],
       });
-      return addLog(s, `Aurora revela ${topCard.name} (no Héroe), devuelve al mazo.`);
+      s = addLog(s, `Aurora revela ${topCard.name} (no Héroe), devuelve al mazo.`);
+      return {
+        ...s,
+        pendingAuroraHero: {
+          heroInstId: topId,
+          targetPlayerId: aurora.ownerId,
+          actingPlayerId: ctx.actingPlayerId,
+          isHero: false,
+        },
+      };
     },
   },
   {

@@ -8,7 +8,6 @@ interface Props {
   state: GameState;
   selected?: boolean;
   onClick?: () => void;
-  small?: boolean;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -23,8 +22,16 @@ const CARD_GRADIENTS: Record<string, string> = {
   CONDITION: 'linear-gradient(160deg, #2a2a10 0%, #181808 100%)',
 };
 
+const CARD_BORDERS: Record<string, string> = {
+  ALLY:      '#4a9d6f',
+  ITEM:      '#3a7ec8',
+  EFFECT:    '#8b5cf6',
+  CURSE:     '#8b5cf6',
+  HERO:      '#f59e0b',
+  CONDITION: '#eab308',
+};
 
-export function CardComponent({ card, state, selected, onClick, small: _small, draggable: isDraggable, onDragStart, onDragEnd }: Props) {
+export function LargeCardComponent({ card, state, selected, onClick, draggable: isDraggable, onDragStart, onDragEnd }: Props) {
   const effectiveStr = card.baseStrength !== undefined ? getEffectiveStrength(state, card.instId) : undefined;
   const baseStr      = card.baseStrength ?? 0;
   const hasBonus     = effectiveStr !== undefined && effectiveStr !== baseStr;
@@ -36,8 +43,9 @@ export function CardComponent({ card, state, selected, onClick, small: _small, d
 
   return (
     <div
-      className={`villainous-card ${isHero ? 'hero-card' : ''} ${onClick ? 'cursor-pointer hover:scale-110 hover:-translate-y-1' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      className={`villainous-card-large ${isHero ? 'hero-card' : ''} ${onClick ? 'cursor-pointer hover:scale-110 hover:-translate-y-1' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
       style={{
+        borderColor: CARD_BORDERS[card.cardType] ?? '#888888',
         outline: selected ? '2px solid #e9c349' : undefined,
         outlineOffset: selected ? '2px' : undefined,
         boxShadow: selected

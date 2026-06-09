@@ -42,6 +42,7 @@ export function createInitialState(options: GameSetupOptions): GameState {
         effectIds: def.effectIds,
         activationCost: def.activationCost,
         grantsActionSlot: def.grantsActionSlot,
+        imageFile: def.imageFile,
         locationId: undefined,
         attachedToInstId: undefined,
         attachedItemInstIds: [],
@@ -208,6 +209,19 @@ export function movePawn(
       actingPlayerId: playerId, cardInstId: cardId, targetLocationId: locationId,
     });
   }
+  s = { ...s, turnPhase: TurnPhase.ACTIVATE, usedActionSlotIndices: [] };
+  s = checkWin(s);
+  return s;
+}
+
+// ─── SKIP MOVE ─────────────────────────────────────────────────────────────
+
+export function skipMovePhase(
+  state: GameState,
+  playerId: PlayerId,
+): GameState {
+  let s = updatePlayer(state, playerId, { skipNextMove: false, dragonActive: false });
+  s = addLog(s, `${getPlayer(s, playerId).name} permanece en su ubicación.`);
   s = { ...s, turnPhase: TurnPhase.ACTIVATE, usedActionSlotIndices: [] };
   s = checkWin(s);
   return s;

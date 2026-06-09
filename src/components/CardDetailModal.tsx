@@ -2,6 +2,7 @@ import type { CardInst, GameState } from '../core/types';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { getCardDef } from '../core/villains/registry';
 import { X } from 'lucide-react';
+import { modalStyles } from '../styles/modalStyles';
 
 const TYPE_LABELS: Record<string, string> = {
   ALLY: 'Aliado', ITEM: 'Objeto', EFFECT: 'Efecto',
@@ -24,11 +25,11 @@ export function CardDetailModal({ card, state, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/75 flex items-center justify-center z-100 backdrop-blur-sm"
+      className={modalStyles.overlay}
       onClick={onClose}
     >
       <div
-        className="bg-surface-container border border-primary/40 rounded-xl p-5 w-80 max-w-[92vw] flex flex-col gap-4 shadow-[0_0_40px_rgba(211,188,249,0.3)]"
+        className="bg-surface-container border border-primary/40 rounded-xl p-4 sm:p-5 w-11/12 sm:w-80 sm:max-w-[92vw] flex flex-col gap-4 shadow-[0_0_40px_rgba(211,188,249,0.3)]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

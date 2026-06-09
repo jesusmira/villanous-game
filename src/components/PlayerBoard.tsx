@@ -1,9 +1,10 @@
 import type { GameState, PlayerState, CardInstId } from '../core/types';
 import { getPlugin } from '../core/villains/registry';
+import { Image } from './Image';
 
 const BOARD_IMAGES: Record<string, string> = {
-  hook:       '/images/boards/Hook.png',
-  maleficent: '/images/boards/Maleficent.png',
+  hook:       '/images/boards/hook.png',
+  maleficent: '/images/boards/maleficent.png',
 };
 import { getCoveredSlotIndices, getAvailableSlotIndices } from '../core/engine/stateHelpers';
 import { LocationTile } from './LocationTile';
@@ -50,20 +51,21 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
   const progressItems = parseProgress(progressLabel);
 
   return (
-    <article className="space-y-5">
+    <article className="space-y-2 sm:space-y-5">
 
       {/* ── Player header ────────────────────────────────── */}
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4 flex-1">
+      <header className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 flex-1">
 
-          {/* Avatar circle */}
+          {/* Avatar circle with villain image */}
           <div
-            className="w-12 h-12 md:w-14 md:h-14 rounded-full border-2 overflow-hidden shadow-[0_0_15px_rgba(233,195,73,0.35)] shrink-0 flex items-center justify-center"
-            style={{ borderColor: plugin.color, background: `${plugin.color}22` }}
+            className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full border-2 overflow-hidden shadow-[0_0_15px_rgba(233,195,73,0.35)] shrink-0 flex items-center justify-center"
+            style={{ borderColor: plugin.color }}
           >
-            <span className="font-serif text-xl font-bold" style={{ color: plugin.color }}>
-              {plugin.name.charAt(0)}
-            </span>
+            <Image
+              src={`/images/villains/${player.villainId}.webp`}
+              className="w-full h-full object-cover scale-150"
+            />
           </div>
 
           {/* Name + inline progress chips */}
@@ -71,7 +73,7 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
             {/* Villain name + objective chips on same row */}
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <h2
-                className="font-serif text-2xl md:text-3xl leading-none"
+                className="font-serif text-lg sm:text-xl md:text-2xl lg:text-3xl leading-none"
                 style={{ color: isActive ? plugin.color : '#d3bcf9' }}
               >
                 {plugin.name}
@@ -127,24 +129,24 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
           )}
 
           {/* Stats pill */}
-          <div className="bg-surface-container-low/60 backdrop-blur-md border border-outline-variant/40 px-3 py-1.5 rounded-full flex items-center gap-3 shadow-xl">
-            <div className="flex items-center gap-1">
-              <Zap className="w-3.5 h-3.5 text-secondary-container" fill="currentColor" />
-              <span className="font-stats text-sm font-bold">{player.power}</span>
+          <div className="bg-surface-container-low/60 backdrop-blur-md border border-outline-variant/40 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full flex items-center gap-2 sm:gap-3 shadow-xl">
+            <div className="flex items-center gap-0.5 sm:gap-1">
+              <Zap className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-secondary-container" fill="currentColor" />
+              <span className="font-stats text-xs sm:text-sm font-bold">{player.power}</span>
             </div>
-            <div className="w-px h-3 bg-outline-variant/40" />
-            <div className="flex items-center gap-1">
-              <Star className="w-3.5 h-3.5 text-primary" />
-              <span className="font-stats text-sm">{player.handInstIds.length}</span>
+            <div className="hidden sm:block w-px h-3 bg-outline-variant/40" />
+            <div className="flex items-center gap-0.5 sm:gap-1">
+              <Star className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-primary" />
+              <span className="font-stats text-xs sm:text-sm">{player.handInstIds.length}</span>
             </div>
-            <div className="w-px h-3 bg-outline-variant/40" />
-            <div className="flex items-center gap-1">
-              <Layers className="w-3.5 h-3.5 text-on-surface-variant" />
-              <span className="font-stats text-sm">{player.villainDeckInstIds.length}</span>
+            <div className="hidden sm:block w-px h-3 bg-outline-variant/40" />
+            <div className="flex items-center gap-0.5 sm:gap-1">
+              <Layers className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-on-surface-variant" />
+              <span className="font-stats text-xs sm:text-sm">{player.villainDeckInstIds.length}</span>
             </div>
-            <div className="w-px h-3 bg-outline-variant/40" />
-            <div className="flex items-center gap-1">
-              <BookOpen className="w-3.5 h-3.5 text-error" />
+            <div className="hidden sm:block w-px h-3 bg-outline-variant/40" />
+            <div className="flex items-center gap-0.5 sm:gap-1">
+              <BookOpen className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-error" />
               <span className="font-stats text-sm">{player.fateDeckInstIds.length}</span>
             </div>
           </div>
@@ -153,7 +155,7 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
 
       {/* ── Location grid ────────────────────────────────── */}
       <div className="overflow-x-auto lg:overflow-x-visible pb-2 scrollbar-hide">
-        <div className="grid grid-cols-4 gap-3 md:gap-5 min-w-160 lg:min-w-0 items-start">
+        <div className="grid grid-cols-4 gap-3 md:gap-5 min-w-160 lg:min-w-0 items-start relative z-20">
           {plugin.locations.map((locDef, locIndex) => {
             const locState      = player.locationStates[locDef.id];
             const covered        = getCoveredSlotIndices(state, player.id, locDef.id);
@@ -176,7 +178,7 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
                 selectedCardId={selectedCardId}
                 onCardClick={onCardClick}
                 onSlotClick={onActionSlotClick}
-                onLocationClick={isMovable ? () => onLocationClick?.(locDef.id) : undefined}
+                onLocationClick={onLocationClick ? () => onLocationClick(locDef.id) : undefined}
                 isMovableTarget={isMovable}
                 playHighlight={playHighlights?.[locDef.id]}
                 onCardDrop={onCardDrop ? () => onCardDrop(locDef.id) : undefined}

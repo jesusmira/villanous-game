@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import type { GameState, PlayerState } from '../core/types';
-import { CardComponent } from './CardComponent';
+import { LargeCardComponent } from './LargeCardComponent';
 
 interface Props {
   state: GameState;
@@ -37,7 +37,7 @@ export function FloraRevealModal({ state, victim, onClose }: Props) {
           ) : (
             <div className="flex flex-wrap justify-center gap-4">
               {handCards.map(card => (
-                <CardComponent key={card.instId} card={card} state={state} />
+                <LargeCardComponent key={card.instId} card={card} state={state} />
               ))}
             </div>
           )}

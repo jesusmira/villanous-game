@@ -30,6 +30,7 @@ interface GameStore {
   doDrawCards: () => void;
   doResolveCondition: (condInstId: string | null, ctx: Parameters<typeof resolveCondition>[2]) => void;
   doResolveAuroraHero: (targetLocationId: string) => void;
+  doClearAuroraReveal: () => void;
   doRevertToActivate: () => void;
   doResolveCuervo: (action: ActionType, params: Parameters<typeof resolveCuervo>[2]) => void;
   doResolveDemosles: (discardIds: Parameters<typeof resolveDemosles>[1], keepIds: Parameters<typeof resolveDemosles>[2]) => void;
@@ -154,7 +155,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (!state) return;
     const playerId = state.players[state.currentPlayerIndex].id;
-    set({ state: activateCard(state, playerId, cardInstId, slotIndex, ctx) });
+    const [next, steps] = maybeRunAI(activateCard(state, playerId, cardInstId, slotIndex, ctx));
+    set({ state: next, aiReplayQueue: steps });
   },
 
   doDiscardFromHand: (cardInstIds, slotIndex) => {
@@ -189,6 +191,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (!state) return;
     set({ state: resolveAuroraHero(state, targetLocationId) });
+  },
+
+  doClearAuroraReveal: () => {
+    const { state } = get();
+    if (!state) return;
+    set({ state: { ...state, pendingAuroraHero: undefined } });
   },
 
   doRevertToActivate: () => {

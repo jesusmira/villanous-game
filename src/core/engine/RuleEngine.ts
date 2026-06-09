@@ -157,6 +157,11 @@ export function canVanquish(
   if (allyTotalStr < heroStr)
     return fail(`Fuerza combinada (${allyTotalStr}) < Fuerza del Héroe (${heroStr}).`);
 
+  // Some heroes require multiple allies (e.g. Niños Perdidos, Guardias)
+  if (hero.effectIds.some(effId => getEffectDef(effId)?.requiresMultipleAlliesToVanquish) && allyInstIds.length < 2) {
+    return fail(`${hero.name} requiere al menos dos Aliados para ser derrotado.`);
+  }
+
   return ok;
 }
 
