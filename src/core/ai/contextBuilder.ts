@@ -32,9 +32,11 @@ export function buildPlayCtx(
     const player = getPlayer(state, playerId);
     const locState = player.locationStates[_targetLocId];
     if (reqTarget === 'ALLY') {
-      const allyId = locState?.villainCardInstIds.find(
-        id => state.allCards[id]?.cardType === CardType.ALLY,
-      );
+      // Primero buscar en la ubicación de juego; si no hay aliado, buscar en todo el reino.
+      const allyId = locState?.villainCardInstIds.find(id => state.allCards[id]?.cardType === CardType.ALLY)
+        ?? Object.values(player.locationStates)
+             .flatMap(ls => ls.villainCardInstIds)
+             .find(id => state.allCards[id]?.cardType === CardType.ALLY);
       if (allyId) ctx.targetCardInstId = allyId;
     } else if (reqTarget === 'HERO') {
       const heroId = locState?.heroCardInstIds[0];

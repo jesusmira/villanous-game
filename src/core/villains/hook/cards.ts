@@ -14,6 +14,7 @@ export const HookLocationId = {
 
 export const HookObjectiveStep = {
   HANGMAN_UNLOCKED:   'HANGMAN_UNLOCKED',
+  TIC_TAC_DEFEATED:   'TIC_TAC_DEFEATED',
   PETER_PAN_DEFEATED: 'PETER_PAN_DEFEATED_AT_JOLLYROGER',
 } as const;
 

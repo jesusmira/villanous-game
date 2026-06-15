@@ -1,7 +1,9 @@
 import { ActionType, TurnPhase, CardType } from '../types';
 import type { GameState, PlayerId, LocationId, CardInstId } from '../types';
 import { getPlugin, getEffectDef } from '../villains/registry';
-import { getPlayer, getEffectiveStrength, getAvailableSlotIndices, getActionAtSlot, computeKingdomCostMod } from './stateHelpers';
+import { EffectId, CardDefId } from '../villains/effectIds';
+import { getPlayer, getEffectiveStrength, computeKingdomCostMod } from './stateHelpers';
+import { getAvailableSlotIndices, getActionAtSlot } from './slotHelpers';
 
 export interface ValidationResult {
   valid: boolean;
@@ -160,6 +162,23 @@ export function canVanquish(
   // Some heroes require multiple allies (e.g. Niños Perdidos, Guardias)
   if (hero.effectIds.some(effId => getEffectDef(effId)?.requiresMultipleAlliesToVanquish) && allyInstIds.length < 2) {
     return fail(`${hero.name} requiere al menos dos Aliados para ser derrotado.`);
+  }
+
+  // Burla: heroes with Burla attached must be defeated before any non-Burla hero
+  const heroHasBurla = (id: CardInstId) =>
+    (state.allCards[id]?.attachedItemInstIds ?? []).some(
+      itemId => state.allCards[itemId]?.effectIds.includes(EffectId.BURLA_ATTACH),
+    );
+  if (!heroHasBurla(heroInstId)) {
+    const burlaHeroExists = Object.values(player.locationStates).some(ls =>
+      ls.heroCardInstIds.some(id => id !== heroInstId && heroHasBurla(id)),
+    );
+    if (burlaHeroExists) return fail('Debes derrotar primero a los Héroes con Burla.');
+  }
+
+  // Hook: Peter Pan solo puede vencerse en el Jolly Roger
+  if (hero.defId === CardDefId.HOOK_PETER_PAN && hero.locationId !== 'jollyroger') {
+    return fail('Peter Pan solo puede ser derrotado en el Jolly Roger.');
   }
 
   return ok;

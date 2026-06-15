@@ -119,13 +119,17 @@ export function LocationTile({
 
         {/* ── Top overlay: hero cards + fate items ─────────────── */}
         {topCards.length > 0 && (
-          <div className="absolute top-0 inset-x-0 z-30 flex justify-center pointer-events-none"
-            style={{ gap: topCards.length > 1 ? '4px' : '0' }}>
-            {topCards.map(card => {
+          <div className={`absolute top-0 inset-x-0 z-30 flex pointer-events-none ${topCards.length === 1 ? 'justify-center' : ''}`}
+            style={{
+              marginLeft: topCards.length > 1 ? '2px' : '0px',
+              marginRight: topCards.length > 1 ? `${(topCards.length - 1) * 20}px` : '0px',
+            }}>
+            {topCards.map((card, idx) => {
               const isHero = heroCards.includes(card);
               return (
                 <div key={card.instId}
-                  className="pointer-events-auto drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)]"
+                  className="pointer-events-auto hover:z-10 hover:-translate-y-2 transition-transform duration-200 shrink-0 drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)]"
+                  style={{ marginLeft: idx === 0 ? '0px' : '-40px' }}
                 >
                   <CardComponent
                     card={card}
@@ -309,9 +313,9 @@ export function LocationTile({
           </span>
         ) : (
           /* Stacked cards - overlap based on count */
-          <div className="flex transition-all duration-200"
+          <div className={`flex transition-all duration-200 ${allyZoneCards.length === 1 ? 'justify-center w-full' : ''}`}
             style={{
-              marginLeft: '2px',
+              marginLeft: allyZoneCards.length > 1 ? '2px' : '0px',
               gap: '0px',
               marginRight: allyZoneCards.length > 1 ? `${(allyZoneCards.length - 1) * 20}px` : '0px'
             }}>

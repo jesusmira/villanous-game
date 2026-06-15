@@ -4,10 +4,10 @@ import type { GameState, GameSetupOptions, LocationId, CardInstId } from '../cor
 import { createInitialState, movePawn, gainPower, playCard, vanquish,
   moveItemAlly, moveHero, startFate, resolveFate, activateCard,
   discardFromHand, endActivatePhase, drawCards, skipMove, resolveAuroraHero,
-  revertToActivate,
+  revertToActivate, activateRaven,
 } from '../core/engine/GameEngine';
-import { resolveCondition, resolveCuervo, resolveDemosles } from '../core/engine/PendingStateResolver';
-import { runAITurn } from '../core/ai/AIPlayer';
+import { resolveCondition, resolveCuervo, resolveDemosles, resolveJaqueca } from '../core/engine/PendingStateResolver';
+import { runAITurn, chooseCuervoAction } from '../core/ai/AIPlayer';
 
 interface GameStore {
   state: GameState | null;
@@ -34,6 +34,8 @@ interface GameStore {
   doRevertToActivate: () => void;
   doResolveCuervo: (action: ActionType, params: Parameters<typeof resolveCuervo>[2]) => void;
   doResolveDemosles: (discardIds: Parameters<typeof resolveDemosles>[1], keepIds: Parameters<typeof resolveDemosles>[2]) => void;
+  doActivateRaven: (ravenInstId: CardInstId, targetLocationId: LocationId) => void;
+  doResolveJaqueca: (itemInstId: CardInstId) => void;
 }
 
 function maybeAutoResolveCondition(state: GameState): GameState {
@@ -47,7 +49,18 @@ function maybeAutoResolveCuervo(state: GameState): GameState {
   if (!state.pendingCuervo) return state;
   const player = state.players.find(p => p.id === state.pendingCuervo!.playerId);
   if (!player?.isAI) return state;
-  return resolveCuervo(state, ActionType.GAIN_POWER, {});
+  const { action, params } = chooseCuervoAction(state);
+  return resolveCuervo(state, action, params);
+}
+
+function maybeAutoResolveJaqueca(state: GameState): GameState {
+  if (!state.pendingJaqueca) return state;
+  const actingPlayer = state.players.find(p => p.id === state.pendingJaqueca!.actingPlayerId);
+  if (!actingPlayer?.isAI) return state;
+  const { itemInstIds } = state.pendingJaqueca;
+  // IA: descartar el Cañón primero (ranura VANQUISH extra), si no el primer objeto.
+  const canon = itemInstIds.find(id => state.allCards[id]?.defId?.startsWith('hook_v_canon'));
+  return resolveJaqueca(state, canon ?? itemInstIds[0]);
 }
 
 function maybeAutoResolveDemosles(state: GameState): GameState {
@@ -62,6 +75,7 @@ function maybeRunAI(state: GameState): [GameState, GameState[]] {
   let s = maybeAutoResolveCondition(state);
   s = maybeAutoResolveCuervo(s);
   s = maybeAutoResolveDemosles(s);
+  s = maybeAutoResolveJaqueca(s);
   if (s.winner) return [s, []];
   const current = s.players[s.currentPlayerIndex];
   if (!current.isAI) return [s, []];
@@ -215,5 +229,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (!state) return;
     set({ state: resolveDemosles(state, discardIds, keepIds) });
+  },
+
+  doActivateRaven: (ravenInstId, targetLocationId) => {
+    const { state } = get();
+    if (!state) return;
+    const playerId = state.players[state.currentPlayerIndex].id;
+    const [next, steps] = maybeRunAI(activateRaven(state, playerId, ravenInstId, targetLocationId));
+    set({ state: next, aiReplayQueue: steps });
+  },
+
+  doResolveJaqueca: (itemInstId) => {
+    const { state } = get();
+    if (!state) return;
+    const [next, steps] = maybeRunAI(resolveJaqueca(state, itemInstId));
+    set({ state: next, aiReplayQueue: steps });
   },
 }));

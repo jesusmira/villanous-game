@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import type { VillainId, GameSetupOptions } from '../core/types';
+import type { VillainId } from '../core/types';
 import { getAllPlugins } from '../core/villains/registry';
 import { useGameStore } from '../state/gameStore';
 import { Image } from './Image';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 
-// Villanos reales del juego
 const REAL_VILLAINS = getAllPlugins().map(p => ({
   id: p.id as VillainId,
   name: p.name,
@@ -15,198 +14,197 @@ const REAL_VILLAINS = getAllPlugins().map(p => ({
 
 const VILLAIN_OPTIONS = REAL_VILLAINS;
 
-type GameMode = '1v1' | 'vsia' | null;
+// Número de círculos visibles por fila según breakpoint
+const MOB_PER_ROW   = 6;   // < 768 px: 1 fila de 6
+const DESK_PER_PAGE = 12;  // ≥ 768 px: 2 filas de 6
+
+type GameMode    = '1v1' | 'vsia' | null;
 type ActivePlayer = 'player1' | 'player2';
 
-interface VillainCircleProps {
-  villainId: VillainId;
-  description: string;
+// ── Círculo de villano ───────────────────────────────────────────────────────
+interface CircleProps {
+  villainId: VillainId; name: string; color: string; desc: string;
   onSelect: () => void;
-  activePlayer: ActivePlayer;
-  isSelectedByP1: boolean;
-  isSelectedByP2: boolean;
+  isP1: boolean; isP2: boolean; activePlayer: ActivePlayer;
 }
-
-function VillainCircle({ villainId, description, onSelect, activePlayer, isSelectedByP1, isSelectedByP2 }: VillainCircleProps) {
-  const [hoveredTooltip, setHoveredTooltip] = useState(false);
-  const villain = VILLAIN_OPTIONS.find(v => v.id === villainId)!;
-
+function VillainCircle({ villainId, name, color, desc, onSelect, isP1, isP2, activePlayer }: CircleProps) {
+  const [tip, setTip] = useState(false);
+  const selected = isP1 || isP2;
+  const active   = (activePlayer === 'player1' && isP1) || (activePlayer === 'player2' && isP2);
   return (
-    <div className="relative">
+    <div className="relative flex flex-col items-center gap-1 min-w-0">
       <button
         onClick={onSelect}
-        onMouseEnter={() => setHoveredTooltip(true)}
-        onMouseLeave={() => setHoveredTooltip(false)}
-        className="w-16 sm:w-20 md:w-24 h-16 sm:h-20 md:h-24 rounded-full border-2 transition-all duration-150 overflow-hidden hover:scale-110 flex items-center justify-center relative"
+        onMouseEnter={() => setTip(true)}
+        onMouseLeave={() => setTip(false)}
+        className="w-full aspect-square rounded-full border-2 overflow-hidden transition-all hover:scale-105 active:scale-95 relative"
         style={{
-          borderColor: isSelectedByP1 || isSelectedByP2 ? villain.color : 'rgba(73,69,78,0.6)',
-          borderWidth: isSelectedByP1 || isSelectedByP2 ? '3px' : '2px',
+          borderColor: selected ? color : 'rgba(73,69,78,0.55)',
+          borderWidth: selected ? 3 : 2,
+          boxShadow: active ? `0 0 16px 3px ${color}55` : undefined,
         }}
       >
-        <img
-          src={`/images/villains/${villainId}.webp`}
-          alt={villain.name}
-          className="w-full h-full object-cover scale-125"
-        />
-
-        {/* Highlight ring for active player's selection */}
-        {(activePlayer === 'player1' && isSelectedByP1) || (activePlayer === 'player2' && isSelectedByP2) ? (
-          <div className="absolute inset-0 rounded-full" style={{ boxShadow: `inset 0 0 10px ${villain.color}` }} />
-        ) : null}
+        <img src={`/images/villains/${villainId}.webp`} alt={name} className="w-full h-full object-cover scale-125" />
+        {active && <div className="absolute inset-0 rounded-full" style={{ boxShadow: `inset 0 0 12px ${color}` }} />}
       </button>
-
-      {hoveredTooltip && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-surface-container-high border border-outline-variant/60 rounded-lg p-2 w-40 z-50 shadow-lg">
-          <p className="text-xs text-on-surface-variant text-center leading-snug">
-            {description}
-          </p>
+      <span
+        className="text-[9px] sm:text-[10px] font-serif text-center leading-tight w-full truncate transition-colors"
+        style={{ color: selected ? color : 'rgba(200,190,220,0.45)' }}
+      >{name}</span>
+      {tip && (
+        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-surface-container-high border border-outline-variant/60 rounded-lg p-2 w-28 z-50 shadow-lg pointer-events-none">
+          <p className="text-[9px] text-on-surface-variant text-center leading-snug">{desc}</p>
         </div>
       )}
     </div>
   );
 }
 
-interface PlayerCardProps {
-  playerLabel: string;
-  name: string;
-  villainId: VillainId | null;
-  onNameChange: (name: string) => void;
-  isActive: boolean;
-  onActivate: () => void;
+// ── Tarjeta de jugador (altura fija, sin layout shift) ───────────────────────
+interface PCProps {
+  label: string; name: string; villainId: VillainId | null;
+  vColor?: string; vName?: string;
+  onNameChange: (n: string) => void; isActive: boolean; onActivate: () => void;
 }
-
-function PlayerCard({ playerLabel, name, villainId, onNameChange, isActive, onActivate }: PlayerCardProps) {
-  const villain = villainId ? VILLAIN_OPTIONS.find(v => v.id === villainId) : null;
-
+function PlayerCard({ label, name, villainId, vColor, vName, onNameChange, isActive, onActivate }: PCProps) {
   return (
     <div
-      className={`bg-surface-container-low border-2 rounded-xl p-4 flex flex-col gap-3 transition-all cursor-pointer ${
-        isActive ? 'border-primary' : 'border-outline-variant/40'
-      }`}
+      className="flex items-center gap-2 bg-surface-container-low border-2 rounded-xl p-2 sm:p-2.5 cursor-pointer select-none transition-colors"
+      style={{ borderColor: isActive ? (vColor ?? '#d3bcf9') : 'rgba(73,69,78,0.4)' }}
       onClick={onActivate}
     >
-      <div className="mb-2">
-        <h3 className="font-stats text-xs text-on-surface-variant uppercase tracking-widest">
-          {playerLabel}
-        </h3>
+      <div
+        className="shrink-0 rounded-full border-2 overflow-hidden"
+        style={{ width: 40, height: 40, borderColor: vColor ?? 'rgba(73,69,78,0.35)' }}
+      >
+        {villainId
+          ? <img src={`/images/villains/${villainId}.webp`} alt={vName} className="w-full h-full object-cover scale-125" />
+          : <div className="w-full h-full bg-surface-container flex items-center justify-center">
+              <span className="text-on-surface-variant/25 font-serif">?</span>
+            </div>
+        }
       </div>
-
-
-      <input
-        type="text"
-        value={name}
-        onChange={e => {
-          e.stopPropagation();
-          onNameChange(e.target.value);
-        }}
-        onClick={e => e.stopPropagation()}
-        placeholder="Nombre"
-        className="bg-surface-container border border-outline-variant/50 rounded px-3 sm:px-2 py-2 sm:py-1 min-h-10 sm:min-h-auto text-sm sm:text-xs text-on-surface outline-none focus:border-primary/60 transition-colors"
-      />
-
-      {/* Villano seleccionado - mostrar imagen debajo del nombre */}
-      {villain && (
-        <div className="flex flex-col items-center gap-2 mt-3">
-          <div className="w-24 h-24 rounded-full border-2 overflow-hidden" style={{ borderColor: villain.color }}>
-            <img
-              src={`/images/villains/${villain.id}.webp`}
-              alt={villain.name}
-              className="w-full h-full object-cover scale-125"
-            />
-          </div>
-          <p className="text-sm font-serif text-on-surface text-center">
-            {villain.name}
-          </p>
-        </div>
-      )}
+      <div className="flex-1 flex flex-col gap-1 min-w-0">
+        <span className="font-stats text-[8px] uppercase tracking-widest text-on-surface-variant/60">{label}</span>
+        <input
+          type="text" value={name} placeholder="Nombre"
+          onChange={e => { e.stopPropagation(); onNameChange(e.target.value); }}
+          onClick={e => e.stopPropagation()}
+          className="bg-surface-container border border-outline-variant/50 rounded px-2 py-1 text-xs text-on-surface outline-none focus:border-primary/60 w-full"
+        />
+        <span className="font-serif text-[10px] leading-tight truncate" style={{ color: vColor ?? 'transparent', minHeight: '0.875rem' }}>
+          {vName ?? ' '}
+        </span>
+      </div>
     </div>
   );
 }
 
+// ── Botón de flecha ──────────────────────────────────────────────────────────
+function NavBtn({ dir, disabled, onClick }: { dir: 'left' | 'right'; disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick} disabled={disabled}
+      className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full border border-outline-variant/50 text-on-surface-variant hover:text-on-surface hover:border-outline disabled:opacity-25 disabled:cursor-not-allowed transition-all active:scale-90"
+    >
+      {dir === 'left' ? <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" /> : <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />}
+    </button>
+  );
+}
+
+// ── Indicador de página (puntos) ─────────────────────────────────────────────
+function PageDots({ total, current }: { total: number; current: number }) {
+  if (total <= 1) return null;
+  return (
+    <div className="flex gap-1 justify-center">
+      {Array.from({ length: total }).map((_, i) => (
+        <div key={i} className="h-1.5 rounded-full transition-all"
+          style={{
+            width: i === current ? 16 : 6,
+            background: i === current ? 'rgba(211,188,249,0.8)' : 'rgba(73,69,78,0.4)',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Componente principal ─────────────────────────────────────────────────────
 export function GameSetup() {
   const initGame = useGameStore(s => s.initGame);
-  const [gameMode, setGameMode] = useState<GameMode>(null);
+  const [gameMode, setGameMode]         = useState<GameMode>(null);
   const [activePlayer, setActivePlayer] = useState<ActivePlayer>('player1');
 
+  // Página independiente por breakpoint (no se puede saber cuál se muestra sin JS)
+  const [mobPage,  setMobPage]  = useState(0);
+  const [deskPage, setDeskPage] = useState(0);
+
   const [p1Villain, setP1Villain] = useState<VillainId | null>(null);
-  const [p1Name, setP1Name] = useState('Jugador 1');
-
+  const [p1Name,    setP1Name]    = useState('Jugador 1');
   const [p2Villain, setP2Villain] = useState<VillainId | null>(null);
-  const [p2IsAI, setP2IsAI] = useState(false);
-  const [p2Name, setP2Name] = useState('Jugador 2');
+  const [p2IsAI,    setP2IsAI]    = useState(false);
+  const [p2Name,    setP2Name]    = useState('Jugador 2');
 
-  function handleVillainSelect(villainId: VillainId) {
+  const mobTotal  = Math.ceil(VILLAIN_OPTIONS.length / MOB_PER_ROW);
+  const deskTotal = Math.ceil(VILLAIN_OPTIONS.length / DESK_PER_PAGE);
+  const mobSlice  = VILLAIN_OPTIONS.slice(mobPage  * MOB_PER_ROW,   (mobPage  + 1) * MOB_PER_ROW);
+  const deskSlice = VILLAIN_OPTIONS.slice(deskPage * DESK_PER_PAGE, (deskPage + 1) * DESK_PER_PAGE);
+
+  const p1Meta = p1Villain ? VILLAIN_OPTIONS.find(v => v.id === p1Villain) ?? null : null;
+  const p2Meta = p2Villain ? VILLAIN_OPTIONS.find(v => v.id === p2Villain) ?? null : null;
+
+  function circleProps(v: typeof VILLAIN_OPTIONS[0]) {
+    return {
+      villainId: v.id, name: v.name, color: v.color, desc: v.desc,
+      activePlayer,
+      isP1: p1Villain === v.id && p1Meta?.name === v.name,
+      isP2: p2Villain === v.id && p2Meta?.name === v.name,
+      onSelect: () => select(v),
+    };
+  }
+
+  function select(v: typeof VILLAIN_OPTIONS[0]) {
     if (activePlayer === 'player1') {
-      setP1Villain(villainId);
-      // Si la IA está activa, asignar automáticamente un villano diferente
+      setP1Villain(v.id);
       if (p2IsAI) {
-        const differentVillain = VILLAIN_OPTIONS.find(v => v.id !== villainId);
-        if (differentVillain) {
-          setP2Villain(differentVillain.id);
-        }
+        const diff = VILLAIN_OPTIONS.find(u => u.id !== v.id);
+        if (diff) setP2Villain(diff.id);
       } else {
-        // En modo 1v1, cambiar automáticamente a Jugador 2
         setActivePlayer('player2');
       }
     } else {
-      // En modo jugador vs jugador, permitir selección manual
-      setP2Villain(villainId);
+      setP2Villain(v.id);
     }
+  }
+
+  function goBack() {
+    setGameMode(null); setP1Villain(null); setP2Villain(null);
+    setActivePlayer('player1'); setMobPage(0); setDeskPage(0);
   }
 
   function start() {
-    if (!p1Villain || !p2Villain) {
-      alert('Ambos jugadores deben seleccionar un villano.');
-      return;
-    }
-    if (p1Villain === p2Villain) {
-      alert('Cada jugador debe elegir un Villano diferente.');
-      return;
-    }
-    const opts: GameSetupOptions = {
+    if (!p1Villain || !p2Villain) { alert('Ambos jugadores deben seleccionar un villano.'); return; }
+    if (p1Villain === p2Villain)  { alert('Cada jugador debe elegir un Villano diferente.'); return; }
+    initGame({
       player1: { villainId: p1Villain, isAI: false, name: p1Name },
       player2: { villainId: p2Villain, isAI: p2IsAI, name: p2Name },
-    };
-    initGame(opts);
+    });
   }
 
-  // Pantalla de selección de modo
+  // ── Modo de juego ──────────────────────────────────────────────────────────
   if (gameMode === null) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center px-4 gap-4 sm:gap-6 md:gap-8 py-4 sm:py-6">
-        {/* Logo */}
-        <div className="text-center flex flex-col w-full shrink-0">
-          <Image
-            src="/Logo-vote-villainous.webp"
-            className="h-24 sm:h-32 md:h-48 lg:h-96 object-contain"
-          />
-        </div>
-
-        {/* Mode Selection Buttons */}
-        <div className="flex flex-col gap-2 sm:gap-3 w-full max-w-xs shrink-0">
-          <button
-            onClick={() => setGameMode('1v1')}
-            className="px-4 sm:px-6 py-3 sm:py-2.5 min-h-12 sm:min-h-11 text-xs sm:text-sm md:text-base rounded-lg font-serif font-bold uppercase transition-all hover:scale-105 active:scale-95 touch-none"
-            style={{
-              background: 'linear-gradient(135deg, #d3bcf9 0%, #8b5cf6 100%)',
-              color: '#1c1b1b',
-            }}
-          >
+      <div className="h-svh flex flex-col items-center justify-center px-4 gap-5">
+        <Image src="/Logo-vote-villainous.webp" className="h-28 sm:h-40 md:h-56 lg:h-72 object-contain" />
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <button onClick={() => setGameMode('1v1')}
+            className="px-6 py-3 min-h-11 text-sm rounded-lg font-serif font-bold uppercase transition-all hover:scale-105 active:scale-95"
+            style={{ background: 'linear-gradient(135deg,#d3bcf9,#8b5cf6)', color: '#1c1b1b' }}>
             Jugador vs Jugador
           </button>
-
-          <button
-            onClick={() => {
-              setGameMode('vsia');
-              setP2IsAI(true);
-              setP2Name('IA');
-            }}
-            className="px-4 sm:px-6 py-3 sm:py-2.5 min-h-12 sm:min-h-11 text-xs sm:text-sm md:text-base rounded-lg font-serif font-bold uppercase transition-all hover:scale-105 active:scale-95 touch-none"
-            style={{
-              background: 'linear-gradient(135deg, #e9c349 0%, #f97316 100%)',
-              color: '#1c1b1b',
-            }}
-          >
+          <button onClick={() => { setGameMode('vsia'); setP2IsAI(true); setP2Name('IA'); }}
+            className="px-6 py-3 min-h-11 text-sm rounded-lg font-serif font-bold uppercase transition-all hover:scale-105 active:scale-95"
+            style={{ background: 'linear-gradient(135deg,#e9c349,#f97316)', color: '#1c1b1b' }}>
             Jugador vs IA
           </button>
         </div>
@@ -214,88 +212,97 @@ export function GameSetup() {
     );
   }
 
-  // Pantalla de selección de villanos
+  // ── Selección de villanos ──────────────────────────────────────────────────
+  // CSS grid de filas: [cabecera auto] [villanos 1fr] [indicador auto] [jugadores auto] [botón auto]
+  // La zona de villanos (1fr) nunca puede desbordar porque tiene overflow:hidden.
+  // SIEMPRE es una sola fila de círculos → no hay problema de altura sin importar
+  // el ratio del viewport.
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 gap-6 sm:gap-8 lg:gap-8">
-      {/* Header con botón atrás y label */}
-      <div className="flex items-center justify-between w-full max-w-full lg:max-w-6xl pt-4 px-2 sm:px-0">
-        <button
-          onClick={() => {
-            setGameMode(null);
-            setP1Villain(null);
-            setP2Villain(null);
-            setActivePlayer('player1');
-          }}
-          className="p-2 rounded-lg border border-outline-variant/50 text-on-surface-variant hover:text-on-surface transition-colors"
-        >
-          <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5" />
+    <div style={{ height: '100svh', display: 'grid', gridTemplateRows: 'auto 1fr auto auto auto', overflow: 'hidden' }}>
+
+      {/* Cabecera */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-1">
+        <button onClick={goBack}
+          className="p-1.5 sm:p-2 rounded-lg border border-outline-variant/50 text-on-surface-variant hover:text-on-surface transition-colors">
+          <ArrowLeft className="w-4 h-4" />
         </button>
-        <p className="font-stats text-xs sm:text-sm text-on-surface-variant uppercase tracking-widest text-center flex-1 px-4">
+        <p className="font-stats text-[10px] sm:text-xs text-on-surface-variant uppercase tracking-widest text-center flex-1 px-3">
           Selecciona Villano ({activePlayer === 'player1' ? 'J1' : 'J2'})
         </p>
-        <div className="w-9" />
+        <div className="w-7 sm:w-8" />
       </div>
 
-      {/* Main Layout: Always show both players */}
-      <div className="flex gap-2 sm:gap-4 lg:gap-6 items-start w-full max-w-full lg:max-w-7xl px-2 sm:px-0">
-        {/* Player 1 Card */}
-        <div className="shrink-0 w-32 sm:w-40 md:w-48 lg:w-56">
-          <PlayerCard
-            playerLabel="J1"
-            name={p1Name}
-            villainId={p1Villain}
-            onNameChange={setP1Name}
-            isActive={activePlayer === 'player1'}
-            onActivate={() => setActivePlayer('player1')}
-          />
+      {/* ── Zona de villanos (1fr, overflow:hidden) ── */}
+      <div style={{ overflow: 'hidden' }} className="flex items-center justify-center px-3 py-2">
+
+        {/* MOBILE (<768px): carrusel 1 fila, 6 por página */}
+        {/* clamp(38px, 11vw, 70px): portrait ~41px, landscape ~70px */}
+        <div className="md:hidden flex items-center justify-center gap-1 px-2 w-full">
+          <NavBtn dir="left"  disabled={mobPage === 0}           onClick={() => setMobPage(p => p - 1)} />
+          <div className="flex gap-2 justify-center">
+            {mobSlice.map((v, i) => (
+              <div key={`m${mobPage}-${i}`} style={{ width: 'clamp(38px, 11vw, 70px)' }}>
+                <VillainCircle {...circleProps(v)} />
+              </div>
+            ))}
+            {Array.from({ length: MOB_PER_ROW - mobSlice.length }).map((_, i) => (
+              <div key={`me${i}`} style={{ width: 'clamp(38px, 11vw, 70px)' }} />
+            ))}
+          </div>
+          <NavBtn dir="right" disabled={mobPage >= mobTotal - 1} onClick={() => setMobPage(p => p + 1)} />
         </div>
 
-        {/* Villain Selector Center - Grid */}
-        <div className="flex-1 flex flex-col items-center w-full">
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-x-0.5 gap-y-2 sm:gap-y-3 lg:gap-y-4 w-full">
-            {VILLAIN_OPTIONS.map(v => (
-              <div key={v.id} className="flex justify-center">
-                <VillainCircle
-                  villainId={v.id}
-                  description={v.desc}
-                  onSelect={() => handleVillainSelect(v.id)}
-                  activePlayer={activePlayer}
-                  isSelectedByP1={p1Villain === v.id}
-                  isSelectedByP2={p2Villain === v.id}
-                />
-              </div>
+        {/* DESKTOP (≥768px): grid 6×2 con paginación */}
+        <div className="hidden md:flex flex-col items-center gap-3 w-full max-w-2xl">
+          <div className="grid grid-cols-6 gap-3 w-full">
+            {deskSlice.map((v, i) => (
+              <VillainCircle key={`d${deskPage}-${i}`} {...circleProps(v)} />
+            ))}
+            {Array.from({ length: DESK_PER_PAGE - deskSlice.length }).map((_, i) => (
+              <div key={`de${i}`} className="w-full aspect-square invisible" />
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Player 2 Card */}
-        <div className="shrink-0 w-32 sm:w-40 md:w-48 lg:w-56">
-          <PlayerCard
-            playerLabel="J2"
-            name={p2Name}
-            villainId={p2Villain}
-            onNameChange={setP2Name}
-            isActive={activePlayer === 'player2'}
-            onActivate={() => setActivePlayer('player2')}
-          />
+      {/* Indicador de página */}
+      <div className="flex items-center justify-center gap-3 py-1">
+        {/* Mobile dots */}
+        <div className="md:hidden">
+          <PageDots total={mobTotal} current={mobPage} />
+        </div>
+        {/* Desktop: dots + flechas de paginación */}
+        <div className="hidden md:flex items-center gap-3">
+          <NavBtn dir="left"  disabled={deskPage === 0}            onClick={() => setDeskPage(p => p - 1)} />
+          <PageDots total={deskTotal} current={deskPage} />
+          <NavBtn dir="right" disabled={deskPage >= deskTotal - 1} onClick={() => setDeskPage(p => p + 1)} />
         </div>
       </div>
 
-      {/* Start Button */}
-      <button
-        onClick={start}
-        disabled={!p1Villain || !p2Villain}
-        className="px-8 sm:px-12 py-3 sm:py-3 min-h-12 rounded-lg font-stats text-xs sm:text-sm font-bold uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:opacity-85 active:enabled:scale-95 w-full sm:w-auto max-w-xs touch-none"
-        style={{
-          background: p1Villain && p2Villain
-            ? 'linear-gradient(135deg, #2d1b4d 0%, #4f3d71 100%)'
-            : 'linear-gradient(135deg, #2d1b4d 0%, #4f3d71 100%)',
-          border: '2px solid #75fd00',
-          color: '#75fd00',
-        }}
-      >
-        Comenzar Partida
-      </button>
+      {/* Tarjetas de jugadores */}
+      <div className="flex gap-2 sm:gap-3 px-3 sm:px-4 pb-2 sm:pb-3">
+        <div className="flex-1 min-w-0">
+          <PlayerCard label="Jugador 1" name={p1Name} villainId={p1Villain}
+            vColor={p1Meta?.color} vName={p1Meta?.name} onNameChange={setP1Name}
+            isActive={activePlayer === 'player1'} onActivate={() => setActivePlayer('player1')} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <PlayerCard label={p2IsAI ? 'IA' : 'Jugador 2'} name={p2Name} villainId={p2Villain}
+            vColor={p2Meta?.color} vName={p2Meta?.name} onNameChange={setP2Name}
+            isActive={activePlayer === 'player2'} onActivate={() => setActivePlayer('player2')} />
+        </div>
+      </div>
+
+      {/* Botón de inicio */}
+      <div className="flex justify-center px-4 pb-4 sm:pb-5">
+        <button
+          onClick={start} disabled={!p1Villain || !p2Villain}
+          className="w-full max-w-xs px-8 py-2.5 sm:py-3 min-h-10 sm:min-h-11 rounded-lg font-stats text-xs sm:text-sm font-bold uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:opacity-85 active:enabled:scale-95"
+          style={{ background: 'linear-gradient(135deg,#2d1b4d,#4f3d71)', border: '2px solid #75fd00', color: '#75fd00' }}
+        >
+          Comenzar Partida
+        </button>
+      </div>
     </div>
   );
 }

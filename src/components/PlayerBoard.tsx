@@ -6,7 +6,7 @@ const BOARD_IMAGES: Record<string, string> = {
   hook:       '/images/boards/hook.png',
   maleficent: '/images/boards/maleficent.png',
 };
-import { getCoveredSlotIndices, getAvailableSlotIndices } from '../core/engine/stateHelpers';
+import { getCoveredSlotIndices, getAvailableSlotIndices } from '../core/engine/slotHelpers';
 import { LocationTile } from './LocationTile';
 import { Zap, Layers, BookOpen, Star } from 'lucide-react';
 

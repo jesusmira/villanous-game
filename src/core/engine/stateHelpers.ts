@@ -1,7 +1,7 @@
 import { CardType } from '../types';
 import type {
   GameState, PlayerState, CardInst, CardInstId,
-  PlayerId, LocationId, LocationState, ActionType,
+  PlayerId, LocationId, LocationState,
 } from '../types';
 import { getPlugin, getEffectDef } from '../villains/registry';
 
@@ -25,10 +25,6 @@ export function computeKingdomCostMod(
   }
   return mod;
 }
-
-// Virtual slot indices for item-granted action slots start at this offset.
-// Must match the ITEM_SLOT_OFFSET constant in ActionPanel.tsx.
-export const ITEM_SLOT_OFFSET = 100;
 
 export function getPlayer(state: GameState, playerId: PlayerId): PlayerState {
   const p = state.players.find(p => p.id === playerId);
@@ -101,75 +97,6 @@ export function getEffectiveStrength(state: GameState, instId: CardInstId): numb
     }
   }
   return Math.max(0, strength);
-}
-
-// Cards covering a location are the heroes placed there.
-// Returns which action slot indices are covered (blocked) by heroes.
-// Returns the extra action slots granted by items placed at a location.
-export function getItemGrantedSlotEntries(
-  state: GameState,
-  playerId: PlayerId,
-  locationId: LocationId,
-): Array<{ slotIndex: number; type: ActionType; value?: number; itemInstId: CardInstId }> {
-  const player = getPlayer(state, playerId);
-  const locState = player.locationStates[locationId];
-  if (!locState) return [];
-  let extra = ITEM_SLOT_OFFSET;
-  const result: Array<{ slotIndex: number; type: ActionType; value?: number; itemInstId: CardInstId }> = [];
-  for (const cardId of locState.villainCardInstIds) {
-    const card = state.allCards[cardId];
-    if (card?.grantsActionSlot) {
-      result.push({ slotIndex: extra, type: card.grantsActionSlot.type, value: card.grantsActionSlot.value, itemInstId: cardId });
-      extra++;
-    }
-  }
-  return result;
-}
-
-// Returns the action definition at any slot index (base or item-granted).
-export function getActionAtSlot(
-  state: GameState,
-  playerId: PlayerId,
-  slotIndex: number,
-): { type: ActionType; value?: number } | undefined {
-  const player = getPlayer(state, playerId);
-  const plugin = getPlugin(player.villainId);
-  const locDef = plugin.locations.find(l => l.id === player.pawnLocationId);
-  if (!locDef) return undefined;
-  if (slotIndex < locDef.actions.length) return locDef.actions[slotIndex];
-  return getItemGrantedSlotEntries(state, playerId, player.pawnLocationId).find(e => e.slotIndex === slotIndex);
-}
-
-export function getCoveredSlotIndices(
-  state: GameState,
-  playerId: PlayerId,
-  locationId: LocationId,
-): number[] {
-  const player = getPlayer(state, playerId);
-  const locState = player.locationStates[locationId];
-  const locDef = getPlugin(player.villainId).locations.find(l => l.id === locationId);
-  if (!locDef) return [];
-  const heroCount = locState.heroCardInstIds.length;
-  // Any hero present covers the first 2 slots; 0 heroes = 0 slots covered
-  const coveredCount = heroCount > 0 ? Math.min(2, locDef.actions.length) : 0;
-  return locDef.actions.slice(0, coveredCount).map((_, i) => i);
-}
-
-export function getAvailableSlotIndices(
-  state: GameState,
-  playerId: PlayerId,
-  locationId: LocationId,
-): number[] {
-  const player = getPlayer(state, playerId);
-  const locDef = getPlugin(player.villainId).locations.find(l => l.id === locationId);
-  if (!locDef || player.locationStates[locationId].isLocked) return [];
-  const covered = getCoveredSlotIndices(state, playerId, locationId);
-  const used = state.usedActionSlotIndices;
-  const base = locDef.actions.map((_, i) => i).filter(i => !covered.includes(i) && !used.includes(i));
-  const extra = getItemGrantedSlotEntries(state, playerId, locationId)
-    .filter(e => !used.includes(e.slotIndex))
-    .map(e => e.slotIndex);
-  return [...base, ...extra];
 }
 
 // Move a card instance from its current position in any deck/hand array.
@@ -260,11 +187,12 @@ export function findCardInFateDeck(
   return player.fateDiscardInstIds.find(id => state.allCards[id]?.defId === defId);
 }
 
-export function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+export function checkWin(state: GameState): GameState {
+  for (const player of state.players) {
+    const plugin = getPlugin(player.villainId);
+    if (plugin.checkWinCondition(state, player.id)) {
+      return addLog({ ...state, winner: player.id }, `¡${player.name} ha ganado!`);
+    }
   }
-  return a;
+  return state;
 }

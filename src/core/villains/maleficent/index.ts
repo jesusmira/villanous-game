@@ -3,6 +3,7 @@ import type { VillainPlugin, GameState, PlayerId } from '../../types';
 import { getPlayer } from '../../engine/stateHelpers';
 import { effects } from './effects';
 import { locations, villainCardDefs, fateCardDefs } from './cards';
+import { conditionHandlers } from './resolvers';
 
 function checkWinCondition(state: GameState, playerId: PlayerId): boolean {
   const player = getPlayer(state, playerId);
@@ -38,4 +39,5 @@ export const maleficentPlugin: VillainPlugin = {
   handSize: 4,
   checkWinCondition,
   getWinProgress,
+  conditionHandlers,
 };

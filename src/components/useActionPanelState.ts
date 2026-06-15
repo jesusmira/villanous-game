@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { ActionType, CardType } from '../core/types';
 import type { GameState, CardInstId, LocationId } from '../core/types';
-import { getPlugin } from '../core/villains/registry';
-import { getPlayer, getAvailableSlotIndices, ITEM_SLOT_OFFSET } from '../core/engine/stateHelpers';
+import { getPlugin, getEffectDef } from '../core/villains/registry';
+import { getPlayer, getEffectiveStrength } from '../core/engine/stateHelpers';
+import { getAvailableSlotIndices, ITEM_SLOT_OFFSET } from '../core/engine/slotHelpers';
 import { canVanquish, canMoveItemAlly, canMoveHero } from '../core/engine/RuleEngine';
 import { useGameStore } from '../state/gameStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -130,6 +131,23 @@ export function useActionPanelState(state: GameState, playerId: string) {
   );
   const allUnlockedLocs  = plugin.locations.filter(l => !player.locationStates[l.id]?.isLocked);
 
+  // ── VANQUISH helpers ──────────────────────────────────────────────────────
+  const vanquishCombinedStr = selectedAllyIds.reduce(
+    (sum, id) => sum + getEffectiveStrength(state, id), 0,
+  );
+
+  function vanquishEligibleAllies(heroInstId: CardInstId) {
+    const hero = state.allCards[heroInstId];
+    if (!hero) return [];
+    return alliesInKingdom.filter(ally => {
+      if (ally.locationId === hero.locationId) return true;
+      const canFromAdj = ally.effectIds.some(id => getEffectDef(id)?.canVanquishFromAdjacent);
+      if (!canFromAdj) return false;
+      const heroLocDef = plugin.locations.find(l => l.id === hero.locationId);
+      return heroLocDef?.adjacentIds.includes(ally.locationId!) ?? false;
+    });
+  }
+
   return {
     store, player, plugin, locDef,
     selectedCardId,    setSelectedCardId,
@@ -145,6 +163,7 @@ export function useActionPanelState(state: GameState, playerId: string) {
     resetSelection, clearPending,
     availableSlots, extraSlots,
     kingdomCards, heroesInKingdom, alliesInKingdom, movableCards, allUnlockedLocs,
+    vanquishCombinedStr, vanquishEligibleAllies,
   };
 }
 

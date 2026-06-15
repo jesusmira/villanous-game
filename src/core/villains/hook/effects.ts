@@ -2,8 +2,9 @@ import { CardType, EffectTrigger } from '../../types';
 import type { EffectDef } from '../../types';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
-  discardCardFromKingdom, addLog, shuffle,
+  discardCardFromKingdom, addLog,
 } from '../../engine/stateHelpers';
+import { shuffle } from '../../utils/shuffle';
 import { locations, HookLocationId, HookObjectiveStep } from './cards';
 
 export const effects: EffectDef[] = [
@@ -196,8 +197,19 @@ export const effects: EffectDef[] = [
       if (!ally?.locationId) return state;
       const locDef = locations.find(l => l.id === ally.locationId);
       if (!locDef) return state;
-      const destLocId = ctx.targetLocationId
-        ?? locDef.adjacentIds.find(adjId => !getPlayer(state, ctx.actingPlayerId).locationStates[adjId]?.isLocked);
+      // ctx.targetLocationId es la ubicación de juego de la carta, NO necesariamente
+      // adyacente al aliado. Solo usarlo si es válido como destino (adyacente + no bloqueado).
+      const playerForDest = getPlayer(state, ctx.actingPlayerId);
+      const destLocId = (() => {
+        const candidate = ctx.targetLocationId;
+        if (
+          candidate &&
+          candidate !== ally.locationId &&
+          locDef.adjacentIds.includes(candidate) &&
+          !playerForDest.locationStates[candidate]?.isLocked
+        ) return candidate;
+        return locDef.adjacentIds.find(adjId => !playerForDest.locationStates[adjId]?.isLocked);
+      })();
       if (!destLocId) return state;
       const srcLoc = getPlayer(state, ctx.actingPlayerId).locationStates[ally.locationId];
       let s = updateLocationState(state, ctx.actingPlayerId, ally.locationId, {
@@ -321,15 +333,17 @@ export const effects: EffectDef[] = [
         return addLog(discardCardFromKingdom(state, ctx.targetCardInstId), `Gran Jaqueca descarta ${target.name}.`);
       }
 
-      // Auto-select first available villain item
-      for (const locState of Object.values(hookPlayer.locationStates)) {
-        const itemId = locState.villainCardInstIds.find(id => state.allCards[id]?.cardType === CardType.ITEM);
-        if (itemId) {
-          const item = state.allCards[itemId];
-          return addLog(discardCardFromKingdom(state, itemId), `Gran Jaqueca descarta ${item?.name ?? 'Objeto'}.`);
-        }
+      // Recoger todos los objetos del reino de Garfio.
+      const allItems = Object.values(hookPlayer.locationStates)
+        .flatMap(ls => ls.villainCardInstIds)
+        .filter(id => state.allCards[id]?.cardType === CardType.ITEM);
+      if (allItems.length === 0) return addLog(state, 'Gran Jaqueca: no hay Objetos en el Reino.');
+      if (allItems.length === 1) {
+        const item = state.allCards[allItems[0]];
+        return addLog(discardCardFromKingdom(state, allItems[0]), `Gran Jaqueca descarta ${item?.name ?? 'Objeto'}.`);
       }
-      return addLog(state, 'Gran Jaqueca: no hay Objetos en el Reino.');
+      // Varios objetos: el jugador elige (la IA resuelve automáticamente en gameStore).
+      return { ...state, pendingJaqueca: { itemInstIds: allItems, actingPlayerId: ctx.actingPlayerId } };
     },
   },
   {

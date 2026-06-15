@@ -10,7 +10,9 @@ import { CuervoModal } from './CuervoModal';
 import { DemoslesModal } from './DemoslesModal';
 import { ConditionModal } from './ConditionModal';
 import { HistoryModal } from './HistoryModal';
+import { HookDeckModal } from './HookDeckModal';
 import { AuroraModal } from './AuroraModal';
+import { JaquecaModal } from './JaquecaModal';
 import { VanquishModal } from './VanquishModal';
 import { FloraRevealModal } from './FloraRevealModal';
 import { VictoryModal } from './VictoryModal';
@@ -19,9 +21,10 @@ import { TestPage } from './TestPage';
 import { useGameStore } from '../state/gameStore';
 import { useActionPanelState } from './useActionPanelState';
 import { canMovePawn, canPlayCard, canMoveItemAlly, canMoveHero } from '../core/engine/RuleEngine';
-import { getAvailableSlotIndices, getActionAtSlot, computeKingdomCostMod } from '../core/engine/stateHelpers';
+import { computeKingdomCostMod } from '../core/engine/stateHelpers';
+import { getAvailableSlotIndices, getActionAtSlot } from '../core/engine/slotHelpers';
 import { buildPlayCtx } from '../core/ai/contextBuilder';
-import { LayoutGrid, RotateCcw, X, ScrollText, Beaker } from 'lucide-react';
+import { LayoutGrid, RotateCcw, X, ScrollText, Beaker, BookOpen } from 'lucide-react';
 import { useSwipe } from '../hooks/useSwipe';
 
 interface Props { state: GameState }
@@ -44,6 +47,7 @@ export function GameBoard({ state }: Props) {
   const [dragHeroCardId, setDragHeroCardId]   = useState<string | null>(null);
   const [pendingItemDrop, setPendingItemDrop] = useState<{ cardId: string; locId: string; mapaId: string; normalCost: number } | null>(null);
   const [showTests, setShowTests]           = useState(false);
+  const [showHookDeck, setShowHookDeck]     = useState(false);
 
   // Swipe gesture for closing hand drawer
   const handDrawerSwipe = useSwipe({
@@ -85,11 +89,11 @@ export function GameBoard({ state }: Props) {
   // Single shared action state — used by both tokens (LocationTile) and ActionPanel
   const ap = useActionPanelState(displayedState, currentPlayer.id);
 
-  // Auto-abrir cajón y limpiar selección al activar/desactivar modo descarte
+  // Auto-abrir cajón al activar modo descarte o jugar carta
   useEffect(() => {
-    if (ap.pendingAction === ActionType.DISCARD) {
+    if (ap.pendingAction === ActionType.DISCARD || ap.pendingAction === ActionType.PLAY_CARD) {
       setHandOpen(true);
-      setDiscardIds([]);
+      if (ap.pendingAction === ActionType.DISCARD) setDiscardIds([]);
     } else {
       setDiscardIds([]);
     }
@@ -391,6 +395,13 @@ export function GameBoard({ state }: Props) {
             <ScrollText className="w-4 h-4" />
           </button>
           <button
+            onClick={() => setShowHookDeck(true)}
+            title="Cartas de Garfio"
+            className="text-on-surface-variant hover:text-primary transition-colors"
+          >
+            <BookOpen className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => setShowTests(true)}
             title="Pruebas de modales"
             className="text-on-surface-variant hover:text-primary transition-colors"
@@ -504,14 +515,14 @@ export function GameBoard({ state }: Props) {
       )}
 
       {/* ── Hand drawer (human player only) ─────────────────── */}
-      {isHumanTurn && handCards.length > 0 && (
+      {isHumanTurn && (
         <>
-          {/* Pestaña disparadora — DESKTOP (lateral derecha) */}
+          {/* Pestaña disparadora — DESKTOP (lateral derecha) — siempre visible */}
           <button
             onClick={() => setHandOpen(o => !o)}
-            className="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 z-60 flex-col items-center justify-center gap-2 bg-surface-container-highest/95 backdrop-blur-md border border-r-0 border-outline-variant/40 rounded-l-xl px-2 py-4 hover:bg-surface-container/95 transition-colors shadow-xl"
+            className="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 z-110 flex-col items-center justify-center gap-2 bg-surface-container-highest/95 backdrop-blur-md border border-r-0 border-outline-variant/40 rounded-l-xl px-2 py-4 hover:bg-surface-container/95 transition-colors shadow-xl"
           >
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center font-stats text-[10px] font-bold ${handRevealed ? 'bg-error/20 text-error' : 'bg-primary/15 text-primary'}`}>
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center font-stats text-[10px] font-bold ${handRevealed ? 'bg-error/20 text-error' : handCards.length === 0 ? 'bg-outline-variant/20 text-on-surface-variant/40' : 'bg-primary/15 text-primary'}`}>
               {handCards.length}
             </span>
             <span
@@ -572,6 +583,9 @@ export function GameBoard({ state }: Props) {
 
             {/* ── MÓVIL/TABLET: fila de cartas reales, centradas ── */}
             <div className="lg:hidden flex-1 overflow-x-auto overflow-y-hidden">
+              {handCards.length === 0 && (
+                <p className="text-[11px] text-on-surface-variant/40 italic px-6 pt-4">Mano vacía — roba en la fase siguiente</p>
+              )}
               <div className="flex items-center gap-7 w-max max-w-full mx-auto px-6 py-4 h-full">
                 {handCards.map(card => {
                   const isDiscardMode   = ap.pendingAction === ActionType.DISCARD;
@@ -624,6 +638,9 @@ export function GameBoard({ state }: Props) {
 
             {/* ── DESKTOP: lista vertical compacta ── */}
             <div className="hidden lg:flex flex-1 overflow-y-auto py-1 flex-col">
+              {handCards.length === 0 && (
+                <p className="text-[11px] text-on-surface-variant/40 italic px-4 pt-3">Mano vacía</p>
+              )}
               {handCards.map(card => {
                 const isDiscardMode   = ap.pendingAction === ActionType.DISCARD;
                 const isMarkedDiscard = discardIds.includes(card.instId);
@@ -792,6 +809,7 @@ export function GameBoard({ state }: Props) {
 
       {isHumanTurn && <VanquishModal ap={ap} state={displayedState} playerId={currentPlayer.id} />}
       {state.pendingAuroraHero && <AuroraModal state={state} />}
+      {state.pendingJaqueca    && <JaquecaModal state={state} />}
       {state.pendingCondition  && <ConditionModal state={state} />}
       {state.pendingFate && (
         <FateModal
@@ -805,6 +823,7 @@ export function GameBoard({ state }: Props) {
       {state.pendingCuervo    && <CuervoModal state={state} />}
       {state.pendingDemosles  && <DemoslesModal state={state} />}
       {historyOpen && <HistoryModal state={displayedState} onClose={() => setHistoryOpen(false)} />}
+      {showHookDeck && <HookDeckModal state={displayedState} onClose={() => setShowHookDeck(false)} />}
       {floraOpen && floraVictim && (
         <FloraRevealModal state={displayedState} victim={floraVictim} onClose={() => setFloraOpen(false)} />
       )}

@@ -1,11 +1,38 @@
-import type { VillainPlugin, GameState, PlayerId } from '../../types';
-import { getPlayer } from '../../engine/stateHelpers';
+import type { VillainPlugin, GameState, PlayerId, CardInstId, LocationId } from '../../types';
+import { getPlayer, updatePlayer } from '../../engine/stateHelpers';
 import { CardDefId } from '../effectIds';
 import { effects } from './effects';
 import { locations, villainCardDefs, fateCardDefs, HookObjectiveStep, HookLocationId } from './cards';
 
+function onVanquish(state: GameState, playerId: PlayerId, heroInstId: CardInstId, heroLocId: LocationId): GameState {
+  const hero = state.allCards[heroInstId];
+  const steps = getPlayer(state, playerId).completedObjectiveSteps;
+
+  if (hero?.defId === CardDefId.HOOK_TIC_TAC && !steps.includes(HookObjectiveStep.TIC_TAC_DEFEATED)) {
+    state = updatePlayer(state, playerId, {
+      completedObjectiveSteps: [...steps, HookObjectiveStep.TIC_TAC_DEFEATED],
+    });
+  }
+
+  if (hero?.defId === CardDefId.HOOK_PETER_PAN && heroLocId === HookLocationId.JOLLY_ROGER) {
+    const updatedSteps = getPlayer(state, playerId).completedObjectiveSteps;
+    state = updatePlayer(state, playerId, {
+      completedObjectiveSteps: [...updatedSteps, HookObjectiveStep.PETER_PAN_DEFEATED],
+    });
+  }
+
+  return state;
+}
+
 function checkWinCondition(state: GameState, playerId: PlayerId): boolean {
   const player = getPlayer(state, playerId);
+
+  // Cannot win while Tic Tac is still alive in the kingdom
+  const ticTacAlive = Object.values(player.locationStates).some(ls =>
+    ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC),
+  );
+  if (ticTacAlive) return false;
+
   return (
     player.completedObjectiveSteps.includes(HookObjectiveStep.PETER_PAN_DEFEATED) &&
     player.completedObjectiveSteps.includes(HookObjectiveStep.HANGMAN_UNLOCKED)
@@ -17,8 +44,12 @@ function getWinProgress(state: GameState, player: ReturnType<typeof getPlayer>):
   const ppInKingdom = Object.values(player.locationStates).some(ls =>
     ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN),
   );
+  const ticTacAlive = Object.values(player.locationStates).some(ls =>
+    ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC),
+  );
   return [
     steps.includes(HookObjectiveStep.HANGMAN_UNLOCKED)   ? '✅ Árbol desbloqueado'    : '❌ Árbol bloqueado',
+    ticTacAlive                                           ? '❌ Tic Tac en el Reino'   : '✅ Tic Tac derrotado/ausente',
     ppInKingdom                                           ? '✅ Peter Pan en el Reino' : '❌ Peter Pan no encontrado',
     steps.includes(HookObjectiveStep.PETER_PAN_DEFEATED)  ? '✅ Peter Pan derrotado'   : '❌ Peter Pan no derrotado',
   ].join(' | ');
@@ -38,4 +69,5 @@ export const hookPlugin: VillainPlugin = {
   handSize: 4,
   checkWinCondition,
   getWinProgress,
+  onVanquish,
 };

@@ -36,21 +36,21 @@
       },
       {
         "nombre": "NINOS PERDIDOS",
-        "descripcion": "Cuando se lleve a cabo la accién Vencer para derrotar a los Nifios Perdidos se deben utilizar al menos dos Aliados",
+        "descripcion": "Cuando se lleve a cabo la accién Vencer para derrotar a los Niños Perdidos se deben utilizar al menos dos Aliados",
         "tipo": "Héroe",
         "Fuerza": "4",
         "cantidad": "2"
       },
       {
         "nombre": "PETER PAN",
-        "descripcion": "Cuando Peter Pan sea revelado DEBES JUGARLO INMEDIATAMENTE en el Arbol del fee incluso aunque esté bloqueado",
+        "descripcion": "Cuando Peter Pan sea revelado DEBES JUGARLO INMEDIATAMENTE en el Arbol del Ahorcado incluso aunque esté bloqueado",
         "tipo": "Héroe",
         "Fuerza": "8",
         "cantidad": "1"
       },
       {
         "nombre": "POLVO DE HADA",
-        "descripcion": "Cuando juegues el Polvo de i Hada únelo a un Héroe Ese Heroe recibe +2 Fuerza",
+        "descripcion": "Cuando juegues el Polvo de Hada únelo a un Héroe Ese Heroe recibe +2 Fuerza",
         "tipo": "Objeto",
         "Fuerza": "+2",
         "cantidad": "3"
@@ -69,7 +69,6 @@
         "Fuerza": "3",
         "cantidad": "1"
       }
-
     ],
     "villano": [
       {
@@ -133,7 +132,7 @@
       },
       {
         "nombre": "OBSESIÓN",
-        "descripcion": "OBSESIÓN Durante su turno si otro jugador derrota a un Héroe de Fuerza 4 o superior, puedes jugar Obsesión Revela cartas de la parte superior de tu mazo de Destino hasta revelar un Héroe Juega o descarta ese Héroe Descarta el resto",
+        "descripcion": "Durante su turno si otro jugador derrota a un Héroe de Fuerza 4 o superior, puedes jugar Obsesión Revela cartas de la parte superior de tu mazo de Destino hasta revelar un Héroe Juega o descarta ese Héroe Descarta el resto",
         "tipo": "Condicion",
         "cantidad": "2",
         "coste": "0"
@@ -188,10 +187,9 @@
   },
   "Maléfica": {
     "heroe": [
-      
       {
         "nombre": "AURORA",
-        "descripcion": "Cuando juegues a Aurora revela la carta superior del mazo de Destinode Maléfica Sies un Héroe juégaloSi no devuélvelo arriba del mazo",
+        "descripcion": "Cuando juegues a Aurora revela la carta superior del mazo de Destino de Maléfica Si es un Héroe juégalo. Si no devuélvelo arriba del mazo",
         "tipo": "Héroe",
         "Fuerza": "4",
         "cantidad": "1"
@@ -242,7 +240,7 @@
         "nombre": "REY ESTEFANO",
         "descripcion": "Cuando juegues al Rey Estéfano puedes mover a Maléfica a cualquier i ubicación",
         "tipo": "Héroe",
-        "Fuerza": "5",
+        "Fuerza": "4",
         "cantidad": "1"
       },
       {
@@ -260,7 +258,6 @@
       }
     ],
     "villano": [
-      
       {
         "nombre": "EL CUERVO",
         "descripcion": "Antes de mover a Maléfica puedes mover El Cuervo a cualquier ubicación y llevar a cabo una de las acciones disponibles en su nueva ubicacion El Cuervo no puede realizar acciones Destino",
@@ -268,7 +265,6 @@
         "cantidad": "1",
         "coste": "3",
         "Fuerza": "1"
-        
       },
       {
         "nombre": "RUECA",
@@ -360,5 +356,193 @@
         "Fuerza": "0"
       }
     ]
-  }  
+  },
+  "Principe Juan": {
+    "heroe": [
+      [
+        {
+          "nombre": "REY RICARDO",
+          "tipo": "Héroe",
+          "fuerza": 5,
+          "texto": "El Príncipe Juan no puede jugar Efectos."
+        },
+        {
+          "nombre": "LADY KLUCK",
+          "tipo": "Héroe",
+          "fuerza": 6,
+          "texto": "Lady Kluck no puede ser jugada ni movida a la Prisión."
+        },
+        {
+          "nombre": "LITTLE JOHN",
+          "tipo": "Héroe",
+          "fuerza": 5,
+          "texto": "Cuando juegues a Little John, puedes cogerle hasta 4 Monedas de Poder al Príncipe Juan y ponerlas sobre Little John. Cuando Little John sea derrotado, las Monedas volverán con el Príncipe Juan."
+        },
+        {
+          "nombre": "LADY MARIAN",
+          "tipo": "Héroe",
+          "fuerza": 3,
+          "texto": "Cuando Lady Marian sea derrotada, encuentra a Robin Hood y juégalo en la misma ubicación."
+        },
+        {
+          "nombre": "ROBIN HOOD",
+          "tipo": "Héroe",
+          "fuerza": 5,
+          "texto": "La cantidad de Monedas de Poder que el Príncipe Juan gane de cada carta o acción se reduce en -1 Moneda."
+        },
+        {
+          "nombre": "SKIPPY",
+          "tipo": "Héroe",
+          "fuerza": 2,
+          "texto": "Los Arqueros Lobo no pueden ser utilizados para derrotar a Skippy."
+        },
+        {
+          "nombre": "TOBY",
+          "tipo": "Héroe",
+          "fuerza": 2,
+          "texto": "Cuando Toby sea derrotado, vuelve a meterlo en el mazo de Destino del Príncipe Juan."
+        },
+        {
+          "nombre": "BUEN DISFRAZ",
+          "tipo": "Objeto",
+          "fuerza": null,
+          "texto": "Cuando juegues la carta Buen Disfraz, únela a un Héroe. Ese Héroe no puede ser derrotado. En cualquier momento, el Príncipe Juan puede pagar 2 Monedas de Poder para descartar Buen Disfraz."
+        },
+        {
+          "nombre": "ROBAR A LOS RICOS",
+          "tipo": "Efecto",
+          "fuerza": null,
+          "texto": "Coge hasta 4 Monedas de Poder del Príncipe Juan y ponlas encima de cualquier Héroe. Cuando ese Héroe sea derrotado, las Monedas volverán con el Príncipe Juan."
+        },
+        {
+          "nombre": "ALAN-A-DALE",
+          "tipo": "Héroe",
+          "fuerza": 2,
+          "texto": "Todos los demás Héroes que estén en el Reino del Príncipe Juan reciben +1 Fuerza."
+        },
+        {
+          "nombre": "FRAILE TUCK",
+          "tipo": "Héroe",
+          "fuerza": 3,
+          "texto": "Cuando juegues al Fraile Tuck, puedes descartar todas las Órdenes de Búsqueda que haya en la ubicación del Fraile Tuck. El Príncipe Juan no puede ganar Monedas de Poder con ellas."
+        }
+      ]
+    ],
+    "villano": [
+      [
+        {
+          "nombre": "AVARICIA",
+          "tipo": "Condición",
+          "coste": null,
+          "fuerza": null,
+          "texto": "Durante su turno, si otro jugador tiene 6 o más Monedas de Poder, puedes jugar Avaricia. Recibes 3 Monedas de Poder."
+        },
+        {
+          "nombre": "TRAMPA",
+          "tipo": "Efecto",
+          "coste": 1,
+          "fuerza": null,
+          "texto": "Puedes mover un Aliado a cualquier ubicación. Lleva a cabo una acción Vencer."
+        },
+        {
+          "nombre": "CORONA DEL REY RICARDO",
+          "tipo": "Objeto",
+          "coste": 1,
+          "fuerza": null,
+          "texto": "Si el Príncipe Juan está en esta ubicación, los Precios de todas las cartas se reducen en -1 Moneda de Poder."
+        },
+        {
+          "nombre": "FLECHA DORADA",
+          "tipo": "Objeto",
+          "coste": 0,
+          "fuerza": null,
+          "texto": "Cuando juegues la Flecha Dorada, únela a un Aliado. Cuando ese Aliado sea utilizado para derrotar a un Héroe, recibe 2 Monedas de Poder."
+        },
+        {
+          "nombre": "INTIMIDACIÓN",
+          "tipo": "Efecto",
+          "coste": 2,
+          "fuerza": null,
+          "texto": "Lleva a cabo una acción Vencer, pero no descartes los Aliados utilizados para derrotar al Héroe."
+        },
+        {
+          "nombre": "LELO",
+          "tipo": "Aliado",
+          "coste": 2,
+          "fuerza": 2,
+          "texto": "Todos los Aliados que estén en la ubicación de Lelo reciben +1 Fuerza."
+        },
+        {
+          "nombre": "SHERIFF DE NOTTINGHAM",
+          "tipo": "Aliado",
+          "coste": 3,
+          "fuerza": 3,
+          "texto": "Antes de mover al Príncipe Juan, puedes mover al Sheriff de Notthingham a cualquier ubicación y recibir 1 Moneda de Poder si hay algún Héroe en su nueva ubicación."
+        },
+        {
+          "nombre": "SIR HISS",
+          "tipo": "Aliado",
+          "coste": 2,
+          "fuerza": 2,
+          "texto": "Si el Príncipe Juan está en la ubicación del Sir Hiss, puedes llevar a cabo una acción que esté tapada por un Héroe en esa ubicación."
+        },
+        {
+          "nombre": "TIRO LISTO",
+          "tipo": "Aliado",
+          "coste": 2,
+          "fuerza": 4,
+          "texto": "Todos los demás Aliados que estén en la ubicación de Tiro Listo reciben -1 de Fuerza."
+        },
+        {
+          "nombre": "APRECIADOS IMPUESTOS",
+          "tipo": "Efecto",
+          "coste": 0,
+          "fuerza": null,
+          "texto": "Recibe 1 Moneda de Poder por cada Héroe que haya en tu Reino."
+        },
+        {
+          "nombre": "ENCARCELAMIENTO",
+          "tipo": "Efecto",
+          "coste": 2,
+          "fuerza": null,
+          "texto": "Mueve un Héroe a La Prisión."
+        },
+        {
+          "nombre": "GUARDIAS RINOCERONTE",
+          "tipo": "Aliado",
+          "coste": 3,
+          "fuerza": 4,
+          "texto": "Sin Habilidad adicional."
+        },
+        {
+          "nombre": "ORDEN DE BÚSQUEDA",
+          "tipo": "Objeto",
+          "coste": 1,
+          "fuerza": null,
+          "texto": "Recibe 2 Monedas de Poder cada vez que se juegue un Héroe en esta ubicación."
+        },
+        {
+          "nombre": "ARQUEROS LOBO",
+          "tipo": "Aliado",
+          "coste": 2,
+          "fuerza": 2,
+          "texto": "Cuando estés realizando una acción Vencer, los Arqueros Lobo pueden ser utilizados para derrotar a un Héroe en su ubicación o en una ubicación adyacente."
+        },
+        {
+          "nombre": "ARCO CON FLECHAS",
+          "tipo": "Objeto",
+          "coste": 1,
+          "fuerza": null,
+          "texto": "Cuando juegues el Arco con Flechas, únelo a un Aliado. Ese Aliado recibe +1 Fuerza. Cuando ese Aliado deba ser descartado, descarta este Objeto en su lugar."
+        },
+        {
+          "nombre": "COBARDÍA",
+          "tipo": "Condición",
+          "coste": null,
+          "fuerza": null,
+          "texto": "Durante su turno, si otro jugador tiene tres o más Aliados en su Reino, puedes jugar Cobardía. Juega un Aliado de tu mano de forma gratuita."
+        }
+      ]
+    ]
+  }
 }

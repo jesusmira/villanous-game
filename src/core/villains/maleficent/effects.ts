@@ -2,8 +2,9 @@ import { CardType, EffectTrigger } from '../../types';
 import type { EffectDef } from '../../types';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
-  discardCardFromKingdom, addLog, getEffectiveStrength, shuffle,
+  discardCardFromKingdom, addLog, getEffectiveStrength,
 } from '../../engine/stateHelpers';
+import { shuffle } from '../../utils/shuffle';
 import { locations } from './cards';
 
 export const effects: EffectDef[] = [
@@ -173,16 +174,23 @@ export const effects: EffectDef[] = [
   {
     id: 'mal_estefano_move_pawn',
     trigger: EffectTrigger.ON_PLAY,
-    description: 'Mueve a Maléfica a la ubicación con más Héroes',
+    description: 'Mueve a Maléfica a una ubicación con Fuego Verde (para eliminar la maldición) o con más Héroes',
     execute: (state, ctx) => {
       const card = state.allCards[ctx.cardInstId];
       if (!card) return state;
       const player = getPlayer(state, card.ownerId);
-      const best = Object.entries(player.locationStates)
-        .filter(([locId]) => locId !== player.pawnLocationId)
-        .sort(([, a], [, b]) => b.heroCardInstIds.length - a.heroCardInstIds.length)[0];
-      if (!best) return state;
-      const [bestLocId] = best;
+      const candidates = Object.entries(player.locationStates)
+        .filter(([locId, ls]) => locId !== player.pawnLocationId && !ls.isLocked);
+      if (candidates.length === 0) return state;
+
+      // Prioridad: ubicación con Fuego Verde (su ON_PAWN_ARRIVES descarta la maldición)
+      const fuegoVerde = candidates.filter(([, ls]) =>
+        ls.villainCardInstIds.some(id => state.allCards[id]?.effectIds.includes('mal_fuego_verde_effect')),
+      );
+      const pool = fuegoVerde.length > 0 ? fuegoVerde : candidates;
+
+      // Dentro del pool, elegir la que tenga más héroes (más disruptiva para Maléfica)
+      const [bestLocId] = pool.sort(([, a], [, b]) => b.heroCardInstIds.length - a.heroCardInstIds.length)[0];
       const s = updatePlayer(state, card.ownerId, { pawnLocationId: bestLocId });
       return addLog(s, `Rey Estéfano mueve a Maléfica a ${bestLocId}.`);
     },
@@ -309,17 +317,19 @@ export const effects: EffectDef[] = [
   },
   {
     id: 'mal_rueca_power',
-    trigger: EffectTrigger.ON_HERO_PLAYED_HERE,
-    description: 'Gana Poder igual a la Fuerza del Héroe jugado aquí',
+    trigger: EffectTrigger.ON_VANQUISH,
+    description: 'Gana Poder igual a la Fuerza del Héroe derrotado aquí menos 1',
     execute: (state, ctx) => {
       if (!ctx.targetCardInstId) return state;
       const rueca = state.allCards[ctx.cardInstId];
       if (!rueca) return state;
       const heroStr = getEffectiveStrength(state, ctx.targetCardInstId);
+      const gained = Math.max(0, heroStr - 1);
+      if (gained === 0) return state;
       const owner = getPlayer(state, rueca.ownerId);
       return addLog(
-        updatePlayer(state, rueca.ownerId, { power: owner.power + heroStr }),
-        `Rueca: ${owner.name} gana ${heroStr} de Poder.`,
+        updatePlayer(state, rueca.ownerId, { power: owner.power + gained }),
+        `Rueca: ${owner.name} gana ${gained} de Poder.`,
       );
     },
   },

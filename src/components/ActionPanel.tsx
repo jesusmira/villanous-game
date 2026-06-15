@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { TurnPhase, ActionType } from '../core/types';
 import type { GameState, PlayerId, CardInstId } from '../core/types';
-import { getEffectDef } from '../core/villains/registry';
+import { getEffectDef, getPlugin } from '../core/villains/registry';
+import { EffectId, CardDefId } from '../core/villains/effectIds';
+import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { modalStyles } from '../styles/modalStyles';
 import { ACTION_LABELS } from './shared/actionLabels';
+import { useGameStore } from '../state/gameStore';
 
 const ACTION_IMG: Record<string, string> = {
   GAIN_POWER:     '/images/actions/gain_power.png',
@@ -75,6 +79,105 @@ function ActivateCardFlow({ ap, state }: { ap: ActionPanelCtx; state: GameState 
   );
 }
 
+// ─── VANQUISH flow ─────────────────────────────────────────────────────────────
+
+function VanquishFlow({ ap, state }: { ap: ActionPanelCtx; state: GameState }) {
+  const selectedHero = ap.selectedCardId ? state.allCards[ap.selectedCardId] : null;
+
+  const heroHasBurla = (instId: string) =>
+    (state.allCards[instId]?.attachedItemInstIds ?? []).some(
+      itemId => state.allCards[itemId]?.effectIds.includes(EffectId.BURLA_ATTACH),
+    );
+  const anyBurlaHero = ap.heroesInKingdom.some(h => heroHasBurla(h.instId));
+
+  if (!selectedHero) {
+    return (
+      <div className={modalStyles.panel}>
+        <p className="text-xs text-on-surface-variant">Selecciona el Héroe a derrotar (de cualquier ubicación):</p>
+        <div className="flex flex-wrap gap-1.5">
+          {ap.heroesInKingdom.map(hero => {
+            const heroStr   = getEffectiveStrength(state, hero.instId);
+            const locName   = ap.plugin.locations.find(l => l.id === hero.locationId)?.name ?? hero.locationId!;
+            const isPP      = hero.defId === CardDefId.HOOK_PETER_PAN;
+            const ppNotAtJR = isPP && hero.locationId !== 'jollyroger';
+            const burlaBlocked = !heroHasBurla(hero.instId) && anyBurlaHero;
+            const disabled  = ppNotAtJR || burlaBlocked;
+            return (
+              <button key={hero.instId}
+                disabled={disabled}
+                title={ppNotAtJR ? 'Solo en Jolly Roger' : burlaBlocked ? 'Derrota primero a los héroes con Burla' : undefined}
+                className={disabled ? `${modalStyles.buttonSelect} opacity-35` : modalStyles.buttonSelect}
+                onClick={() => { ap.setSelectedCardId(hero.instId); ap.setSelectedAllyIds([]); }}
+              >
+                {hero.name} <span className="text-tertiary">F{heroStr}</span>
+                <span className="text-on-surface-variant/60 ml-1 text-[10px]">({locName})</span>
+                {ppNotAtJR    && <span className="text-error ml-1 text-[10px]">Solo en JR</span>}
+                {burlaBlocked && <span className="text-error ml-1 text-[10px]">Burla</span>}
+              </button>
+            );
+          })}
+          {ap.heroesInKingdom.length === 0 && (
+            <p className="text-xs text-on-surface-variant/60">No hay Héroes en tu Reino.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const heroStr     = getEffectiveStrength(state, selectedHero.instId);
+  const eligible    = ap.vanquishEligibleAllies(selectedHero.instId);
+  const combined    = ap.vanquishCombinedStr;
+  const needsMultiple = selectedHero.effectIds.some(id => getEffectDef(id)?.requiresMultipleAlliesToVanquish);
+  const canConfirm  = combined >= heroStr && ap.selectedAllyIds.length > 0 && (!needsMultiple || ap.selectedAllyIds.length >= 2);
+
+  return (
+    <div className={modalStyles.panel}>
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          onClick={() => { ap.setSelectedCardId(null); ap.setSelectedAllyIds([]); }}
+          className="text-xs text-on-surface-variant/60 hover:text-on-surface transition-colors shrink-0"
+        >← Cambiar</button>
+        <span className="font-stats text-xs text-on-surface-variant flex-1">
+          Vencer: <span className="text-primary font-bold">{selectedHero.name}</span>
+        </span>
+        <span className={`font-stats text-sm font-bold shrink-0 ${combined >= heroStr ? 'text-primary' : 'text-on-surface-variant/60'}`}>
+          {combined}<span className="text-on-surface-variant/40 text-xs"> / {heroStr}</span>
+        </span>
+      </div>
+      {needsMultiple && ap.selectedAllyIds.length < 2 && (
+        <p className="text-[10px] text-tertiary">Este héroe requiere al menos 2 aliados</p>
+      )}
+      <p className="text-xs text-on-surface-variant">Elige aliados a usar (se descartarán al vencer):</p>
+      <div className="flex flex-wrap gap-1.5">
+        {eligible.map(ally => {
+          const allyStr   = getEffectiveStrength(state, ally.instId);
+          const isSelected = ap.selectedAllyIds.includes(ally.instId);
+          const isAdj     = ally.locationId !== selectedHero.locationId;
+          return (
+            <button key={ally.instId}
+              className={isSelected ? modalStyles.buttonActive : modalStyles.buttonSelect}
+              onClick={() => ap.setSelectedAllyIds(
+                prev => prev.includes(ally.instId)
+                  ? prev.filter(id => id !== ally.instId)
+                  : [...prev, ally.instId],
+              )}
+            >
+              {ally.name} <span className="text-tertiary">F{allyStr}</span>
+              {isAdj && <span className="text-on-surface-variant/40 ml-1 text-[10px]">Adj</span>}
+            </button>
+          );
+        })}
+        {eligible.length === 0 && (
+          <p className="text-xs text-error">Sin aliados en la ubicación de este héroe</p>
+        )}
+      </div>
+      <button className={modalStyles.buttonPrimary} disabled={!canConfirm} onClick={() => ap.execVanquish()}>
+        Vencer — {ap.selectedAllyIds.length} aliado{ap.selectedAllyIds.length !== 1 ? 's' : ''}
+      </button>
+    </div>
+  );
+}
+
 // ─── MAIN COMPONENT ────────────────────────────────────────────────────────────
 
 interface Props {
@@ -86,6 +189,62 @@ interface Props {
   handCount?: number;
   handRevealed?: boolean;
   onToggleHand?: () => void;
+}
+
+// ─── El Cuervo — se usa ANTES de mover el peón (fase MOVER) ─────────────────────
+function RavenFlow({ state, playerId }: { state: GameState; playerId: PlayerId }) {
+  const doActivateRaven = useGameStore(s => s.doActivateRaven);
+  const [open, setOpen]       = useState(false);
+  const [targetLoc, setTarget] = useState<string | null>(null);
+
+  const player = state.players.find(p => p.id === playerId);
+  if (!player || player.ravenUsedThisTurn) return null;
+
+  // Buscar el Cuervo en el reino (cualquier ubicación).
+  const ravenId = Object.values(state.allCards).find(
+    c => c.ownerId === playerId && c.effectIds.includes(EffectId.RAVEN_ACTIVATE) && c.locationId,
+  )?.instId;
+  if (!ravenId) return null;
+
+  const plugin = getPlugin(player.villainId);
+  const allLocs = plugin.locations.filter(l => !player.locationStates[l.id]?.isLocked);
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="shrink-0 px-2.5 py-1 rounded border border-primary/50 bg-primary/10 text-primary font-stats text-[10px] uppercase tracking-wider active:scale-95 transition-transform"
+      >
+        El Cuervo
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="font-stats text-[10px] text-primary uppercase tracking-wider shrink-0">Mover Cuervo a:</span>
+      {allLocs.map(loc => (
+        <button key={loc.id}
+          onClick={() => setTarget(loc.id)}
+          className={targetLoc === loc.id ? modalStyles.buttonActive : modalStyles.buttonSelect}
+        >{loc.name}</button>
+      ))}
+      {targetLoc && (
+        <button
+          className={modalStyles.buttonPrimary}
+          onClick={() => {
+            doActivateRaven(ravenId, targetLoc);
+            setOpen(false);
+            setTarget(null);
+          }}
+        >Mover</button>
+      )}
+      <button
+        onClick={() => { setOpen(false); setTarget(null); }}
+        className="font-stats text-[10px] text-on-surface-variant/60 hover:text-on-surface transition-colors"
+      >Cancelar</button>
+    </div>
+  );
 }
 
 /** Botón "Mano" — solo visible en móvil/tablet (oculto en desktop, que usa la pestaña lateral) */
@@ -128,6 +287,7 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, detailCardOpe
             Permanecer aquí
           </button>
         )}
+        <RavenFlow state={state} playerId={playerId} />
         <HandButton count={handCount} revealed={handRevealed} onToggle={onToggleHand} />
       </div>
     );
@@ -203,6 +363,11 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, detailCardOpe
       {/* Activar carta (El Cuervo, etc.) */}
       {ap.pendingAction === ActionType.ACTIVATE_CARD && (
         <ActivateCardFlow ap={ap} state={state} />
+      )}
+
+      {/* Vencer héroe */}
+      {ap.pendingAction === ActionType.VANQUISH && (
+        <VanquishFlow ap={ap} state={state} />
       )}
 
       {/* Extra item slots — shown as action tokens */}

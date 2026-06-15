@@ -146,6 +146,8 @@ export interface PlayerState {
   completedObjectiveSteps: string[];
   skipNextMove?: boolean;
   dragonActive?: boolean;
+  /** El Cuervo (Maléfica) ya se movió este turno (antes de mover el peón). */
+  ravenUsedThisTurn?: boolean;
 }
 
 export interface PendingFate {
@@ -174,8 +176,19 @@ export interface GameState {
   pendingCuervo?: { playerId: PlayerId; locationId: LocationId };
   pendingDemosles?: { playerId: PlayerId; topCardIds: CardInstId[] };
   pendingAuroraHero?: { heroInstId: CardInstId; targetPlayerId: PlayerId; actingPlayerId: PlayerId; isHero?: boolean };
+  pendingJaqueca?: { itemInstIds: CardInstId[]; actingPlayerId: PlayerId };
   log: string[];
 }
+
+export interface ConditionCtx {
+  targetCardInstId?: CardInstId;
+  allyInstId?: CardInstId;
+  targetLocationId?: LocationId;
+  playHero?: boolean;
+  discardInstIds?: CardInstId[];
+}
+
+export type ConditionHandler = (state: GameState, reactingPlayerId: PlayerId, ctx: ConditionCtx) => GameState;
 
 export interface VillainPlugin {
   id: VillainId;
@@ -191,6 +204,8 @@ export interface VillainPlugin {
   handSize: number;
   checkWinCondition: (state: GameState, playerId: PlayerId) => boolean;
   getWinProgress: (state: GameState, player: PlayerState) => string;
+  conditionHandlers?: Record<string, ConditionHandler>;
+  onVanquish?: (state: GameState, playerId: PlayerId, heroInstId: CardInstId, heroLocId: LocationId) => GameState;
 }
 
 export interface GameSetupOptions {

@@ -19,5 +19,7 @@ export const EffectId = {
 
 export const CardDefId = {
   HOOK_PETER_PAN: 'hook_fate_peter_pan',
+  HOOK_TIC_TAC:   'hook_f_tictac',
+  HOOK_WENDY:     'hook_f_wendy',
   MAL_FLORA:      'mal_f_flora',
 } as const;
