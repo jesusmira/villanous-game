@@ -71,6 +71,11 @@ export function LargeCardComponent({ card, state, selected, onClick, draggable: 
         <div className="card-strength-badge">{effectiveStr}</div>
       )}
 
+      {/* Stored power badge (Little John) */}
+      {(card.storedPower ?? 0) > 0 && (
+        <div className="card-stored-power-badge">{card.storedPower}</div>
+      )}
+
     </div>
   );
 }

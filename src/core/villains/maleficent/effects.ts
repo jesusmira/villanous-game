@@ -2,7 +2,7 @@ import { CardType, EffectTrigger } from '../../types';
 import type { EffectDef } from '../../types';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
-  discardCardFromKingdom, addLog, getEffectiveStrength,
+  discardCardFromKingdom, moveAttachedItems, addLog, getEffectiveStrength,
 } from '../../engine/stateHelpers';
 import { shuffle } from '../../utils/shuffle';
 import { locations } from './cards';
@@ -83,9 +83,10 @@ export const effects: EffectDef[] = [
     requiresTargetCard: 'HERO',
     description: 'Únela a un Héroe; ese Héroe recibe +2 de Fuerza',
     execute: (state, ctx) => {
-      if (!ctx.targetCardInstId) return state;
+      // Sin Héroe al que unirse, el Objeto se descarta: ya se jugó y pagó su coste.
+      if (!ctx.targetCardInstId) return discardCardFromKingdom(state, ctx.cardInstId);
       const hero = state.allCards[ctx.targetCardInstId];
-      if (!hero) return state;
+      if (!hero) return discardCardFromKingdom(state, ctx.cardInstId);
       let s = updateCard(state, ctx.cardInstId, {
         attachedToInstId: ctx.targetCardInstId,
         strengthModifier: 2,
@@ -222,6 +223,8 @@ export const effects: EffectDef[] = [
           villainCardInstIds: [...updDest.villainCardInstIds, allyId],
         });
         s = updateCard(s, allyId, { locationId: ctx.targetLocationId });
+        // Los Objetos adjuntos viajan con su portador.
+        s = moveAttachedItems(s, allyId, ctx.targetLocationId);
       }
       return addLog(s, `Rey Huberto reagrupa Aliados en ${ctx.targetLocationId}.`);
     },
@@ -338,7 +341,7 @@ export const effects: EffectDef[] = [
     trigger: EffectTrigger.CONTINUOUS,
     description: '-1 al coste de Efectos y Maldiciones si Maléfica está en esta ubicación',
     execute: (s) => s,
-    computePlayCostModifier: (state, playerId, cardToPlay, effectCardInstId, _targetLocationId) => {
+    computePlayCostModifier: (state, playerId, cardToPlay, effectCardInstId) => {
       if (cardToPlay.cardType !== CardType.EFFECT && cardToPlay.cardType !== CardType.CURSE) return 0;
       const cetro = state.allCards[effectCardInstId];
       if (!cetro?.locationId) return 0;

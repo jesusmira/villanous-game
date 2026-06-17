@@ -5,6 +5,38 @@ import type {
 } from '../types';
 import { getPlugin, getEffectDef } from '../villains/registry';
 
+export function computeKingdomPowerGainMod(
+  state: GameState,
+  playerId: PlayerId,
+): number {
+  const player = getPlayer(state, playerId);
+  let mod = 0;
+  for (const locState of Object.values(player.locationStates)) {
+    for (const cId of [...locState.villainCardInstIds, ...locState.heroCardInstIds]) {
+      for (const effId of (state.allCards[cId]?.effectIds ?? [])) {
+        const eff = getEffectDef(effId);
+        if (eff?.computePowerGainModifier) {
+          mod += eff.computePowerGainModifier(state, playerId, cId);
+        }
+      }
+    }
+  }
+  return mod;
+}
+
+export function applyPowerGain(
+  state: GameState,
+  playerId: PlayerId,
+  rawAmount: number,
+): GameState {
+  if (rawAmount <= 0) {
+    return updatePlayer(state, playerId, { power: getPlayer(state, playerId).power + rawAmount });
+  }
+  const mod = computeKingdomPowerGainMod(state, playerId);
+  const effective = Math.max(0, rawAmount + mod);
+  return updatePlayer(state, playerId, { power: getPlayer(state, playerId).power + effective });
+}
+
 export function computeKingdomCostMod(
   state: GameState,
   playerId: PlayerId,
@@ -161,6 +193,32 @@ export function discardCardFromKingdom(
 
   s = updatePlayer(s, card.ownerId, { [discardKey]: discard });
   s = updateCard(s, instId, { locationId: undefined, attachedToInstId: undefined });
+  return s;
+}
+
+/**
+ * Mueve los Objetos adjuntos a `instId` junto con él, a `targetLocationId`. Por regla, un
+ * Objeto adjunto viaja con su portador (solo se descarta si el portador se descarta — eso ya
+ * lo cascada `discardCardFromKingdom`). Cualquier acción que reubique un Aliado/Héroe debe
+ * llamar a esto, para todos los villanos.
+ */
+export function moveAttachedItems(state: GameState, instId: CardInstId, targetLocationId: LocationId): GameState {
+  const card = state.allCards[instId];
+  if (!card || card.attachedItemInstIds.length === 0) return state;
+  let s = state;
+  for (const itemId of card.attachedItemInstIds) {
+    const item = s.allCards[itemId];
+    if (!item?.locationId || item.locationId === targetLocationId) continue;
+    const srcLs = getPlayer(s, item.ownerId).locationStates[item.locationId];
+    s = updateLocationState(s, item.ownerId, item.locationId, {
+      villainCardInstIds: srcLs.villainCardInstIds.filter(id => id !== itemId),
+    });
+    const destLs = getPlayer(s, item.ownerId).locationStates[targetLocationId];
+    s = updateLocationState(s, item.ownerId, targetLocationId, {
+      villainCardInstIds: [...destLs.villainCardInstIds, itemId],
+    });
+    s = updateCard(s, itemId, { locationId: targetLocationId });
+  }
   return s;
 }
 

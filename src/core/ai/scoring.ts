@@ -1,9 +1,10 @@
 import { ActionType, CardType } from '../types';
 import type { GameState, PlayerState, LocationState, CardInstId, LocationId } from '../types';
 import { getPlugin, getEffectDef } from '../villains/registry';
-import { CardDefId, EffectId } from '../villains/effectIds';
+import { CardDefId, CardDefPrefix, EffectId } from '../villains/effectIds';
 import { HookLocationId } from '../villains/hook/cards';
-import { computeKingdomCostMod, getEffectiveStrength } from '../engine/stateHelpers';
+import { heroHasBurla, findPeterPan, isPeterPanAtJollyRoger } from '../villains/hook/aiHelpers';
+import { getEffectiveStrength } from '../engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../engine/slotHelpers';
 
 // ─── Maleficent curse helpers ───────────────────────────────────────────────────
@@ -11,16 +12,23 @@ export function locHasCurse(state: GameState, ls: LocationState): boolean {
   return ls.villainCardInstIds.some(id => state.allCards[id]?.cardType === CardType.CURSE);
 }
 function locHasSueno(state: GameState, ls: LocationState): boolean {
-  return ls.villainCardInstIds.some(id => state.allCards[id]?.defId.startsWith('mal_v_sueno'));
+  return ls.villainCardInstIds.some(id => state.allCards[id]?.defId.startsWith(CardDefPrefix.MAL_SUENO));
 }
 function locHasFuego(state: GameState, ls: LocationState): boolean {
-  return ls.villainCardInstIds.some(id => state.allCards[id]?.defId.startsWith('mal_v_fuego'));
+  return ls.villainCardInstIds.some(id => state.allCards[id]?.defId.startsWith(CardDefPrefix.MAL_FUEGO));
 }
 function countUncovered(state: GameState, player: PlayerState): number {
   return Object.values(player.locationStates).filter(ls => !locHasCurse(state, ls)).length;
 }
 
-export function scoreLocation(state: GameState, player: PlayerState, locId: LocationId): number {
+export function scoreLocation(
+  state: GameState,
+  player: PlayerState,
+  locId: LocationId,
+  // Inyectable para que los tests puedan fijar el desempate y obtener un resultado reproducible;
+  // en partidas reales usa Math.random() (variedad real entre turnos/partidas).
+  rng: () => number = Math.random,
+): number {
   const plugin = getPlugin(player.villainId);
   const loc = plugin.locations.find(l => l.id === locId);
   if (!loc) return 0;
@@ -89,11 +97,8 @@ export function scoreLocation(state: GameState, player: PlayerState, locId: Loca
         }
         // Fix F: cuantos más héroes haya en el reino, más urgente es vencer alguno (ranuras bloqueadas)
         if (heroes.length > 3) score += (heroes.length - 3) * 4;
-        if (player.villainId === 'hook') {
-          const ppAtJolly = player.locationStates[HookLocationId.JOLLY_ROGER]?.heroCardInstIds.some(
-            id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN,
-          );
-          if (ppAtJolly) score += 20;
+        if (player.villainId === 'hook' && isPeterPanAtJollyRoger(state, player)) {
+          score += 20;
         }
         if (player.villainId === 'maleficent') {
           // Defender maldiciones: matar héroes en ubicaciones con maldición.
@@ -101,6 +106,14 @@ export function scoreLocation(state: GameState, player: PlayerState, locId: Loca
             ls => ls.heroCardInstIds.length > 0 && locHasCurse(state, ls),
           );
           if (heroAtCurseLoc) score += 6;
+          // Vencer al héroe que bloquea la ÚLTIMA ubicación sin maldición es la prioridad
+          // máxima: sin él, Maléfica no puede ganar aunque tenga maldiciones de sobra en mano.
+          const heroBlockingUncovered = Object.values(player.locationStates).some(ls =>
+            !locHasCurse(state, ls) && ls.heroCardInstIds.some(id =>
+              state.allCards[id]?.effectIds.some(effId => getEffectDef(effId)?.blocksCursePlay),
+            ),
+          );
+          if (heroBlockingUncovered) score += 14;
         }
         break;
       }
@@ -145,18 +158,11 @@ export function scoreLocation(state: GameState, player: PlayerState, locId: Loca
         break;
       case ActionType.MOVE_HERO:
         if (player.villainId === 'hook') {
-          const ppExists = Object.values(player.locationStates).some(ls =>
-            ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN),
+          if (findPeterPan(state, player)) score += 10;
+          const hasBurlaBlocker = Object.values(player.locationStates).some(ls =>
+            ls.heroCardInstIds.some(id => heroHasBurla(state, id)),
           );
-          if (ppExists) score += 10;
-          const hasBlockingHeroes = Object.values(player.locationStates).some(ls =>
-            ls.heroCardInstIds.some(id =>
-              (state.allCards[id]?.attachedItemInstIds ?? []).some(
-                itemId => state.allCards[itemId]?.effectIds.includes(EffectId.BURLA_ATTACH),
-              ) || state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC,
-            ),
-          );
-          if (hasBlockingHeroes) score += 10;
+          if (hasBurlaBlocker) score += 10;
         }
         break;
       case ActionType.ACTIVATE_CARD:
@@ -180,93 +186,7 @@ export function scoreLocation(state: GameState, player: PlayerState, locId: Loca
   }
 
   // Ruido pequeño para desempatar sin tapar la señal real.
-  score += Math.random() * 0.6 - 0.3;
-
-  return score;
-}
-
-export function scoreCard(state: GameState, player: PlayerState, cardInstId: CardInstId): number {
-  const card = state.allCards[cardInstId];
-  if (!card) return 0;
-  const kingdomCostMod = computeKingdomCostMod(state, player.id, card, player.pawnLocationId);
-  const effectiveCost = Math.max(0, card.baseCost + card.costModifier + kingdomCostMod);
-  if (player.power < effectiveCost) return -1;
-
-  let score = 1;
-
-  if (player.villainId === 'maleficent') {
-    if (card.cardType === CardType.CURSE) {
-      const uncovered = countUncovered(state, player);
-      score += uncovered * 6 + 2;
-    }
-    // Forma de Dragón: derrota un Héroe F≤3 → defiende ubicaciones con maldición.
-    if (card.defId.startsWith('mal_v_dragon')) {
-      const killableHero = Object.values(player.locationStates).some(ls =>
-        ls.heroCardInstIds.some(id => getEffectiveStrength(state, id) <= 3),
-      );
-      if (killableHero) score += 7;
-    }
-    // Esbirro Siniestro: gana +1 y guarda ubicaciones con maldición.
-    if (card.defId.startsWith('mal_v_siniestro')) {
-      const curseLocs = Object.values(player.locationStates).filter(ls => locHasCurse(state, ls)).length;
-      if (curseLocs > 0) score += 2;
-    }
-    if (card.cardType === CardType.ALLY) {
-      // Vary ally priority based on hand size and power
-      const allyBonus = player.handInstIds.length > 5 ? 4 : player.power < 5 ? 1 : 2;
-      score += allyBonus;
-    }
-  }
-
-  if (player.villainId === 'hook') {
-    const ppInKingdom = Object.values(player.locationStates).some(ls =>
-      ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN),
-    );
-    const ppAtJolly = player.locationStates[HookLocationId.JOLLY_ROGER]?.heroCardInstIds.some(
-      id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN,
-    );
-    const hangmanLocked = player.locationStates[HookLocationId.HANGMAN]?.isLocked;
-    const hasBlockers = Object.values(player.locationStates).some(ls =>
-      ls.heroCardInstIds.some(id =>
-        (state.allCards[id]?.attachedItemInstIds ?? []).some(
-          itemId => state.allCards[itemId]?.effectIds.includes(EffectId.BURLA_ATTACH),
-        ) || state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC,
-      ),
-    );
-
-    // Mapa de Nunca Jamás: desbloquea el Árbol del Ahorcado (hito de victoria).
-    if (card.defId === 'hook_v_mapa') {
-      score += hangmanLocked ? 20 : 0;
-    }
-    // Cavar el mazo de Destino para sacar a Peter Pan.
-    if (card.defId.startsWith('hook_v_rival')) {
-      score += ppInKingdom ? 2 : 15;
-    }
-    if (card.defId.startsWith('hook_v_susto')) {
-      score += ppInKingdom ? 1 : 5;
-    }
-    if (card.defId === 'hook_v_starkey') {
-      score += ppInKingdom && !ppAtJolly ? 8 : 0;
-    }
-    // Cañón: da VANQUISH extra en su ubicación → vencer bloqueantes desde cualquier parte
-    if (card.defId.startsWith('hook_v_canon')) {
-      score += hasBlockers ? 14 : 6;
-    }
-    // Mecanismo Ingenioso: da MOVE_HERO extra → colocar bloqueantes cerca de aliados
-    if (card.defId === 'hook_v_mecanismo') {
-      score += hasBlockers ? 10 : 3;
-    }
-    // Fuerza para vencer a Peter Pan (F8): aliados fuertes cuando PP está en juego.
-    if (card.cardType === CardType.ALLY) {
-      score += 3;
-      if (ppInKingdom && (card.baseStrength ?? 0) >= 3) score += 3;
-      if (hasBlockers && (card.baseStrength ?? 0) >= 2) score += 4;
-      // Fix H: más héroes en el reino → aliados más urgentes (hay que limpiar, con o sin Tic Tac)
-      const totalHeroCount = Object.values(player.locationStates)
-        .reduce((n, ls) => n + ls.heroCardInstIds.length, 0);
-      if (totalHeroCount > 2) score += (totalHeroCount - 2) * 2;
-    }
-  }
+  score += rng() * 0.6 - 0.3;
 
   return score;
 }
@@ -275,6 +195,8 @@ export function pickBestPlayTarget(
   state: GameState,
   player: PlayerState,
   cardInstId: CardInstId,
+  // Mismo motivo que en scoreLocation(): inyectable para tests deterministas.
+  rng: () => number = Math.random,
 ): LocationId {
   const plugin = getPlugin(player.villainId);
   const card = state.allCards[cardInstId];
@@ -294,22 +216,22 @@ export function pickBestPlayTarget(
         const ls = player.locationStates[loc.id];
         let score = 0;
         // Fuego Verde: preferir ubicaciones con más acciones disponibles (más valioso bloquear)
-        if (card.defId.includes('fuego')) {
+        if (card.defId.startsWith(CardDefPrefix.MAL_FUEGO)) {
           score += loc.actions.length * 2;
         }
         // Sueño Sin Sueños: preferir ubicaciones donde ya hay héroes o muchas acciones
-        if (card.defId.includes('sueno')) {
+        if (card.defId.startsWith(CardDefPrefix.MAL_SUENO)) {
           score += ls.heroCardInstIds.length * 3;
           score += loc.actions.length;
         }
         // Selva: preferir ubicaciones con muchas acciones (más tráfico de héroes)
-        if (card.defId.includes('selva')) {
+        if (card.defId.startsWith(CardDefPrefix.MAL_SELVA)) {
           score += loc.actions.length * 1.5;
         }
         // Preferir ubicaciones sin héroes (más seguras para la maldición)
         score -= ls.heroCardInstIds.length;
         // Ruido alto para asegurar variedad entre partidas
-        score += Math.random() * 4 - 2;
+        score += rng() * 4 - 2;
         return { locId: loc.id, score };
       });
 
@@ -322,7 +244,9 @@ export function pickBestPlayTarget(
   if (card.cardType === CardType.ALLY) {
     if (player.villainId === 'maleficent') {
       // Maléfica: NUNCA un aliado sobre Sueño Sin Sueños (lo descartaría).
-      // Preferir ubicaciones con maldición (Esbirro Siniestro +1) y con héroes.
+      // Prioridad 1: ubicación SIN maldición bloqueada por un héroe (Primavera y similares) que
+      // aún no tiene aliados suficientes — es lo único que impide cubrirla y ganar.
+      // Prioridad 2: defender una ubicación que ya tiene maldición.
       const candidates = plugin.locations
         .filter(loc => {
           const ls = player.locationStates[loc.id];
@@ -331,9 +255,24 @@ export function pickBestPlayTarget(
         .map(loc => {
           const ls = player.locationStates[loc.id];
           let score = ls.heroCardInstIds.length * 2;
-          if (locHasCurse(state, ls)) score += 3; // defender la maldición
+          if (locHasCurse(state, ls)) {
+            score += 3; // defender la maldición
+          } else {
+            const blockedByHero = ls.heroCardInstIds.some(id =>
+              state.allCards[id]?.effectIds.some(effId => getEffectDef(effId)?.blocksCursePlay),
+            );
+            if (blockedByHero) {
+              const heroStr = ls.heroCardInstIds.reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
+              const allyStr = ls.villainCardInstIds
+                .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+                .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
+              // Mientras no se haya juntado fuerza suficiente, vale más que defender una
+              // maldición ya puesta: sin esto, los aliados nunca se acumulan aquí.
+              if (allyStr < heroStr) score += 20 + heroStr;
+            }
+          }
           score -= ls.villainCardInstIds.length;
-          score += Math.random() * 1.2 - 0.6;
+          score += rng() * 1.2 - 0.6;
           return { locId: loc.id, score };
         });
       if (candidates.length > 0) {
@@ -341,18 +280,13 @@ export function pickBestPlayTarget(
         return candidates[0].locId;
       }
     } else {
-      // Garfio: routing de aliados según bloqueantes. Burla y Tic Tac tienen prioridades distintas.
-      const heroHasBurla = (id: CardInstId) =>
-        (state.allCards[id]?.attachedItemInstIds ?? []).some(
-          itemId => state.allCards[itemId]?.effectIds.includes(EffectId.BURLA_ATTACH),
-        );
-      // Fix B: Burla es prioridad ABSOLUTA — mientras exista, el Vencer de Tic Tac está bloqueado
+      // Garfio: routing de aliados según bloqueantes. Burla primero (prerrequisito), luego Tic Tac, luego JR.
       const burlaHeroLocs = plugin.locations
-        .filter(l => player.locationStates[l.id].heroCardInstIds.some(heroHasBurla))
+        .filter(l => player.locationStates[l.id].heroCardInstIds.some(id => heroHasBurla(state, id)))
         .map(l => l.id);
       const hasTicTac = plugin.locations.some(l =>
         player.locationStates[l.id].heroCardInstIds.some(
-          id => !heroHasBurla(id) && state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC,
+          id => !heroHasBurla(state, id) && state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC,
         ),
       );
 
@@ -363,15 +297,15 @@ export function pickBestPlayTarget(
           let score = 0;
 
           if (burlaHeroLocs.length > 0) {
-            // Burla existe: ÚNICA prioridad. Tic Tac = 0 (su Vencer está bloqueado).
+            // Burla existe: prioridad absoluta. Enviar aliados a la ubicación del héroe con Burla.
             if (burlaHeroLocs.includes(loc.id)) {
-              score += 30; // ubicación del héroe Burla
+              score += 30;
             } else {
               const locDef = plugin.locations.find(l => l.id === loc.id);
-              if (locDef?.adjacentIds.some(a => burlaHeroLocs.includes(a))) score += 15; // Pelotones adj
+              if (locDef?.adjacentIds.some(a => burlaHeroLocs.includes(a))) score += 15;
             }
           } else if (hasTicTac) {
-            // Sin Burla pero con Tic Tac: enviar aliados a su ubicación
+            // Tic Tac vivo: enviar aliados a su ubicación para vencerlo
             const ticTacHeroes = ls.heroCardInstIds.filter(
               id => state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC,
             );
@@ -381,7 +315,7 @@ export function pickBestPlayTarget(
               score += 5;
             }
           } else {
-            // Sin Burla ni TicTac: limpiar héroes no-PP primero, luego JR para Peter Pan
+            // Sin Burla ni Tic Tac: limpiar héroes no-PP primero, luego JR para Peter Pan
             const nonPPHeroes = ls.heroCardInstIds.filter(
               id => state.allCards[id]?.defId !== CardDefId.HOOK_PETER_PAN,
             );
@@ -397,7 +331,7 @@ export function pickBestPlayTarget(
           }
 
           score -= ls.villainCardInstIds.filter(id => state.allCards[id]?.cardType === CardType.ALLY).length * 2;
-          score += Math.random() * 2 - 1;
+          score += rng() * 2 - 1;
           return { locId: loc.id, score };
         });
       if (candidates.length > 0) {
@@ -411,7 +345,7 @@ export function pickBestPlayTarget(
     // Distribuir héroes usando scoreLocation en lugar de siempre el peón
     const scores = plugin.locations.map(loc => ({
       locId: loc.id,
-      score: scoreLocation(state, player, loc.id),
+      score: scoreLocation(state, player, loc.id, rng),
     }));
     scores.sort((a, b) => b.score - a.score);
     return scores[0].locId;
@@ -441,10 +375,6 @@ export function pickBestPlayTarget(
   // Garfio ítems con grantsActionSlot: Cañón (VANQUISH extra) no debe ir a JR (ya lo tiene).
   // Preferir Skullrock o Lagoon; evitar Lagoon si Tic Tac está allí (descarta mano).
   if (player.villainId === 'hook' && card.grantsActionSlot != null) {
-    const checkBurla = (id: CardInstId) =>
-      (state.allCards[id]?.attachedItemInstIds ?? []).some(
-        itemId => state.allCards[itemId]?.effectIds.includes(EffectId.BURLA_ATTACH),
-      );
     if (card.grantsActionSlot.type === ActionType.VANQUISH) {
       const candidates = plugin.locations
         .filter(loc => !player.locationStates[loc.id]?.isLocked && loc.id !== HookLocationId.JOLLY_ROGER)
@@ -454,7 +384,7 @@ export function pickBestPlayTarget(
           if (ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC)) sc -= 8;
           sc += ls.villainCardInstIds.filter(id => state.allCards[id]?.cardType === CardType.ALLY).length * 3;
           sc += ls.heroCardInstIds.filter(
-            id => checkBurla(id) || state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC,
+            id => heroHasBurla(state, id) || state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC,
           ).length * 4;
           if (loc.id === HookLocationId.SKULL_ROCK) sc += 2;
           return { locId: loc.id, sc };

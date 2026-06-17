@@ -1,5 +1,5 @@
 export type PlayerId = string;
-export type VillainId = 'maleficent' | 'hook';
+export type VillainId = 'maleficent' | 'hook' | 'jhon';
 export type LocationId = string;
 export type CardDefId = string;
 export type CardInstId = string;
@@ -51,6 +51,8 @@ export interface LocationDef {
   adjacentIds: LocationId[];
   startsLocked?: boolean;
   specialRules?: LocationSpecialRule[];
+  heroesNeverCoverSlots?: boolean;
+  actionsInBottomRow?: boolean;
 }
 
 export interface LocationState {
@@ -100,6 +102,7 @@ export interface CardInst {
   strengthModifier: number;
   costModifier: number;
   bonusThisTurn: number;
+  storedPower?: number;
 }
 
 export interface EffectContext {
@@ -108,6 +111,28 @@ export interface EffectContext {
   targetCardInstId?: CardInstId;
   targetLocationId?: LocationId;
   auxiliaryInstIds?: CardInstId[];
+}
+
+/**
+ * Datos opcionales que completan playCard() cuando el efecto ON_PLAY de la carta los necesita
+ * (a qué Aliado/Héroe se adjunta un Objeto, qué Mapa se usa para pagarlo, etc.). Antes vivía
+ * declarado por separado e inline en buildPlayCtx() y en la firma de playCard().
+ */
+export interface PlayCardCtx {
+  targetCardInstId?: CardInstId;
+  auxiliaryInstIds?: CardInstId[];
+  mapaInstId?: CardInstId;
+  targetLocationId?: LocationId;
+}
+
+/**
+ * Datos opcionales que completan activateCard() para efectos ACTIVATED (p. ej. el Cuervo,
+ * que necesita saber a qué ubicación se mueve). Antes vivía declarado inline en AIPlayer.ts
+ * y en la firma de activateCard().
+ */
+export interface ActivateCardCtx {
+  targetLocationId?: LocationId;
+  targetCardInstId?: CardInstId;
 }
 
 export type EffectFn = (state: GameState, ctx: EffectContext) => GameState;
@@ -122,6 +147,7 @@ export interface EffectDef {
   requiresTargetCard?: 'ALLY' | 'HERO' | 'CURSE';
   requiresTargetHeroAnywhere?: boolean;
   requiresTargetLocation?: boolean;
+  computePowerGainModifier?: (state: GameState, playerId: PlayerId, cardInstId: CardInstId) => number;
   canVanquishFromAdjacent?: boolean;
   blocksHeroPlay?: boolean;
   blocksCursePlay?: boolean;
@@ -148,6 +174,8 @@ export interface PlayerState {
   dragonActive?: boolean;
   /** El Cuervo (Maléfica) ya se movió este turno (antes de mover el peón). */
   ravenUsedThisTurn?: boolean;
+  /** El Sheriff de Nottingham ya se movió este turno. */
+  sherifUsedThisTurn?: boolean;
 }
 
 export interface PendingFate {
@@ -206,9 +234,30 @@ export interface VillainPlugin {
   getWinProgress: (state: GameState, player: PlayerState) => string;
   conditionHandlers?: Record<string, ConditionHandler>;
   onVanquish?: (state: GameState, playerId: PlayerId, heroInstId: CardInstId, heroLocId: LocationId) => GameState;
+  onHeroDiscarded?: (state: GameState, playerId: PlayerId, heroInstId: CardInstId) => GameState;
+  /**
+   * Heurísticas de IA propias del villano. Punto de extensión usado por core/ai/evaluate.ts
+   * para no tener que ramificar `if (villainId === 'x')` en código compartido entre villanos.
+   */
+  aiHeuristics?: {
+    /**
+     * Contribución de este villano a evaluateState(): recibe el score de poder/mano "genérico"
+     * (capado con rendimientos decrecientes) y puede sumarle bonos propios o, si su condición de
+     * victoria lo requiere (p. ej. el Príncipe Juan, que necesita acumular poder sin tope),
+     * ignorarlo y devolver un valor propio por completo.
+     */
+    scoreState?: (state: GameState, player: PlayerState, genericPowerScore: number) => number;
+    /**
+     * Cuán urgente es para el RIVAL desbaratar a `self` (este villano), en función de su avance
+     * hacia la victoria. Se invoca sobre el plugin del oponente. Por defecto 1.0 (neutral).
+     */
+    threatUrgency?: (state: GameState, self: PlayerState) => number;
+  };
 }
 
 export interface GameSetupOptions {
   player1: { villainId: VillainId; isAI: boolean; name: string };
   player2: { villainId: VillainId; isAI: boolean; name: string };
+  /** Índice del jugador que empieza (0 = J1, 1 = J2). Por defecto 0. El que NO empieza recibe el +1. */
+  startingPlayerIndex?: 0 | 1;
 }

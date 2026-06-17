@@ -4,14 +4,31 @@ import type { GameState, CardInstId, LocationId } from '../core/types';
 import { getPlugin } from '../core/villains/registry';
 import { getPlayer, getEffectiveStrength } from '../core/engine/stateHelpers';
 import { useGameStore } from '../state/gameStore';
-import { ACTION_LABELS } from './shared/actionLabels';
 import { modalStyles } from '../styles/modalStyles';
 
-const OVL = modalStyles.overlay;
-const SEL = modalStyles.buttonSelect;
-const ACT = modalStyles.buttonActive;
-const BTN = modalStyles.buttonPrimary;
+const OVL  = modalStyles.overlay;
+const SEL  = modalStyles.buttonSelect;
+const ACT  = modalStyles.buttonActive;
+const BTN  = modalStyles.buttonPrimary;
 const PANEL = modalStyles.panel;
+
+const ACTION_IMG: Record<string, string> = {
+  GAIN_POWER:     '/images/actions/gain_power.png',
+  PLAY_CARD:      '/images/actions/play_card.png',
+  VANQUISH:       '/images/actions/vanquish.png',
+  MOVE_HERO:      '/images/actions/move_hero.png',
+  MOVE_ITEM_ALLY: '/images/actions/move_item_ally.png',
+  DISCARD:        '/images/actions/discard.png',
+};
+
+const ACTION_TOOLTIP: Record<string, string> = {
+  GAIN_POWER:     'Ganar Poder',
+  PLAY_CARD:      'Jugar Carta',
+  VANQUISH:       'Vencer',
+  MOVE_HERO:      'Mover Héroe',
+  MOVE_ITEM_ALLY: 'Mover Objeto/Aliado',
+  DISCARD:        'Descartar',
+};
 
 interface Props { state: GameState }
 
@@ -22,7 +39,6 @@ export function CuervoModal({ state }: Props) {
   const [selectedAction,     setSelectedAction]     = useState<ActionType | null>(null);
   const [selectedCardId,     setSelectedCardId]     = useState<CardInstId | null>(null);
   const [selectedAllyIds,    setSelectedAllyIds]    = useState<CardInstId[]>([]);
-  const [targetLocId,        setTargetLocId]        = useState<LocationId | null>(null);
   const [selectedDiscardIds, setSelectedDiscardIds] = useState<CardInstId[]>([]);
 
   if (!pendingCuervo) return null;
@@ -50,72 +66,60 @@ export function CuervoModal({ state }: Props) {
   );
   const allUnlockedLocs = plugin.locations.filter(l => !player.locationStates[l.id]?.isLocked);
 
-  function getAdjLocs(_cardLocId: string | undefined) {
-    // Retorna todas las ubicaciones desbloqueadas (no solo adyacentes)
-    // para permitir que el Cuervo se mueva a cualquier ubicación
-    return plugin.locations.filter(l => !player.locationStates[l.id]?.isLocked);
-  }
-
   function resetSub() {
     setSelectedCardId(null); setSelectedAllyIds([]);
-    setTargetLocId(null);    setSelectedDiscardIds([]);
+    setSelectedDiscardIds([]);
   }
 
-  function confirm() {
-    if (!selectedAction) return;
-    switch (selectedAction) {
-      case ActionType.GAIN_POWER:
-        doResolveCuervo(selectedAction, {});
-        break;
-      case ActionType.PLAY_CARD:
-        if (!selectedCardId || !targetLocId) return;
-        doResolveCuervo(selectedAction, { cardInstId: selectedCardId, targetLocationId: targetLocId });
-        break;
-      case ActionType.VANQUISH:
-        if (!selectedCardId || selectedAllyIds.length === 0) return;
-        doResolveCuervo(selectedAction, { cardInstId: selectedCardId, allyInstIds: selectedAllyIds });
-        break;
-      case ActionType.MOVE_ITEM_ALLY:
-      case ActionType.MOVE_HERO:
-        if (!selectedCardId || !targetLocId) return;
-        doResolveCuervo(selectedAction, { cardInstId: selectedCardId, targetLocationId: targetLocId });
-        break;
-      case ActionType.DISCARD:
-        if (selectedDiscardIds.length === 0) return;
-        doResolveCuervo(selectedAction, { cardInstIds: selectedDiscardIds });
-        break;
+  function selectAction(type: ActionType) {
+    if (type === ActionType.GAIN_POWER) {
+      doResolveCuervo(ActionType.GAIN_POWER, {});
+      return;
     }
+    setSelectedAction(type);
+    resetSub();
   }
+
+  const gainPowerValue = locDef.actions.find(a => a.type === ActionType.GAIN_POWER)?.value ?? 2;
 
   return (
     <div className={OVL}>
       <div className={modalStyles.container}>
         <h2 className={`${modalStyles.title} text-primary`}>El Cuervo</h2>
         <p className={`${modalStyles.description} text-on-surface-variant`}>
-          Elige una acción en <strong className="text-on-surface">{locDef.name}</strong> (no puede realizar acciones FATE):
+          Elige una acción en <strong className="text-on-surface">{locDef.name}</strong>:
         </p>
 
-        {/* Action selector */}
-        <div className="flex flex-wrap gap-2">
-          {availableActions.map((a, idx) => (
-            <button key={idx}
-              className={selectedAction === a.type ? ACT : SEL}
-              onClick={() => { setSelectedAction(a.type); resetSub(); }}>
-              {ACTION_LABELS[a.type] ?? a.type}
-              {a.value && a.type === ActionType.GAIN_POWER ? ` (+${a.value})` : ''}
-            </button>
-          ))}
+        {/* Action image buttons */}
+        <div className="flex flex-wrap gap-3">
+          {availableActions.map((a, idx) => {
+            const tooltip = ACTION_TOOLTIP[a.type] ?? a.type;
+            const isGain  = a.type === ActionType.GAIN_POWER;
+            return (
+              <button
+                key={idx}
+                title={isGain ? `${tooltip} (+${gainPowerValue}⚡)` : tooltip}
+                className={`relative w-14 h-14 rounded-xl overflow-hidden border-2 transition-all active:scale-95 ${
+                  selectedAction === a.type
+                    ? 'border-primary scale-105 shadow-[0_0_14px_rgba(208,188,255,0.4)]'
+                    : 'border-outline-variant/40 hover:border-primary/50 hover:scale-105'
+                }`}
+                onClick={() => selectAction(a.type)}
+              >
+                <img
+                  src={ACTION_IMG[a.type] ?? ''}
+                  alt={tooltip}
+                  className="w-full h-full object-cover"
+                />
+                {isGain && (
+                  <div className="absolute inset-x-0 bottom-0 py-0.5 bg-black/65 font-stats text-[8px] text-center text-primary uppercase tracking-wide">
+                    +{gainPowerValue}⚡
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
-
-        {/* GAIN POWER */}
-        {selectedAction === ActionType.GAIN_POWER && (
-          <div className={PANEL}>
-            <p className="text-xs text-on-surface-variant">
-              Ganarás {locDef.actions.find(a => a.type === ActionType.GAIN_POWER)?.value ?? 2} de Poder.
-            </p>
-            <button className={BTN} onClick={confirm}>Confirmar</button>
-          </div>
-        )}
 
         {/* PLAY CARD */}
         {selectedAction === ActionType.PLAY_CARD && (
@@ -130,7 +134,7 @@ export function CuervoModal({ state }: Props) {
                   <button key={id}
                     className={selectedCardId === id ? ACT : player.power < cost ? `${SEL} opacity-35` : SEL}
                     disabled={player.power < cost}
-                    onClick={() => { setSelectedCardId(id); setTargetLocId(null); }}>
+                    onClick={() => { setSelectedCardId(id); }}>
                     {c.name} <span className="text-tertiary">({cost}⚡)</span>
                   </button>
                 );
@@ -141,14 +145,13 @@ export function CuervoModal({ state }: Props) {
                 <p className="text-xs text-on-surface-variant">Elige ubicación de destino:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {allUnlockedLocs.map(l => (
-                    <button key={l.id} className={targetLocId === l.id ? ACT : SEL}
-                      onClick={() => setTargetLocId(l.id)}>{l.name}</button>
+                    <button key={l.id} className={SEL}
+                      onClick={() => doResolveCuervo(ActionType.PLAY_CARD, { cardInstId: selectedCardId, targetLocationId: l.id as LocationId })}>
+                      {l.name}
+                    </button>
                   ))}
                 </div>
               </>
-            )}
-            {selectedCardId && targetLocId && (
-              <button className={BTN} onClick={confirm}>Jugar carta</button>
             )}
           </div>
         )}
@@ -156,38 +159,62 @@ export function CuervoModal({ state }: Props) {
         {/* VANQUISH */}
         {selectedAction === ActionType.VANQUISH && (
           <div className={PANEL}>
-            <p className="text-xs text-on-surface-variant">Selecciona el Héroe a derrotar:</p>
-            <div className="flex flex-wrap gap-1.5">
-              {heroesInKingdom.map(c => (
-                <button key={c.instId}
-                  className={selectedCardId === c.instId ? ACT : `${SEL} border-error/40 text-error hover:border-error`}
-                  onClick={() => { setSelectedCardId(c.instId); setSelectedAllyIds([]); }}>
-                  {c.name} (F:{getEffectiveStrength(state, c.instId)}) @{c.locationId}
-                </button>
-              ))}
-            </div>
-            {selectedCardId && (
+            {!selectedCardId ? (
               <>
-                <p className="text-xs text-on-surface-variant">Selecciona Aliados (misma ubicación):</p>
+                <p className="text-xs text-on-surface-variant">Selecciona el Héroe a derrotar:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {heroesInKingdom.map(c => (
+                    <button key={c.instId}
+                      className={`${SEL} border-error/40 text-error hover:border-error`}
+                      onClick={() => { setSelectedCardId(c.instId); setSelectedAllyIds([]); }}>
+                      {c.name} <span className="text-on-surface-variant/60 text-[10px]">(F:{getEffectiveStrength(state, c.instId)}) @{c.locationId}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { setSelectedCardId(null); setSelectedAllyIds([]); }}
+                    className="text-xs text-on-surface-variant/60 hover:text-on-surface transition-colors">← Cambiar</button>
+                  <span className="font-stats text-xs text-on-surface-variant flex-1">
+                    Vencer: <span className="text-primary font-bold">{state.allCards[selectedCardId]?.name}</span>
+                  </span>
+                  <span className={`font-stats text-sm font-bold ${
+                    selectedAllyIds.reduce((s, id) => s + getEffectiveStrength(state, id), 0) >= getEffectiveStrength(state, selectedCardId)
+                      ? 'text-primary' : 'text-on-surface-variant/60'
+                  }`}>
+                    {selectedAllyIds.reduce((s, id) => s + getEffectiveStrength(state, id), 0)}
+                    <span className="text-on-surface-variant/40 text-xs"> / {getEffectiveStrength(state, selectedCardId)}</span>
+                  </span>
+                </div>
+                <p className="text-xs text-on-surface-variant">Selecciona Aliados:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {alliesInKingdom
                     .filter(c => c.locationId === state.allCards[selectedCardId]?.locationId)
-                    .map(c => (
-                      <button key={c.instId}
-                        className={selectedAllyIds.includes(c.instId) ? ACT : SEL}
-                        onClick={() => setSelectedAllyIds(prev =>
-                          prev.includes(c.instId) ? prev.filter(id => id !== c.instId) : [...prev, c.instId]
-                        )}>
-                        {c.name} (F:{getEffectiveStrength(state, c.instId)})
-                      </button>
-                    ))}
+                    .map(c => {
+                      const isSelected = selectedAllyIds.includes(c.instId);
+                      return (
+                        <button key={c.instId}
+                          className={isSelected ? ACT : SEL}
+                          onClick={() => {
+                            const next = isSelected
+                              ? selectedAllyIds.filter(id => id !== c.instId)
+                              : [...selectedAllyIds, c.instId];
+                            setSelectedAllyIds(next);
+                          }}>
+                          {c.name} <span className="text-tertiary">(F:{getEffectiveStrength(state, c.instId)})</span>
+                        </button>
+                      );
+                    })}
                 </div>
-                <p className="text-xs text-on-surface-variant">
-                  Aliados: <span className="text-secondary-container font-bold">
-                    {selectedAllyIds.reduce((s, id) => s + getEffectiveStrength(state, id), 0)}
-                  </span> / Héroe: <span className="text-error font-bold">{getEffectiveStrength(state, selectedCardId)}</span>
-                </p>
-                {selectedAllyIds.length > 0 && <button className={BTN} onClick={confirm}>Vencer</button>}
+                {selectedAllyIds.length > 0 && (
+                  <button className={BTN} onClick={() =>
+                    doResolveCuervo(ActionType.VANQUISH, { cardInstId: selectedCardId, allyInstIds: selectedAllyIds })
+                  }>
+                    Vencer — {selectedAllyIds.length} aliado{selectedAllyIds.length !== 1 ? 's' : ''}
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -196,32 +223,39 @@ export function CuervoModal({ state }: Props) {
         {/* MOVE ITEM/ALLY or MOVE HERO */}
         {(selectedAction === ActionType.MOVE_ITEM_ALLY || selectedAction === ActionType.MOVE_HERO) && (
           <div className={PANEL}>
-            <p className="text-xs text-on-surface-variant">
-              Selecciona {selectedAction === ActionType.MOVE_HERO ? 'el Héroe' : 'Objeto, Aliado o Maldición'} a mover:
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {(selectedAction === ActionType.MOVE_HERO ? heroesInKingdom : movableCards).map(c => (
-                <button key={c.instId}
-                  className={selectedCardId === c.instId ? ACT : SEL}
-                  onClick={() => { setSelectedCardId(c.instId); setTargetLocId(null); }}>
-                  {c.name} {selectedAction === ActionType.MOVE_ITEM_ALLY ? `[${c.cardType}] ` : ''}@{c.locationId}
-                </button>
-              ))}
-            </div>
-            {selectedCardId && (
+            {!selectedCardId ? (
               <>
-                <p className="text-xs text-on-surface-variant">Elige ubicación adyacente:</p>
+                <p className="text-xs text-on-surface-variant">
+                  Selecciona {selectedAction === ActionType.MOVE_HERO ? 'el Héroe' : 'Objeto, Aliado o Maldición'} a mover:
+                </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {getAdjLocs(state.allCards[selectedCardId]?.locationId).map(l => (
-                    <button key={l.id} className={targetLocId === l.id ? ACT : SEL}
-                      onClick={() => setTargetLocId(l.id)}>{l.name}</button>
+                  {(selectedAction === ActionType.MOVE_HERO ? heroesInKingdom : movableCards).map(c => (
+                    <button key={c.instId} className={SEL}
+                      onClick={() => setSelectedCardId(c.instId)}>
+                      {c.name} {selectedAction === ActionType.MOVE_ITEM_ALLY ? `[${c.cardType}] ` : ''}
+                      <span className="text-on-surface-variant/60 text-[10px]">@{c.locationId}</span>
+                    </button>
                   ))}
                 </div>
-                {targetLocId && (
-                  <button className={BTN} onClick={confirm}>
-                    {selectedAction === ActionType.MOVE_HERO ? 'Mover Héroe' : 'Mover'}
-                  </button>
-                )}
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedCardId(null)}
+                    className="text-xs text-on-surface-variant/60 hover:text-on-surface transition-colors">← Cambiar</button>
+                  <span className="font-stats text-xs text-on-surface-variant flex-1">
+                    Mover: <span className="text-primary font-bold">{state.allCards[selectedCardId]?.name}</span>
+                  </span>
+                </div>
+                <p className="text-xs text-on-surface-variant">Elige ubicación de destino:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {allUnlockedLocs.map(l => (
+                    <button key={l.id} className={SEL}
+                      onClick={() => doResolveCuervo(selectedAction, { cardInstId: selectedCardId, targetLocationId: l.id as LocationId })}>
+                      {l.name}
+                    </button>
+                  ))}
+                </div>
               </>
             )}
           </div>
@@ -247,8 +281,9 @@ export function CuervoModal({ state }: Props) {
               })}
             </div>
             {selectedDiscardIds.length > 0 && (
-              <button className={BTN} onClick={confirm}>
-                Descartar {selectedDiscardIds.length} carta(s)
+              <button className={BTN}
+                onClick={() => doResolveCuervo(ActionType.DISCARD, { cardInstIds: selectedDiscardIds })}>
+                Descartar {selectedDiscardIds.length} carta{selectedDiscardIds.length !== 1 ? 's' : ''}
               </button>
             )}
           </div>

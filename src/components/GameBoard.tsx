@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { TurnPhase, CardType, ActionType } from '../core/types';
 import type { CardInst, GameState } from '../core/types';
-import { CardDefId } from '../core/villains/effectIds';
+import { CardDefId, EffectId } from '../core/villains/effectIds';
 import { getEffectDef, getPlugin } from '../core/villains/registry';
 import { PlayerBoard } from './PlayerBoard';
 import { ActionPanel } from './ActionPanel';
@@ -16,6 +16,7 @@ import { JaquecaModal } from './JaquecaModal';
 import { VanquishModal } from './VanquishModal';
 import { FloraRevealModal } from './FloraRevealModal';
 import { VictoryModal } from './VictoryModal';
+import { AttachTargetModal } from './AttachTargetModal';
 import { CardComponent } from './CardComponent';
 import { TestPage } from './TestPage';
 import { useGameStore } from '../state/gameStore';
@@ -23,7 +24,7 @@ import { useActionPanelState } from './useActionPanelState';
 import { canMovePawn, canPlayCard, canMoveItemAlly, canMoveHero } from '../core/engine/RuleEngine';
 import { computeKingdomCostMod } from '../core/engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../core/engine/slotHelpers';
-import { buildPlayCtx } from '../core/ai/contextBuilder';
+import { buildPlayCtx, getAttachCandidates } from '../core/ai/contextBuilder';
 import { LayoutGrid, RotateCcw, X, ScrollText, Beaker, BookOpen } from 'lucide-react';
 import { useSwipe } from '../hooks/useSwipe';
 
@@ -33,6 +34,8 @@ export function GameBoard({ state }: Props) {
   const resetGame       = useGameStore(s => s.resetGame);
   const aiReplayQueue   = useGameStore(s => s.aiReplayQueue);
   const doFateResolve   = useGameStore(s => s.doFateResolve);
+  const doActivateRaven  = useGameStore(s => s.doActivateRaven);
+  const doActivateSherif = useGameStore(s => s.doActivateSherif);
 
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [detailCard, setDetailCard]         = useState<CardInst | null>(null);
@@ -45,7 +48,12 @@ export function GameBoard({ state }: Props) {
   const [fateDragCardId, setFateDragCardId] = useState<string | null>(null);
   const [dragBoardCardId, setDragBoardCardId] = useState<string | null>(null);
   const [dragHeroCardId, setDragHeroCardId]   = useState<string | null>(null);
-  const [pendingItemDrop, setPendingItemDrop] = useState<{ cardId: string; locId: string; mapaId: string; normalCost: number } | null>(null);
+  const [dragRavenId, setDragRavenId]         = useState<string | null>(null);
+  const [dragSherifId, setDragSherifId]       = useState<string | null>(null);
+  const [pendingItemDrop, setPendingItemDrop] = useState<{ cardId: string; locId: string; mapaId: string; normalCost: number; forcedTargetCardInstId?: string } | null>(null);
+  const [pendingAttachTarget, setPendingAttachTarget] = useState<{
+    cardId: string; locId: string; reqTarget: 'ALLY' | 'HERO'; candidates: string[];
+  } | null>(null);
   const [showTests, setShowTests]           = useState(false);
   const [showHookDeck, setShowHookDeck]     = useState(false);
 
@@ -63,10 +71,17 @@ export function GameBoard({ state }: Props) {
   const [replayIndex, setReplayIndex]       = useState(-1);
   const replayRef = useRef(aiReplayQueue);
 
+  // Reinicia el índice de replay cuando llega una nueva cola de jugadas de la IA. Se ajusta
+  // durante el render (en vez de en un useEffect) para evitar un commit intermedio con el
+  // índice viejo. Los refs no se tocan aquí — solo está permitido fuera del render (abajo).
+  const [prevAiReplayQueue, setPrevAiReplayQueue] = useState(aiReplayQueue);
+  if (prevAiReplayQueue !== aiReplayQueue) {
+    setPrevAiReplayQueue(aiReplayQueue);
+    setReplayIndex(aiReplayQueue.length === 0 ? -1 : 0);
+  }
+
   useEffect(() => {
-    if (aiReplayQueue.length === 0) { setReplayIndex(-1); return; }
     replayRef.current = aiReplayQueue;
-    setReplayIndex(0);
   }, [aiReplayQueue]);
 
   useEffect(() => {
@@ -89,15 +104,18 @@ export function GameBoard({ state }: Props) {
   // Single shared action state — used by both tokens (LocationTile) and ActionPanel
   const ap = useActionPanelState(displayedState, currentPlayer.id);
 
-  // Auto-abrir cajón al activar modo descarte o jugar carta
-  useEffect(() => {
+  // Auto-abrir cajón al activar modo descarte o jugar carta. Ajustado durante el render
+  // (mismo motivo que el replay arriba) en vez de en un useEffect.
+  const [prevPendingAction, setPrevPendingAction] = useState(ap.pendingAction);
+  if (prevPendingAction !== ap.pendingAction) {
+    setPrevPendingAction(ap.pendingAction);
     if (ap.pendingAction === ActionType.DISCARD || ap.pendingAction === ActionType.PLAY_CARD) {
       setHandOpen(true);
       if (ap.pendingAction === ActionType.DISCARD) setDiscardIds([]);
     } else {
       setDiscardIds([]);
     }
-  }, [ap.pendingAction]);
+  }
 
   const phaseLabels: Record<TurnPhase, string> = {
     [TurnPhase.MOVE]:     'MOVER',
@@ -235,6 +253,64 @@ export function GameBoard({ state }: Props) {
     return Object.keys(result).length > 0 ? result : undefined;
   })();
 
+  // ── Raven drag (MOVE phase) ────────────────────────────────────────────────
+  const ravenInstId = ((): string | null => {
+    if (!isHumanTurn || displayedState.turnPhase !== TurnPhase.MOVE) return null;
+    const p = displayedState.players[displayedState.currentPlayerIndex];
+    if (p.ravenUsedThisTurn) return null;
+    return Object.values(displayedState.allCards).find(
+      c => c.ownerId === p.id && c.effectIds.includes(EffectId.RAVEN_ACTIVATE) && c.locationId,
+    )?.instId ?? null;
+  })();
+
+  const ravenDropHighlights = ((): Record<string, { playState: PlayState; cost: number }> | undefined => {
+    if (!dragRavenId || !isHumanTurn) return undefined;
+    const p = displayedState.players[displayedState.currentPlayerIndex];
+    const result: Record<string, { playState: PlayState; cost: number }> = {};
+    for (const loc of ap.plugin.locations) {
+      if (!p.locationStates[loc.id]?.isLocked) {
+        result[loc.id] = { playState: 'valid', cost: 0 };
+      }
+    }
+    return Object.keys(result).length > 0 ? result : undefined;
+  })();
+
+  function handleRavenDrop(locId: string) {
+    if (!dragRavenId) return;
+    doActivateRaven(dragRavenId, locId);
+    setDragRavenId(null);
+  }
+
+  // ── Sheriff drag (MOVE phase, solo Príncipe Juan) ──────────────────────────
+  const sherifInstId = ((): string | null => {
+    if (!isHumanTurn || displayedState.turnPhase !== TurnPhase.MOVE) return null;
+    const p = displayedState.players[displayedState.currentPlayerIndex];
+    if (p.sherifUsedThisTurn) return null;
+    return Object.values(displayedState.allCards).find(
+      c => c.ownerId === p.id && c.effectIds.includes(EffectId.JHON_SHERIF) && c.locationId,
+    )?.instId ?? null;
+  })();
+
+  const sherifDropHighlights = ((): Record<string, { playState: PlayState; cost: number }> | undefined => {
+    if (!dragSherifId || !isHumanTurn) return undefined;
+    const p = displayedState.players[displayedState.currentPlayerIndex];
+    // La carta permite mover al Sheriff a CUALQUIER ubicación (no solo adyacentes).
+    const sherifLocId = displayedState.allCards[dragSherifId]?.locationId;
+    const result: Record<string, { playState: PlayState; cost: number }> = {};
+    for (const loc of ap.plugin.locations) {
+      if (loc.id !== sherifLocId && !p.locationStates[loc.id]?.isLocked) {
+        result[loc.id] = { playState: 'valid', cost: 0 };
+      }
+    }
+    return Object.keys(result).length > 0 ? result : undefined;
+  })();
+
+  function handleSherifDrop(locId: string) {
+    if (!dragSherifId) return;
+    doActivateSherif(dragSherifId, locId);
+    setDragSherifId(null);
+  }
+
   function handleHeroCardDrop(locId: string) {
     if (!dragHeroCardId || !isHumanTurn) return;
     const pawnLoc = currentPlayer.pawnLocationId;
@@ -267,6 +343,25 @@ export function GameBoard({ state }: Props) {
     if (slotIdx === undefined) return;
     if (!canPlayCard(displayedState, currentPlayer.id, cardId, slotIdx, locId).valid) return;
 
+    // Si la carta debe adjuntarse a un Aliado/Héroe y hay más de un candidato, dejar elegir
+    // en vez de autoseleccionar (la IA sigue autoseleccionando vía buildPlayCtx).
+    const attachInfo = getAttachCandidates(displayedState, currentPlayer.id, cardId);
+    if (attachInfo && attachInfo.candidates.length > 1) {
+      setPendingAttachTarget({ cardId, locId, reqTarget: attachInfo.reqTarget, candidates: attachInfo.candidates });
+      setDragCardId(null);
+      return;
+    }
+
+    continuePlayCard(cardId, locId);
+  }
+
+  /** Continúa el flujo de jugar una carta tras resolver (si hacía falta) el target de adjunto. */
+  function continuePlayCard(cardId: string, locId: string, forcedTargetCardInstId?: string) {
+    const pawnLoc = currentPlayer.pawnLocationId;
+    const avail   = getAvailableSlotIndices(displayedState, currentPlayer.id, pawnLoc);
+    const slotIdx = avail.find(i => getActionAtSlot(displayedState, currentPlayer.id, i)?.type === ActionType.PLAY_CARD);
+    if (slotIdx === undefined) return;
+
     const card = displayedState.allCards[cardId];
     const normalCost = Math.max(0, (card?.baseCost ?? 0) + (card?.costModifier ?? 0));
     const mapaId = card?.cardType === CardType.ITEM
@@ -277,26 +372,40 @@ export function GameBoard({ state }: Props) {
 
     // If Mapa available AND player can afford normally → ask
     if (mapaId && currentPlayer.power >= normalCost) {
-      setPendingItemDrop({ cardId, locId, mapaId, normalCost });
+      setPendingItemDrop({ cardId, locId, mapaId, normalCost, forcedTargetCardInstId });
       setDragCardId(null);
       return;
     }
 
     const ctx = buildPlayCtx(displayedState, currentPlayer.id, cardId, locId);
+    if (forcedTargetCardInstId) ctx.targetCardInstId = forcedTargetCardInstId;
     ap.store.doPlayCard(cardId, slotIdx, locId, ctx);
     setDragCardId(null);
     setSelectedCardId(null);
   }
 
+  function resolvePendingAttachTarget(targetCardInstId: string) {
+    if (!pendingAttachTarget) return;
+    const { cardId, locId } = pendingAttachTarget;
+    setPendingAttachTarget(null);
+    continuePlayCard(cardId, locId, targetCardInstId);
+  }
+
+  function cancelPendingAttachTarget() {
+    setPendingAttachTarget(null);
+    setSelectedCardId(null);
+  }
+
   function resolvePendingItemDrop(useMapa: boolean) {
     if (!pendingItemDrop) return;
-    const { cardId, locId, mapaId } = pendingItemDrop;
+    const { cardId, locId, mapaId, forcedTargetCardInstId } = pendingItemDrop;
     const pawnLoc = currentPlayer.pawnLocationId;
     const avail   = getAvailableSlotIndices(displayedState, currentPlayer.id, pawnLoc);
     const slotIdx = avail.find(i => getActionAtSlot(displayedState, currentPlayer.id, i)?.type === ActionType.PLAY_CARD);
     if (slotIdx === undefined) { setPendingItemDrop(null); return; }
     const ctx = buildPlayCtx(displayedState, currentPlayer.id, cardId, locId);
     if (useMapa) ctx.mapaInstId = mapaId;
+    if (forcedTargetCardInstId) ctx.targetCardInstId = forcedTargetCardInstId;
     ap.store.doPlayCard(cardId, slotIdx, locId, ctx);
     setPendingItemDrop(null);
     setSelectedCardId(null);
@@ -460,12 +569,16 @@ export function GameBoard({ state }: Props) {
                 if (card) setDetailCard(card);
               }}
               playHighlights={
-                activeFateCardId  ? (isFateTgt ? fateHighlights     : undefined) :
-                dragBoardCardId   ? (isActive  ? moveBoardHighlights : undefined) :
-                dragHeroCardId    ? (isActive  ? moveHeroHighlights  : undefined) :
-                                    (isActive  ? playHighlights      : undefined)
+                dragRavenId       ? (isActive  ? ravenDropHighlights  : undefined) :
+                dragSherifId      ? (isActive  ? sherifDropHighlights : undefined) :
+                activeFateCardId  ? (isFateTgt ? fateHighlights       : undefined) :
+                dragBoardCardId   ? (isActive  ? moveBoardHighlights  : undefined) :
+                dragHeroCardId    ? (isActive  ? moveHeroHighlights   : undefined) :
+                                    (isActive  ? playHighlights       : undefined)
               }
               onCardDrop={
+                dragRavenId       ? (isActive  ? handleRavenDrop        : undefined) :
+                dragSherifId      ? (isActive  ? handleSherifDrop       : undefined) :
                 activeFateCardId  ? (isFateTgt ? handleFateDrop         : undefined) :
                 dragBoardCardId   ? (isActive  ? handleBoardCardDrop    : undefined) :
                 dragHeroCardId    ? (isActive  ? handleHeroCardDrop     : undefined) :
@@ -483,6 +596,12 @@ export function GameBoard({ state }: Props) {
                   : undefined
               }
               onHeroCardDragEnd={() => setDragHeroCardId(null)}
+              ravenInstId={isActive && state.turnPhase === TurnPhase.MOVE ? ravenInstId ?? undefined : undefined}
+              onRavenDragStart={isActive && state.turnPhase === TurnPhase.MOVE && !!ravenInstId ? (cardId) => setDragRavenId(cardId) : undefined}
+              onRavenDragEnd={() => setDragRavenId(null)}
+              sherifInstId={isActive && state.turnPhase === TurnPhase.MOVE ? sherifInstId ?? undefined : undefined}
+              onSherifDragStart={isActive && state.turnPhase === TurnPhase.MOVE && !!sherifInstId ? (cardId) => setDragSherifId(cardId) : undefined}
+              onSherifDragEnd={() => setDragSherifId(null)}
               selectedCardId={selectedCardId}
               onActionSlotClick={isActing  ? ap.handleSlotClick  : undefined}
               onLocationClick={
@@ -779,6 +898,18 @@ export function GameBoard({ state }: Props) {
       })()}
 
       {/* ── Modals ──────────────────────────────────────────────────────────── */}
+      {/* ── Elegir a qué Aliado/Héroe se adjunta un Objeto (cuando hay 2+ candidatos) ── */}
+      {pendingAttachTarget && (
+        <AttachTargetModal
+          state={displayedState}
+          cardName={displayedState.allCards[pendingAttachTarget.cardId]?.name ?? ''}
+          reqTarget={pendingAttachTarget.reqTarget}
+          candidates={pendingAttachTarget.candidates}
+          onSelect={resolvePendingAttachTarget}
+          onCancel={cancelPendingAttachTarget}
+        />
+      )}
+
       {/* ── Mapa de Nunca Jamás choice ─────────────────────────── */}
       {pendingItemDrop && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-110 backdrop-blur-sm">

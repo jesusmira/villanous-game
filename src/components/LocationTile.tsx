@@ -58,6 +58,8 @@ interface Props {
   isCurrentPawn: boolean;
   coveredSlotIndices: number[];
   availableSlotIndices: number[];
+  /** Casillas tapadas que Sir Hiss permite elegir (clicables aunque estén tapadas). */
+  hissChoiceSlotIndices?: number[];
   selectedCardId: CardInstId | null;
   onSlotClick?: (slotIndex: number) => void;
   onCardClick: (cardInstId: CardInstId) => void;
@@ -77,6 +79,14 @@ interface Props {
   /** ACTIVATE phase: drag a hero card from this tile */
   onHeroCardDragStart?: (cardId: string) => void;
   onHeroCardDragEnd?: () => void;
+  /** MOVE phase: raven card instance id — makes that card draggable to any location */
+  ravenInstId?: string;
+  onRavenDragStart?: (cardId: string) => void;
+  onRavenDragEnd?: () => void;
+  /** MOVE phase: sheriff card instance id — draggable to adjacent locations */
+  sherifInstId?: string;
+  onSherifDragStart?: (cardId: string) => void;
+  onSherifDragEnd?: () => void;
   /** Board artwork image URL for this villain */
   boardImageUrl?: string | null;
   /** Index of this location in the villain's location array (0–3) */
@@ -85,13 +95,15 @@ interface Props {
 
 export function LocationTile({
   locDef, locState, state, villainColor, isCurrentPawn,
-  coveredSlotIndices, availableSlotIndices, selectedCardId,
+  coveredSlotIndices, availableSlotIndices, hissChoiceSlotIndices = [], selectedCardId,
   onSlotClick, onCardClick,
   onLocationClick, isMovableTarget, playHighlight, onCardDrop,
   boardImageUrl, locationIndex = 0,
   onVillainCardDragStart, onVillainCardDragEnd,
   onHeroCardDragStart, onHeroCardDragEnd,
   onFateLocationClick,
+  ravenInstId, onRavenDragStart, onRavenDragEnd,
+  sherifInstId, onSherifDragStart, onSherifDragEnd,
 }: Props) {
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -107,9 +119,11 @@ export function LocationTile({
   // BOTTOM ally zone: villain deck cards only (allies, items, curses, effects)
   const allyZoneCards  = villainCards;
 
-  /* Split action slots into two rows of 2 */
-  const row1 = locDef.actions.slice(0, 2);
-  const row2 = locDef.actions.slice(2, 4);
+  /* Split action slots: normal = 2 top + 2 bottom; actionsInBottomRow = 0 top + all bottom */
+  const row1 = locDef.actionsInBottomRow ? [] : locDef.actions.slice(0, 2);
+  const row2Slots = locDef.actionsInBottomRow
+    ? locDef.actions.map((slot, i) => ({ slot, idx: i }))
+    : locDef.actions.slice(2, 4).map((slot, i) => ({ slot, idx: i + 2 }));
 
   return (
     <div className="flex flex-col gap-2">
@@ -283,24 +297,23 @@ export function LocationTile({
                 slotValue={slot.value}
                 covered={locState.isLocked || coveredSlotIndices.includes(idx)}
                 available={!locState.isLocked && availableSlotIndices.includes(idx)}
+                hissChoice={!locState.isLocked && hissChoiceSlotIndices.includes(idx)}
                 onClick={() => onSlotClick?.(idx)}
               />
             ))}
           </div>
           <div className="flex justify-center gap-3 w-full mb-10 pointer-events-auto">
-            {row2.map((slot, idx) => {
-              const realIdx = idx + 2;
-              return (
-                <ActionToken
-                  key={realIdx}
-                  slotType={slot.type}
-                  slotValue={slot.value}
-                  covered={locState.isLocked || coveredSlotIndices.includes(realIdx)}
-                  available={!locState.isLocked && availableSlotIndices.includes(realIdx)}
-                  onClick={() => onSlotClick?.(realIdx)}
-                />
-              );
-            })}
+            {row2Slots.map(({ slot, idx }) => (
+              <ActionToken
+                key={idx}
+                slotType={slot.type}
+                slotValue={slot.value}
+                covered={locState.isLocked || coveredSlotIndices.includes(idx)}
+                available={!locState.isLocked && availableSlotIndices.includes(idx)}
+                hissChoice={!locState.isLocked && hissChoiceSlotIndices.includes(idx)}
+                onClick={() => onSlotClick?.(idx)}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -319,7 +332,10 @@ export function LocationTile({
               gap: '0px',
               marginRight: allyZoneCards.length > 1 ? `${(allyZoneCards.length - 1) * 20}px` : '0px'
             }}>
-            {allyZoneCards.map((card, idx) => (
+            {allyZoneCards.map((card, idx) => {
+              const isRaven  = card.instId === ravenInstId  && !!onRavenDragStart;
+              const isSherif = card.instId === sherifInstId && !!onSherifDragStart;
+              return (
               <div key={card.instId}
                 className="hover:z-10 hover:-translate-y-2 transition-transform duration-200 shrink-0"
                 style={{ marginLeft: idx === 0 ? '0px' : '-40px' }}>
@@ -328,12 +344,19 @@ export function LocationTile({
                   state={state}
                   selected={selectedCardId === card.instId}
                   onClick={() => onCardClick(card.instId)}
-                  draggable={!!onVillainCardDragStart}
-                  onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.instId); onVillainCardDragStart?.(card.instId); }}
-                  onDragEnd={() => onVillainCardDragEnd?.()}
+                  draggable={isRaven || isSherif || !!onVillainCardDragStart}
+                  onDragStart={
+                    isRaven
+                      ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.instId); onRavenDragStart!(card.instId); }
+                      : isSherif
+                        ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.instId); onSherifDragStart!(card.instId); }
+                        : (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.instId); onVillainCardDragStart?.(card.instId); }
+                  }
+                  onDragEnd={() => isRaven ? onRavenDragEnd?.() : isSherif ? onSherifDragEnd?.() : onVillainCardDragEnd?.()}
                 />
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -347,28 +370,36 @@ interface ActionTokenProps {
   slotValue?: number;
   covered: boolean;
   available: boolean;
+  /** Casilla tapada que Sir Hiss permite elegir: clicable y resaltada pese a estar tapada. */
+  hissChoice?: boolean;
   onClick: () => void;
 }
 
-function ActionToken({ slotType, slotValue, covered, available, onClick }: ActionTokenProps) {
+function ActionToken({ slotType, slotValue, covered, available, hissChoice = false, onClick }: ActionTokenProps) {
   const borderClass  = ACTION_BORDER[slotType] ?? 'border-primary';
   const textClass    = ACTION_TEXT_COLOR[slotType] ?? 'text-primary';
   const imgSrc       = ACTION_IMG[slotType];
-  const label        = covered ? 'Tapado por un Héroe' : (ACTION_LABELS[slotType] ?? slotType);
+  // Una casilla ofrecida por Sir Hiss se trata como utilizable, no como tapada.
+  const blocked      = covered && !hissChoice;
+  const label        = hissChoice
+    ? `Sir Hiss: ${ACTION_LABELS[slotType] ?? slotType}`
+    : (blocked ? 'Tapado por un Héroe' : (ACTION_LABELS[slotType] ?? slotType));
   const isGainPower  = slotType === 'GAIN_POWER';
 
   return (
     /* group wrapper: hosts both the corner badge and the tooltip */
     <div className="relative group">
       <button
-        disabled={covered || !available}
+        disabled={blocked || !available}
         onClick={onClick}
         className={`
           relative w-12 h-12 md:w-14 md:h-14 rounded-full border-2
           overflow-hidden shadow-lg
           transition-all duration-150
-          ${covered ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-110 hover:brightness-110 active:scale-95'}
-          ${available && !covered ? borderClass : 'border-outline-variant/40'}
+          ${blocked ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-110 hover:brightness-110 active:scale-95'}
+          ${hissChoice
+            ? 'border-tertiary ring-2 ring-tertiary/70 shadow-[0_0_14px_rgba(211,188,249,0.6)] animate-pulse'
+            : available && !covered ? borderClass : 'border-outline-variant/40'}
         `}
       >
         {/* Image fills the entire circle */}
@@ -376,7 +407,7 @@ function ActionToken({ slotType, slotValue, covered, available, onClick }: Actio
           <img
             src={imgSrc}
             alt={label}
-            className={`absolute inset-0 w-full h-full object-cover ${covered ? 'grayscale' : ''}`}
+            className={`absolute inset-0 w-full h-full object-cover ${blocked ? 'grayscale' : ''}`}
           />
         ) : (
           <span className={`font-stats text-xs font-bold ${textClass}`}>?</span>

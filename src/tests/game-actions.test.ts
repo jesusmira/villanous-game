@@ -116,7 +116,6 @@ describe('drawCards', () => {
   it('baraja el descarte si el mazo se agota durante el robo', () => {
     let s = makeState();
     const id = malId(s);
-    const player = s.players.find(p => p.id === id)!;
     // Mano vacía, mazo vacío, todo en el descarte
     s = { ...s, players: s.players.map(p => p.id !== id ? p : {
       ...p,

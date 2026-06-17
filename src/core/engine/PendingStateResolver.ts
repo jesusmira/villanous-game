@@ -3,6 +3,7 @@ import { getPlayer, updatePlayer, addLog, checkWin, discardCardFromKingdom } fro
 import { getPlugin } from '../villains/registry';
 
 export { resolveCuervo } from '../villains/maleficent/resolvers';
+export type { CuervoResolutionParams } from '../villains/maleficent/resolvers';
 export { resolveDemosles } from '../villains/hook/resolvers';
 
 export function resolveJaqueca(state: GameState, itemInstId: CardInstId): GameState {

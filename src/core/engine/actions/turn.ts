@@ -4,7 +4,7 @@ import { getPlugin } from '../../villains/registry';
 import { runEffects } from '../EffectEngine';
 import { shuffle } from '../../utils/shuffle';
 import {
-  getPlayer, updatePlayer, updateCard, addLog, checkWin,
+  getPlayer, updatePlayer, updateCard, addLog, checkWin, moveAttachedItems,
 } from '../stateHelpers';
 
 export function movePawn(
@@ -47,10 +47,50 @@ export function activateRaven(
     } },
   )};
   s = { ...s, allCards: { ...s.allCards, [ravenInstId]: { ...s.allCards[ravenInstId], locationId: targetLocationId } } };
+  // Los Objetos adjuntos viajan con su portador.
+  s = moveAttachedItems(s, ravenInstId, targetLocationId);
   s = updatePlayer(s, playerId, { ravenUsedThisTurn: true });
   // Disparar el efecto ACTIVATED → abre pendingCuervo para elegir acción.
   s = runEffects(s, ravenInstId, 'ACTIVATED', { actingPlayerId: playerId, cardInstId: ravenInstId, targetLocationId });
   s = addLog(s, `El Cuervo vuela a ${targetLocationId}.`);
+  return s;
+}
+
+/** Mueve el Sheriff a cualquier ubicación y da +1 Poder si hay Héroes allí (antes de mover el peón). */
+export function activateSherif(
+  state: GameState,
+  playerId: PlayerId,
+  sherifInstId: string,
+  targetLocationId: LocationId,
+): GameState {
+  let s = state;
+  const player = getPlayer(s, playerId);
+  if (player.sherifUsedThisTurn) return s;
+  const curLoc = s.allCards[sherifInstId]?.locationId;
+  if (!curLoc || curLoc === targetLocationId) return s;
+  // La carta permite mover al Sheriff a CUALQUIER ubicación (no solo adyacentes).
+
+  // Mover el Sheriff físicamente al destino.
+  const fromLs = player.locationStates[curLoc];
+  s = { ...s, players: s.players.map(p =>
+    p.id !== playerId ? p : { ...p, locationStates: { ...p.locationStates,
+      [curLoc]: { ...fromLs, villainCardInstIds: fromLs.villainCardInstIds.filter(id => id !== sherifInstId) },
+      [targetLocationId]: { ...p.locationStates[targetLocationId],
+        villainCardInstIds: [...p.locationStates[targetLocationId].villainCardInstIds, sherifInstId] },
+    } },
+  )};
+  s = { ...s, allCards: { ...s.allCards, [sherifInstId]: { ...s.allCards[sherifInstId], locationId: targetLocationId } } };
+  // Los Objetos adjuntos viajan con su portador.
+  s = moveAttachedItems(s, sherifInstId, targetLocationId);
+  s = updatePlayer(s, playerId, { sherifUsedThisTurn: true });
+  s = addLog(s, `El Sheriff se mueve a ${targetLocationId}.`);
+
+  // Si hay Héroes en el destino, +1 Poder al Príncipe Juan
+  const destLs = getPlayer(s, playerId).locationStates[targetLocationId];
+  if (destLs.heroCardInstIds.length > 0) {
+    s = updatePlayer(s, playerId, { power: getPlayer(s, playerId).power + 1 });
+    s = addLog(s, 'El Sheriff detecta Héroes: el Príncipe Juan recibe 1 Moneda de Poder.');
+  }
   return s;
 }
 
@@ -113,8 +153,8 @@ export function endTurn(state: GameState): GameState {
     usedActionSlotIndices: [],
     roundNumber: round,
   };
-  // Resetear flag del Cuervo para el nuevo turno.
-  s = updatePlayer(s, s.players[nextIndex].id, { ravenUsedThisTurn: false });
+  // Resetear flags del Cuervo y el Sheriff para el nuevo turno.
+  s = updatePlayer(s, s.players[nextIndex].id, { ravenUsedThisTurn: false, sherifUsedThisTurn: false });
   s = addLog(s, `--- Turno de ${s.players[nextIndex].name} ---`);
   s = checkWin(s);
   const nextPlayer = s.players[nextIndex];

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface Props {
   src: string;
@@ -14,10 +14,13 @@ interface Props {
 export function Image({ src, alt = '', className }: Props) {
   const [failed, setFailed] = useState(false);
 
-  // Reset when src changes — critical when CardComponent instance is reused
-  useEffect(() => {
+  // Reset cuando cambia src — crítico porque las instancias de CardComponent se reusan.
+  // Ajustado durante el render (en vez de un useEffect) para evitar un commit con el error viejo.
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (prevSrc !== src) {
+    setPrevSrc(src);
     setFailed(false);
-  }, [src]);
+  }
 
   if (failed) return null;
 

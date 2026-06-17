@@ -1,18 +1,46 @@
 import { CardType } from '../types';
-import type { GameState, CardInstId, LocationId, PlayerId } from '../types';
+import type { GameState, CardInstId, LocationId, PlayerId, PlayCardCtx } from '../types';
 import { getPlugin, getEffectDef } from '../villains/registry';
-import { EffectId, CardDefId } from '../villains/effectIds';
+import { EffectId, CardDefId, CardDefPrefix } from '../villains/effectIds';
 import { HookLocationId } from '../villains/hook/cards';
 import { getPlayer } from '../engine/stateHelpers';
+
+/**
+ * Si `cardInstId` necesita adjuntarse a un Aliado/Héroe (`requiresTargetCard`), devuelve el
+ * tipo de target y TODOS los candidatos válidos en el reino del jugador. `null` si la carta no
+ * requiere target. Lo usa la UI humana para dejar elegir cuando hay más de un candidato (la IA
+ * sigue auto-eligiendo vía `buildPlayCtx`).
+ */
+export function getAttachCandidates(
+  state: GameState,
+  playerId: PlayerId,
+  cardInstId: CardInstId,
+): { reqTarget: 'ALLY' | 'HERO'; candidates: CardInstId[] } | null {
+  const card = state.allCards[cardInstId];
+  const reqTarget = card.effectIds.map(id => getEffectDef(id)?.requiresTargetCard).find(Boolean);
+  if (reqTarget !== 'ALLY' && reqTarget !== 'HERO') return null;
+
+  const player = getPlayer(state, playerId);
+  let candidates = Object.values(player.locationStates).flatMap(ls =>
+    reqTarget === 'ALLY'
+      ? ls.villainCardInstIds.filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+      : ls.heroCardInstIds,
+  );
+  // Espada de la Verdad: solo Héroes sin Objeto adjunto todavía.
+  if (card.effectIds.includes(EffectId.ESPADA_ON_PLAY)) {
+    candidates = candidates.filter(id => (state.allCards[id]?.attachedItemInstIds.length ?? 0) === 0);
+  }
+  return { reqTarget, candidates };
+}
 
 export function buildPlayCtx(
   state: GameState,
   playerId: PlayerId,
   cardInstId: CardInstId,
   _targetLocId: LocationId,
-): { targetCardInstId?: CardInstId; auxiliaryInstIds?: CardInstId[]; targetLocationId?: LocationId; mapaInstId?: CardInstId } {
+): PlayCardCtx {
   const card = state.allCards[cardInstId];
-  const ctx: { targetCardInstId?: CardInstId; targetLocationId?: LocationId; mapaInstId?: CardInstId } = {};
+  const ctx: PlayCardCtx = {};
 
   // Mapa de Nunca Jamás: auto-use when playing an ITEM the player can't afford otherwise
   if (card.cardType === CardType.ITEM) {
@@ -20,7 +48,7 @@ export function buildPlayCtx(
     const effectiveCost = Math.max(0, card.baseCost + card.costModifier);
     if (player.power < effectiveCost) {
       const mapaId = Object.values(state.allCards).find(
-        c => c.defId.startsWith('hook_v_mapa') && c.ownerId === playerId && !!c.locationId,
+        c => c.defId.startsWith(CardDefPrefix.HOOK_MAPA) && c.ownerId === playerId && !!c.locationId,
       )?.instId;
       if (mapaId) ctx.mapaInstId = mapaId;
     }

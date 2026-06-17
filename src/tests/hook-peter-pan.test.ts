@@ -114,7 +114,7 @@ describe('checkWinCondition – Garfio', () => {
 
   /** Estado con todos los pasos de objetivo completados y sin Tic Tac. */
   function makeWinState(): GameState {
-    let s = makeState();
+    const s = makeState();
     const id = hookId(s);
     return {
       ...s,

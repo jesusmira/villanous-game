@@ -19,6 +19,19 @@ export function hookId(state: GameState): PlayerId {
   return state.players.find(p => p.villainId === 'hook')!.id;
 }
 
+/** Estado base: Príncipe Juan (P1, humano) vs Garfio (P2, IA) */
+export function makeJhonState(): GameState {
+  return createInitialState({
+    player1: { villainId: 'jhon', isAI: false, name: 'Príncipe Juan' },
+    player2: { villainId: 'hook', isAI: true, name: 'Garfio' },
+  });
+}
+
+/** ID del jugador Príncipe Juan */
+export function jhonId(state: GameState): PlayerId {
+  return state.players.find(p => p.villainId === 'jhon')!.id;
+}
+
 /** Busca el primer instId cuyo defId empiece por `prefix` en todo el estado */
 export function findCard(state: GameState, prefix: string): CardInstId | undefined {
   return Object.keys(state.allCards).find(id => state.allCards[id]?.defId.startsWith(prefix));

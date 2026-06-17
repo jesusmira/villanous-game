@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { Trophy } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { GameState } from '../core/types';
 import { modalStyles } from '../styles/modalStyles';
+import { Image } from './Image';
 
 interface Props {
   state: GameState;
@@ -88,21 +88,27 @@ export function VictoryModal({ state, onPlayAgain }: Props) {
     <div className={modalStyles.overlay}>
 
       {/* Modal */}
-      <div className="bg-surface-container-highest/98 border-2 border-tertiary/50 rounded-3xl shadow-2xl flex flex-col gap-6 p-6 sm:p-8 w-11/12 sm:w-full sm:max-w-md pointer-events-auto backdrop-blur-sm">
-        {/* Trophy Icon */}
+      <div className="bg-surface-container-highest/98 border-2 border-tertiary/50 rounded-3xl shadow-2xl flex flex-col gap-4 sm:gap-6 p-5 sm:p-8 w-10/12 max-w-xs sm:w-full sm:max-w-md pointer-events-auto backdrop-blur-sm">
+        {/* Villain Portrait */}
         <div className="flex justify-center">
-          <Trophy className="w-16 h-16 text-tertiary animate-bounce" fill="currentColor" />
+          <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-tertiary/60 shadow-lg animate-bounce">
+            <Image
+              src={`/images/villains/${winner?.villainId}.webp`}
+              alt={winner?.name}
+              className="w-full h-full object-cover scale-125"
+            />
+          </div>
         </div>
 
         {/* Title */}
         <div className="text-center">
-          <p className="font-stats text-sm uppercase tracking-widest text-on-surface-variant/60 mb-2">
+          <p className="font-stats text-xs sm:text-sm uppercase tracking-widest text-on-surface-variant/60 mb-1 sm:mb-2">
             ¡Victoria!
           </p>
-          <h2 className="font-serif text-3xl font-bold text-tertiary">
+          <h2 className="font-serif text-2xl sm:text-3xl font-bold text-tertiary">
             {winner?.name}
           </h2>
-          <p className="font-stats text-xs uppercase tracking-wider text-on-surface-variant/50 mt-2">
+          <p className="font-stats text-xs uppercase tracking-wider text-on-surface-variant/50 mt-1 sm:mt-2">
             ha ganado la partida
           </p>
         </div>

@@ -5,8 +5,9 @@ import { Image } from './Image';
 const BOARD_IMAGES: Record<string, string> = {
   hook:       '/images/boards/hook.png',
   maleficent: '/images/boards/maleficent.png',
+  jhon:       '/images/boards/jhon.png',
 };
-import { getCoveredSlotIndices, getAvailableSlotIndices } from '../core/engine/slotHelpers';
+import { getCoveredSlotIndices, getAvailableSlotIndices, getHissChoiceSlotIndices } from '../core/engine/slotHelpers';
 import { LocationTile } from './LocationTile';
 import { Zap, Layers, BookOpen, Star } from 'lucide-react';
 
@@ -34,6 +35,14 @@ interface Props {
   /** ACTIVATE phase: drag a hero card from the board */
   onHeroCardDragStart?: (cardId: string) => void;
   onHeroCardDragEnd?: () => void;
+  /** MOVE phase: raven card instance id */
+  ravenInstId?: string;
+  onRavenDragStart?: (cardId: string) => void;
+  onRavenDragEnd?: () => void;
+  /** MOVE phase: sheriff card instance id (Príncipe Juan) */
+  sherifInstId?: string;
+  onSherifDragStart?: (cardId: string) => void;
+  onSherifDragEnd?: () => void;
 }
 
 /** Parse "✅ Foo | ❌ Bar" into typed chips */
@@ -45,7 +54,7 @@ function parseProgress(label: string | null): { done: boolean; text: string }[] 
   }));
 }
 
-export function PlayerBoard({ state, player, isActive, onCardClick, selectedCardId, onActionSlotClick, onLocationClick, movableLocIds, playHighlights, onCardDrop, onVillainCardDragStart, onVillainCardDragEnd, onHeroCardDragStart, onHeroCardDragEnd, onFateLocationClick }: Props) {
+export function PlayerBoard({ state, player, isActive, onCardClick, selectedCardId, onActionSlotClick, onLocationClick, movableLocIds, playHighlights, onCardDrop, onVillainCardDragStart, onVillainCardDragEnd, onHeroCardDragStart, onHeroCardDragEnd, onFateLocationClick, ravenInstId, onRavenDragStart, onRavenDragEnd, sherifInstId, onSherifDragStart, onSherifDragEnd }: Props) {
   const plugin        = getPlugin(player.villainId);
   const progressLabel = plugin.getWinProgress?.(state, player) ?? null;
   const progressItems = parseProgress(progressLabel);
@@ -163,6 +172,9 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
             const available      = isActive && isPawnHere
               ? getAvailableSlotIndices(state, player.id, locDef.id)
               : [];
+            const hissChoices    = isActive && isPawnHere
+              ? getHissChoiceSlotIndices(state, player.id, locDef.id)
+              : [];
             const isMovable      = movableLocIds?.includes(locDef.id) ?? false;
             const boardImageUrl  = BOARD_IMAGES[player.villainId] ?? null;
             return (
@@ -175,6 +187,7 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
                 isCurrentPawn={isPawnHere}
                 coveredSlotIndices={covered}
                 availableSlotIndices={available}
+                hissChoiceSlotIndices={hissChoices}
                 selectedCardId={selectedCardId}
                 onCardClick={onCardClick}
                 onSlotClick={onActionSlotClick}
@@ -187,6 +200,12 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
                 onHeroCardDragStart={onHeroCardDragStart}
                 onHeroCardDragEnd={onHeroCardDragEnd}
                 onFateLocationClick={onFateLocationClick ? () => onFateLocationClick(locDef.id) : undefined}
+                ravenInstId={ravenInstId}
+                onRavenDragStart={onRavenDragStart}
+                onRavenDragEnd={onRavenDragEnd}
+                sherifInstId={sherifInstId}
+                onSherifDragStart={onSherifDragStart}
+                onSherifDragEnd={onSherifDragEnd}
                 boardImageUrl={boardImageUrl}
                 locationIndex={locIndex}
               />

@@ -14,6 +14,12 @@ const REAL_VILLAINS = getAllPlugins().map(p => ({
 
 const VILLAIN_OPTIONS = REAL_VILLAINS;
 
+/** Elige un villano al azar distinto de `excludeId` (para que la IA no copie al jugador 1). */
+function pickRandomVillain(excludeId: VillainId): typeof VILLAIN_OPTIONS[0] | undefined {
+  const remaining = VILLAIN_OPTIONS.filter(u => u.id !== excludeId);
+  return remaining[Math.floor(Math.random() * remaining.length)];
+}
+
 // Número de círculos visibles por fila según breakpoint
 const MOB_PER_ROW   = 6;   // < 768 px: 1 fila de 6
 const DESK_PER_PAGE = 12;  // ≥ 768 px: 2 filas de 6
@@ -26,18 +32,20 @@ interface CircleProps {
   villainId: VillainId; name: string; color: string; desc: string;
   onSelect: () => void;
   isP1: boolean; isP2: boolean; activePlayer: ActivePlayer;
+  disabled?: boolean;
 }
-function VillainCircle({ villainId, name, color, desc, onSelect, isP1, isP2, activePlayer }: CircleProps) {
+function VillainCircle({ villainId, name, color, desc, onSelect, isP1, isP2, activePlayer, disabled = false }: CircleProps) {
   const [tip, setTip] = useState(false);
   const selected = isP1 || isP2;
   const active   = (activePlayer === 'player1' && isP1) || (activePlayer === 'player2' && isP2);
   return (
     <div className="relative flex flex-col items-center gap-1 min-w-0">
       <button
-        onClick={onSelect}
+        onClick={disabled ? undefined : onSelect}
+        disabled={disabled}
         onMouseEnter={() => setTip(true)}
         onMouseLeave={() => setTip(false)}
-        className="w-full aspect-square rounded-full border-2 overflow-hidden transition-all hover:scale-105 active:scale-95 relative"
+        className={`w-full aspect-square rounded-full border-2 overflow-hidden transition-all relative ${disabled ? 'opacity-30 grayscale cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
         style={{
           borderColor: selected ? color : 'rgba(73,69,78,0.55)',
           borderWidth: selected ? 3 : 2,
@@ -46,6 +54,11 @@ function VillainCircle({ villainId, name, color, desc, onSelect, isP1, isP2, act
       >
         <img src={`/images/villains/${villainId}.webp`} alt={name} className="w-full h-full object-cover scale-125" />
         {active && <div className="absolute inset-0 rounded-full" style={{ boxShadow: `inset 0 0 12px ${color}` }} />}
+        {disabled && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="font-stats text-[7px] sm:text-[8px] uppercase tracking-wide text-on-surface bg-black/60 rounded px-1 py-0.5">En uso</span>
+          </div>
+        )}
       </button>
       <span
         className="text-[9px] sm:text-[10px] font-serif text-center leading-tight w-full truncate transition-colors"
@@ -154,21 +167,27 @@ export function GameSetup() {
   const p2Meta = p2Villain ? VILLAIN_OPTIONS.find(v => v.id === p2Villain) ?? null : null;
 
   function circleProps(v: typeof VILLAIN_OPTIONS[0]) {
+    // El villano que ya tiene el OTRO jugador no se puede elegir (no dos del mismo).
+    const otherVillain = activePlayer === 'player1' ? p2Villain : p1Villain;
     return {
       villainId: v.id, name: v.name, color: v.color, desc: v.desc,
       activePlayer,
       isP1: p1Villain === v.id && p1Meta?.name === v.name,
       isP2: p2Villain === v.id && p2Meta?.name === v.name,
+      disabled: v.id === otherVillain,
       onSelect: () => select(v),
     };
   }
 
   function select(v: typeof VILLAIN_OPTIONS[0]) {
+    // Bloqueo de seguridad: no permitir elegir el villano que ya tiene el otro jugador.
+    const otherVillain = activePlayer === 'player1' ? p2Villain : p1Villain;
+    if (v.id === otherVillain) return;
     if (activePlayer === 'player1') {
       setP1Villain(v.id);
       if (p2IsAI) {
-        const diff = VILLAIN_OPTIONS.find(u => u.id !== v.id);
-        if (diff) setP2Villain(diff.id);
+        const pick = pickRandomVillain(v.id);
+        if (pick) setP2Villain(pick.id);
       } else {
         setActivePlayer('player2');
       }
@@ -180,6 +199,7 @@ export function GameSetup() {
   function goBack() {
     setGameMode(null); setP1Villain(null); setP2Villain(null);
     setActivePlayer('player1'); setMobPage(0); setDeskPage(0);
+    setP2IsAI(false); setP2Name('Jugador 2');
   }
 
   function start() {
@@ -197,7 +217,7 @@ export function GameSetup() {
       <div className="h-svh flex flex-col items-center justify-center px-4 gap-5">
         <Image src="/Logo-vote-villainous.webp" className="h-28 sm:h-40 md:h-56 lg:h-72 object-contain" />
         <div className="flex flex-col gap-3 w-full max-w-xs">
-          <button onClick={() => setGameMode('1v1')}
+          <button onClick={() => { setGameMode('1v1'); setP2IsAI(false); setP2Name('Jugador 2'); }}
             className="px-6 py-3 min-h-11 text-sm rounded-lg font-serif font-bold uppercase transition-all hover:scale-105 active:scale-95"
             style={{ background: 'linear-gradient(135deg,#d3bcf9,#8b5cf6)', color: '#1c1b1b' }}>
             Jugador vs Jugador

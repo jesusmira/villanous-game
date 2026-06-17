@@ -1165,4 +1165,18 @@ tu Tablero.
 
 7
 
-
+Bosque de Sherwood
+    Gana 1 punto de poder | Descarta cartas
+    Juega una carta | Destino
+
+La iglesia del fraile Tuck
+    Gana 2 de Poder | Juega una Carta
+    Juega una carta | Mueve un objeto o aliado
+
+Nottingham
+    Destino | Gana 1 Poder
+    Vencer | Jugar una carta
+
+La cárcel
+    vacío
+    Gana 3 de Poder | Juega una carta | Descarta cartas

@@ -1,6 +1,7 @@
 import type { GameState, PlayerId, LocationId, CardInstId, ActionType } from '../types';
 import { getPlayer } from './stateHelpers';
 import { getPlugin } from '../villains/registry';
+import { EffectId } from '../villains/effectIds';
 
 export const ITEM_SLOT_OFFSET = 100;
 
@@ -46,9 +47,35 @@ export function getCoveredSlotIndices(
   const locState = player.locationStates[locationId];
   const locDef = getPlugin(player.villainId).locations.find(l => l.id === locationId);
   if (!locDef) return [];
+  if (locDef.heroesNeverCoverSlots) return [];
   const heroCount = locState.heroCardInstIds.length;
   const coveredCount = heroCount > 0 ? Math.min(2, locDef.actions.length) : 0;
   return locDef.actions.slice(0, coveredCount).map((_, i) => i);
+}
+
+/**
+ * Sir Hiss: si el peón del Príncipe Juan está en su ubicación, puede realizar UNA acción tapada.
+ * Devuelve las casillas tapadas que el jugador puede elegir (todas, mientras no haya usado ninguna).
+ * En cuanto se usa una tapada, Sir Hiss se considera gastado este turno y deja de ofrecer el resto.
+ */
+export function getHissChoiceSlotIndices(
+  state: GameState,
+  playerId: PlayerId,
+  locationId: LocationId,
+): number[] {
+  const player = getPlayer(state, playerId);
+  if (player.pawnLocationId !== locationId) return [];
+  const locState = player.locationStates[locationId];
+  if (!locState) return [];
+  const hissPresent = locState.villainCardInstIds.some(
+    id => state.allCards[id]?.effectIds.includes(EffectId.JHON_HISS),
+  );
+  if (!hissPresent) return [];
+  const covered = getCoveredSlotIndices(state, playerId, locationId);
+  if (covered.length === 0) return [];
+  // Si ya se usó una casilla tapada este turno, Sir Hiss ya se gastó.
+  if (covered.some(i => state.usedActionSlotIndices.includes(i))) return [];
+  return covered.filter(i => !state.usedActionSlotIndices.includes(i));
 }
 
 export function getAvailableSlotIndices(
@@ -62,8 +89,10 @@ export function getAvailableSlotIndices(
   const covered = getCoveredSlotIndices(state, playerId, locationId);
   const used = state.usedActionSlotIndices;
   const base = locDef.actions.map((_, i) => i).filter(i => !covered.includes(i) && !used.includes(i));
+  // Sir Hiss: las casillas tapadas que ofrece también son utilizables (el jugador elige una).
+  const hissChoices = getHissChoiceSlotIndices(state, playerId, locationId);
   const extra = getItemGrantedSlotEntries(state, playerId, locationId)
     .filter(e => !used.includes(e.slotIndex))
     .map(e => e.slotIndex);
-  return [...base, ...extra];
+  return [...base, ...hissChoices, ...extra];
 }

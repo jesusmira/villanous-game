@@ -310,6 +310,27 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   .card-strength-badge { width: 17px; height: 17px; font-size: 9px; }
 }
 
+/* Stored power badge (Little John, etc.) */
+.card-stored-power-badge {
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 13px; height: 13px;
+  background: #111;
+  border: 1px solid #e8c84a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  font-family: 'Space Grotesk', monospace;
+  font-weight: 700;
+  font-size: 7px;
+  color: #e8c84a;
+}
+@media (min-width: 768px) {
+  .card-stored-power-badge { width: 17px; height: 17px; font-size: 9px; }
+}
+
 /* ── Ally/card zone (dashed slot below location) ──────────── */
 .card-slot {
   border: 1px dashed rgba(73,69,78,0.35);
@@ -360,6 +381,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 @keyframes shrink {
   from { width: 100%; }
   to   { width: 0%; }
+}
+
+/* ── Coin flip (sorteo de jugador inicial) ─────────────────────── */
+@keyframes coin-spin {
+  0%   { transform: rotateY(0deg)    scale(1);    }
+  50%  { transform: rotateY(900deg)  scale(1.18); }
+  100% { transform: rotateY(1800deg) scale(1);    }
+}
+.coin-spin {
+  animation: coin-spin 1.9s cubic-bezier(0.45, 0.05, 0.3, 1) forwards;
 }
 
 /* ── Burn / vanquish animation ──────────────────────────────────── */

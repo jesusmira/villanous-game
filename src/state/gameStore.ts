@@ -4,15 +4,23 @@ import type { GameState, GameSetupOptions, LocationId, CardInstId } from '../cor
 import { createInitialState, movePawn, gainPower, playCard, vanquish,
   moveItemAlly, moveHero, startFate, resolveFate, activateCard,
   discardFromHand, endActivatePhase, drawCards, skipMove, resolveAuroraHero,
-  revertToActivate, activateRaven,
+  revertToActivate, activateRaven, activateSherif,
 } from '../core/engine/GameEngine';
 import { resolveCondition, resolveCuervo, resolveDemosles, resolveJaqueca } from '../core/engine/PendingStateResolver';
-import { runAITurn, chooseCuervoAction } from '../core/ai/AIPlayer';
+
+interface AIWorkerResponse {
+  final: GameState;
+  steps: GameState[];
+}
 
 interface GameStore {
   state: GameState | null;
   aiReplayQueue: GameState[];
+  isAIThinking: boolean;
+  /** Índice del jugador inicial sorteado, mientras se muestra el modal de revelado. null = sin modal. */
+  startReveal: number | null;
   initGame: (opts: GameSetupOptions) => void;
+  dismissStartReveal: () => void;
   resetGame: () => void;
   // Turn actions
   doMovePawn: (locationId: LocationId) => void;
@@ -35,86 +43,91 @@ interface GameStore {
   doResolveCuervo: (action: ActionType, params: Parameters<typeof resolveCuervo>[2]) => void;
   doResolveDemosles: (discardIds: Parameters<typeof resolveDemosles>[1], keepIds: Parameters<typeof resolveDemosles>[2]) => void;
   doActivateRaven: (ravenInstId: CardInstId, targetLocationId: LocationId) => void;
+  doActivateSherif: (sherifInstId: CardInstId, targetLocationId: LocationId) => void;
   doResolveJaqueca: (itemInstId: CardInstId) => void;
 }
 
-function maybeAutoResolveCondition(state: GameState): GameState {
-  if (!state.pendingCondition) return state;
-  const reacting = state.players.find(p => p.id === state.pendingCondition!.reactingPlayerId);
-  if (!reacting?.isAI) return state;
-  return resolveCondition(state, null); // AI always skips
+// ─── Web Worker ───────────────────────────────────────────────────────────────
+
+const aiWorker = new Worker(
+  new URL('../core/ai/aiWorker.ts', import.meta.url),
+  { type: 'module' },
+);
+
+// Returns true when AI processing is needed (either current player is AI, or a
+// pending state requires an AI to react — e.g. pendingCondition.reactingPlayerId).
+function needsAIProcessing(state: GameState): boolean {
+  if (state.winner) return false;
+  if (state.players[state.currentPlayerIndex].isAI) return true;
+  if (state.pendingCondition) {
+    const r = state.players.find(p => p.id === state.pendingCondition!.reactingPlayerId);
+    if (r?.isAI) return true;
+  }
+  if (state.pendingCuervo) {
+    const p = state.players.find(p => p.id === state.pendingCuervo!.playerId);
+    if (p?.isAI) return true;
+  }
+  if (state.pendingDemosles) {
+    const p = state.players.find(p => p.id === state.pendingDemosles!.playerId);
+    if (p?.isAI) return true;
+  }
+  if (state.pendingJaqueca) {
+    const p = state.players.find(p => p.id === state.pendingJaqueca!.actingPlayerId);
+    if (p?.isAI) return true;
+  }
+  return false;
 }
 
-function maybeAutoResolveCuervo(state: GameState): GameState {
-  if (!state.pendingCuervo) return state;
-  const player = state.players.find(p => p.id === state.pendingCuervo!.playerId);
-  if (!player?.isAI) return state;
-  const { action, params } = chooseCuervoAction(state);
-  return resolveCuervo(state, action, params);
+// Dispatches state to the AI worker. Returns the Zustand partial to set
+// immediately (the pre-AI state is shown while the worker computes).
+function dispatchAI(next: GameState): Partial<GameStore> {
+  aiWorker.postMessage(next);
+  return { state: next, aiReplayQueue: [], isAIThinking: true };
 }
 
-function maybeAutoResolveJaqueca(state: GameState): GameState {
-  if (!state.pendingJaqueca) return state;
-  const actingPlayer = state.players.find(p => p.id === state.pendingJaqueca!.actingPlayerId);
-  if (!actingPlayer?.isAI) return state;
-  const { itemInstIds } = state.pendingJaqueca;
-  // IA: descartar el Cañón primero (ranura VANQUISH extra), si no el primer objeto.
-  const canon = itemInstIds.find(id => state.allCards[id]?.defId?.startsWith('hook_v_canon'));
-  return resolveJaqueca(state, canon ?? itemInstIds[0]);
-}
-
-function maybeAutoResolveDemosles(state: GameState): GameState {
-  if (!state.pendingDemosles) return state;
-  const player = state.players.find(p => p.id === state.pendingDemosles!.playerId);
-  if (!player?.isAI) return state;
-  // IA descarta todas las cartas reveladas sin manipular el orden del mazo
-  return resolveDemosles(state, state.pendingDemosles.topCardIds, []);
-}
-
-function maybeRunAI(state: GameState): [GameState, GameState[]] {
-  let s = maybeAutoResolveCondition(state);
-  s = maybeAutoResolveCuervo(s);
-  s = maybeAutoResolveDemosles(s);
-  s = maybeAutoResolveJaqueca(s);
-  if (s.winner) return [s, []];
-  const current = s.players[s.currentPlayerIndex];
-  if (!current.isAI) return [s, []];
-
-  const steps = runAITurn(s);
-  let final = steps.length > 0 ? steps[steps.length - 1] : s;
-  final = maybeAutoResolveCondition(final);
-  final = maybeAutoResolveCuervo(final);
-  final = maybeAutoResolveDemosles(final);
-  if (steps.length > 0) steps[steps.length - 1] = final;
-  return [final, steps];
-}
+// ─── Store ────────────────────────────────────────────────────────────────────
 
 export const useGameStore = create<GameStore>((set, get) => ({
   state: null,
   aiReplayQueue: [],
+  isAIThinking: false,
+  startReveal: null,
 
   initGame: (opts) => {
-    const initial = createInitialState(opts);
-    const [ready] = maybeRunAI(initial);
-    set({ state: ready, aiReplayQueue: [] });
+    // Sorteo aleatorio del jugador inicial (salvo que se fuerce desde opts).
+    const startingPlayerIndex = opts.startingPlayerIndex ?? (Math.random() < 0.5 ? 0 : 1);
+    const initial = createInitialState({ ...opts, startingPlayerIndex });
+    // La partida NO arranca todavía: espera a que el jugador acepte el sorteo.
+    // Si empieza la IA, se lanzará al cerrar el modal (dismissStartReveal).
+    set({ state: initial, aiReplayQueue: [], isAIThinking: false, startReveal: startingPlayerIndex });
   },
 
-  resetGame: () => set({ state: null, aiReplayQueue: [] }),
+  dismissStartReveal: () => {
+    const { state } = get();
+    // Al aceptar: si le toca empezar a la IA (o hay algo pendiente para ella), ahora sí la arrancamos.
+    if (state && needsAIProcessing(state)) {
+      set({ ...dispatchAI(state), startReveal: null });
+    } else {
+      set({ startReveal: null });
+    }
+  },
+
+  resetGame: () => set({ state: null, aiReplayQueue: [], isAIThinking: false, startReveal: null }),
 
   doMovePawn: (locationId) => {
     const { state } = get();
     if (!state) return;
     const playerId = state.players[state.currentPlayerIndex].id;
-    const [next, steps] = maybeRunAI(movePawn(state, playerId, locationId));
-    set({ state: next, aiReplayQueue: steps });
+    const next = movePawn(state, playerId, locationId);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
   },
 
   doSkipMove: () => {
     const { state } = get();
     if (!state) return;
     const playerId = state.players[state.currentPlayerIndex].id;
-    const [next, steps] = maybeRunAI(skipMove(state, playerId));
-    set({ state: next, aiReplayQueue: steps });
+    const next = skipMove(state, playerId);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
   },
 
   doGainPower: (slotIndex, amountOverride) => {
@@ -128,14 +141,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (!state) return;
     const playerId = state.players[state.currentPlayerIndex].id;
-    set({ state: maybeAutoResolveCondition(playCard(state, playerId, cardInstId, slotIndex, targetLocationId, ctx)) });
+    const next = playCard(state, playerId, cardInstId, slotIndex, targetLocationId, ctx);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
   },
 
   doVanquish: (heroInstId, allyInstIds, slotIndex) => {
     const { state } = get();
     if (!state) return;
     const playerId = state.players[state.currentPlayerIndex].id;
-    set({ state: maybeAutoResolveCondition(vanquish(state, playerId, heroInstId, allyInstIds, slotIndex)) });
+    const next = vanquish(state, playerId, heroInstId, allyInstIds, slotIndex);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
   },
 
   doMoveItemAlly: (cardInstId, targetLocationId, slotIndex) => {
@@ -169,8 +184,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (!state) return;
     const playerId = state.players[state.currentPlayerIndex].id;
-    const [next, steps] = maybeRunAI(activateCard(state, playerId, cardInstId, slotIndex, ctx));
-    set({ state: next, aiReplayQueue: steps });
+    const next = activateCard(state, playerId, cardInstId, slotIndex, ctx);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
   },
 
   doDiscardFromHand: (cardInstIds, slotIndex) => {
@@ -190,15 +205,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (!state) return;
     const playerId = state.players[state.currentPlayerIndex].id;
-    const [next, steps] = maybeRunAI(drawCards(state, playerId));
-    set({ state: next, aiReplayQueue: steps });
+    const next = drawCards(state, playerId);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next, aiReplayQueue: [] });
   },
 
   doResolveCondition: (condInstId, ctx = {}) => {
     const { state } = get();
     if (!state) return;
-    const [next, steps] = maybeRunAI(resolveCondition(state, condInstId, ctx));
-    set({ state: next, aiReplayQueue: steps });
+    const next = resolveCondition(state, condInstId, ctx);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
   },
 
   doResolveAuroraHero: (targetLocationId) => {
@@ -235,14 +250,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (!state) return;
     const playerId = state.players[state.currentPlayerIndex].id;
-    const [next, steps] = maybeRunAI(activateRaven(state, playerId, ravenInstId, targetLocationId));
-    set({ state: next, aiReplayQueue: steps });
+    const next = activateRaven(state, playerId, ravenInstId, targetLocationId);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
+  },
+
+  doActivateSherif: (sherifInstId, targetLocationId) => {
+    const { state } = get();
+    if (!state) return;
+    const playerId = state.players[state.currentPlayerIndex].id;
+    const next = activateSherif(state, playerId, sherifInstId, targetLocationId);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
   },
 
   doResolveJaqueca: (itemInstId) => {
     const { state } = get();
     if (!state) return;
-    const [next, steps] = maybeRunAI(resolveJaqueca(state, itemInstId));
-    set({ state: next, aiReplayQueue: steps });
+    const next = resolveJaqueca(state, itemInstId);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
   },
 }));
+
+// Worker response: apply final state and replay steps for animation.
+aiWorker.onmessage = (e: MessageEvent<AIWorkerResponse>) => {
+  useGameStore.setState({
+    state: e.data.final,
+    aiReplayQueue: e.data.steps,
+    isAIThinking: false,
+  });
+};

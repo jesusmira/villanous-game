@@ -10,6 +10,7 @@ const SECOND_PLAYER_POWER_BONUS = 1;
 export function createInitialState(options: GameSetupOptions): GameState {
   const p1Id = 'player_0';
   const p2Id = 'player_1';
+  const startingPlayerIndex = options.startingPlayerIndex ?? 0;
   const plugin1 = getPlugin(options.player1.villainId);
   const plugin2 = getPlugin(options.player2.villainId);
 
@@ -79,7 +80,7 @@ export function createInitialState(options: GameSetupOptions): GameState {
     id: p1Id,
     name: options.player1.name,
     villainId: options.player1.villainId,
-    power: plugin1.startingPower,
+    power: plugin1.startingPower + (startingPlayerIndex === 0 ? 0 : SECOND_PLAYER_POWER_BONUS),
     pawnLocationId: plugin1.startingLocationId,
     handInstIds: p1Split.hand,
     villainDeckInstIds: p1Split.villain,
@@ -95,7 +96,7 @@ export function createInitialState(options: GameSetupOptions): GameState {
     id: p2Id,
     name: options.player2.name,
     villainId: options.player2.villainId,
-    power: plugin2.startingPower + SECOND_PLAYER_POWER_BONUS,
+    power: plugin2.startingPower + (startingPlayerIndex === 1 ? 0 : SECOND_PLAYER_POWER_BONUS),
     pawnLocationId: plugin2.startingLocationId,
     handInstIds: p2Split.hand,
     villainDeckInstIds: p2Split.villain,
@@ -107,15 +108,17 @@ export function createInitialState(options: GameSetupOptions): GameState {
     completedObjectiveSteps: [],
   };
 
+  const starter = startingPlayerIndex === 0 ? player1 : player2;
+
   return {
     players: [player1, player2],
-    currentPlayerIndex: 0,
+    currentPlayerIndex: startingPlayerIndex,
     turnPhase: TurnPhase.MOVE,
     winner: null,
     allCards,
     roundNumber: 1,
     usedActionSlotIndices: [],
     pendingFate: undefined,
-    log: ['¡La partida ha comenzado!'],
+    log: [`¡La partida ha comenzado! Empieza ${starter.name}.`],
   };
 }

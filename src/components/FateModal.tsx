@@ -39,10 +39,14 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onCardDetail,
   );
 
   const reqTarget = chosenCard?.effectIds.map(id => getEffectDef(id)?.requiresTargetCard).find(Boolean) ?? null;
-  const targetsAtLoc = (reqTarget && targetLocId && reqTarget !== 'CURSE')
+  // Las cartas EFFECT (p. ej. Robar a los Ricos) no se juegan "en" una ubicación — su target
+  // puede ser cualquier Héroe/Aliado del Reino, no solo los de la ubicación elegida.
+  const isEffectCard = chosenCard?.cardType === CardType.EFFECT;
+  const targetsAtLoc = (reqTarget && reqTarget !== 'CURSE' && (targetLocId || isEffectCard))
     ? Object.values(state.allCards).filter(c =>
-        c.locationId === targetLocId && c.ownerId === targetPlayer.id &&
-        c.cardType === (reqTarget === 'ALLY' ? CardType.ALLY : CardType.HERO))
+        c.ownerId === targetPlayer.id &&
+        c.cardType === (reqTarget === 'ALLY' ? CardType.ALLY : CardType.HERO) &&
+        (isEffectCard ? !!c.locationId : c.locationId === targetLocId))
     : [];
 
   const availableCurses = reqTarget === 'CURSE'
@@ -54,7 +58,7 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onCardDetail,
     : [];
 
   const canConfirm = chosenId && (
-    (chosenCard?.cardType === CardType.EFFECT && reqTarget !== 'CURSE') ||
+    (isEffectCard && reqTarget !== 'CURSE' && (!reqTarget || targetsAtLoc.length === 0 || !!targetCardId)) ||
     (reqTarget === 'CURSE' && !!targetCardId) ||
     (targetLocId && (!reqTarget || targetsAtLoc.length === 0 || !!targetCardId))
   );
@@ -166,13 +170,13 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onCardDetail,
         )}
 
         {/* Target card picker */}
-        {targetLocId && reqTarget && reqTarget !== 'CURSE' && (
+        {(targetLocId || isEffectCard) && reqTarget && reqTarget !== 'CURSE' && (
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] text-on-surface-variant/60 shrink-0">
               {reqTarget === 'ALLY' ? 'Aliado:' : 'Héroe:'}
             </span>
             {targetsAtLoc.length === 0
-              ? <span className="text-[11px] text-error/70">No hay ninguno aquí. Se jugará sin adjuntar.</span>
+              ? <span className="text-[11px] text-error/70">No hay ninguno disponible. Se jugará sin efecto.</span>
               : targetsAtLoc.map(c => (
                   <button key={c.instId}
                     className={targetCardId === c.instId

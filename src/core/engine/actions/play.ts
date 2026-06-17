@@ -1,11 +1,12 @@
 import { CardType } from '../../types';
-import type { GameState, PlayerId, CardInstId, LocationId } from '../../types';
+import type { GameState, PlayerId, CardInstId, LocationId, PlayCardCtx, ActivateCardCtx } from '../../types';
 import { getPlugin } from '../../villains/registry';
 import { EffectId } from '../../villains/effectIds';
 import { runEffects } from '../EffectEngine';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
-  discardCardFromKingdom, addLog, checkWin, getEffectiveStrength, computeKingdomCostMod,
+  discardCardFromKingdom, moveAttachedItems, addLog, checkWin, getEffectiveStrength, computeKingdomCostMod,
+  applyPowerGain,
 } from '../stateHelpers';
 import { getActionAtSlot } from '../slotHelpers';
 import { checkConditions, firePawnArrivalIfMoved } from './_helpers';
@@ -29,12 +30,13 @@ export function gainPower(
   amountOverride?: number,
 ): GameState {
   const player = getPlayer(state, playerId);
-  const amount = amountOverride !== undefined
+  const rawAmount = amountOverride !== undefined
     ? amountOverride
     : (getActionAtSlot(state, playerId, slotIndex)?.value ?? 2);
-  let s = updatePlayer(state, playerId, { power: player.power + amount });
+  let s = applyPowerGain(state, playerId, rawAmount);
+  const gained = getPlayer(s, playerId).power - player.power;
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
-  return addLog(s, `${player.name} gana ${amount} de Poder.`);
+  return addLog(s, `${player.name} gana ${gained} de Poder.`);
 }
 
 export function playCard(
@@ -43,7 +45,7 @@ export function playCard(
   cardInstId: CardInstId,
   slotIndex: number,
   targetLocationId: LocationId,
-  ctx: Partial<{ targetCardInstId: CardInstId; auxiliaryInstIds: CardInstId[]; mapaInstId: CardInstId }> = {},
+  ctx: PlayCardCtx = {},
 ): GameState {
   const player = getPlayer(state, playerId);
   const card = state.allCards[cardInstId];
@@ -122,12 +124,32 @@ export function vanquish(
   }
 
   let s = state;
-  for (const allyId of allyInstIds) s = discardCardFromKingdom(s, allyId);
+  const flechaAllyCount = allyInstIds.filter(allyId =>
+    state.allCards[allyId]?.attachedItemInstIds.some(
+      itemId => state.allCards[itemId]?.effectIds.includes(EffectId.JHON_FLECHA_ATTACH),
+    ),
+  ).length;
+  if (flechaAllyCount > 0) {
+    s = applyPowerGain(s, playerId, flechaAllyCount * 2);
+    s = addLog(s, `Flecha Dorada: ${getPlayer(s, playerId).name} recibe ${flechaAllyCount * 2} Moneda(s) de Poder.`);
+  }
+  for (const allyId of allyInstIds) {
+    const arcoId = s.allCards[allyId]?.attachedItemInstIds.find(
+      itemId => s.allCards[itemId]?.effectIds.includes(EffectId.JHON_ARCO_ATTACH),
+    );
+    if (arcoId) {
+      s = discardCardFromKingdom(s, arcoId);
+      s = addLog(s, `Arco con Flechas se descarta en lugar de ${s.allCards[allyId]?.name}.`);
+    } else {
+      s = discardCardFromKingdom(s, allyId);
+    }
+  }
 
   const plugin = getPlugin(getPlayer(s, playerId).villainId);
   if (plugin.onVanquish) s = plugin.onVanquish(s, playerId, heroInstId, heroLocId);
 
   s = discardCardFromKingdom(s, heroInstId);
+  if (plugin.onHeroDiscarded) s = plugin.onHeroDiscarded(s, playerId, heroInstId);
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
   s = addLog(s, `${getPlayer(s, playerId).name} derrota a ${hero.name}.`);
 
@@ -160,6 +182,8 @@ export function moveItemAlly(
     villainCardInstIds: [...destLocState.villainCardInstIds, cardInstId],
   });
   s = updateCard(s, cardInstId, { locationId: targetLocationId });
+  // Los Objetos adjuntos viajan con su portador.
+  s = moveAttachedItems(s, cardInstId, targetLocationId);
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
   s = addLog(s, `${card.name} movido/a a ${targetLocationId}.`);
   if (getPlayer(s, playerId).pawnLocationId === targetLocationId) {
@@ -186,6 +210,8 @@ export function moveHero(
     heroCardInstIds: [...dest.heroCardInstIds, heroInstId],
   });
   s = updateCard(s, heroInstId, { locationId: targetLocationId });
+  // Los Objetos adjuntos (Burla, Polvo de Hada, etc.) viajan con el Héroe.
+  s = moveAttachedItems(s, heroInstId, targetLocationId);
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
   return addLog(s, `${hero.name} movido/a a ${targetLocationId}.`);
 }
@@ -195,7 +221,7 @@ export function activateCard(
   playerId: PlayerId,
   cardInstId: CardInstId,
   slotIndex: number,
-  ctx: Partial<{ targetLocationId: LocationId; targetCardInstId: CardInstId }> = {},
+  ctx: ActivateCardCtx = {},
 ): GameState {
   const player = getPlayer(state, playerId);
   const card = state.allCards[cardInstId];

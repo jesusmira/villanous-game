@@ -3,10 +3,13 @@ import { RotateCw } from 'lucide-react';
 import { useGameStore } from './state/gameStore';
 import { GameSetup } from './components/GameSetup';
 import { GameBoard } from './components/GameBoard';
+import { StartRevealModal } from './components/StartRevealModal';
 import './index.css';
 
 function App() {
   const state = useGameStore(s => s.state);
+  const startReveal = useGameStore(s => s.startReveal);
+  const dismissStartReveal = useGameStore(s => s.dismissStartReveal);
   const [isLandscape, setIsLandscape] = useState(window.innerHeight < window.innerWidth);
 
   // Detect orientation changes globally
@@ -43,7 +46,20 @@ function App() {
     );
   }
 
-  return state ? <GameBoard state={state} /> : <GameSetup />;
+  if (!state) return <GameSetup />;
+
+  return (
+    <>
+      <GameBoard state={state} />
+      {startReveal !== null && (
+        <StartRevealModal
+          state={state}
+          startingPlayerIndex={startReveal}
+          onContinue={dismissStartReveal}
+        />
+      )}
+    </>
+  );
 }
 
 export default App;

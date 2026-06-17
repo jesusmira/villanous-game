@@ -2,9 +2,10 @@ import { CardType, EffectTrigger } from '../../types';
 import type { EffectDef } from '../../types';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
-  discardCardFromKingdom, addLog,
+  discardCardFromKingdom, moveAttachedItems, addLog,
 } from '../../engine/stateHelpers';
 import { shuffle } from '../../utils/shuffle';
+import { CardDefId } from '../effectIds';
 import { locations, HookLocationId, HookObjectiveStep } from './cards';
 
 export const effects: EffectDef[] = [
@@ -67,7 +68,7 @@ export const effects: EffectDef[] = [
       if (!card?.locationId) return 0;
       const player = getPlayer(state, card.ownerId);
       const wendyPresent = Object.values(player.locationStates).some(ls =>
-        ls.heroCardInstIds.some(id => state.allCards[id]?.defId === 'hook_f_wendy'),
+        ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_WENDY),
       );
       return wendyPresent ? 1 : 0;
     },
@@ -106,9 +107,10 @@ export const effects: EffectDef[] = [
       const locState = player.locationStates[ctx.targetLocationId];
       const heroId = ctx.targetCardInstId
         ?? locState.heroCardInstIds.find(id => id !== ctx.cardInstId);
-      if (!heroId) return state;
+      // Sin Héroe al que unirse, el Objeto se descarta: ya se jugó y pagó su coste.
+      if (!heroId) return discardCardFromKingdom(state, ctx.cardInstId);
       const hero = state.allCards[heroId];
-      if (!hero) return state;
+      if (!hero) return discardCardFromKingdom(state, ctx.cardInstId);
       let s = updateCard(state, ctx.cardInstId, { attachedToInstId: heroId });
       s = updateCard(s, heroId, {
         attachedItemInstIds: [...hero.attachedItemInstIds, ctx.cardInstId],
@@ -151,9 +153,10 @@ export const effects: EffectDef[] = [
     requiresTargetCard: 'ALLY',
     description: 'Únelo a un Aliado; ese Aliado obtiene +2 Fuerza',
     execute: (state, ctx) => {
-      if (!ctx.targetCardInstId) return state;
+      // Sin Aliado al que unirse, el Objeto se descarta: ya se jugó y pagó su coste.
+      if (!ctx.targetCardInstId) return discardCardFromKingdom(state, ctx.cardInstId);
       const target = state.allCards[ctx.targetCardInstId];
-      if (!target || target.cardType !== CardType.ALLY) return state;
+      if (!target || target.cardType !== CardType.ALLY) return discardCardFromKingdom(state, ctx.cardInstId);
       let s = updateCard(state, ctx.cardInstId, { attachedToInstId: ctx.targetCardInstId, strengthModifier: 2 });
       s = updateCard(s, ctx.targetCardInstId, {
         attachedItemInstIds: [...target.attachedItemInstIds, ctx.cardInstId],
@@ -168,9 +171,10 @@ export const effects: EffectDef[] = [
     requiresTargetCard: 'HERO',
     description: 'Únelo a un Héroe; ese Héroe recibe +2 Fuerza',
     execute: (state, ctx) => {
-      if (!ctx.targetCardInstId) return state;
+      // Sin Héroe al que unirse, el Objeto se descarta: ya se jugó y pagó su coste.
+      if (!ctx.targetCardInstId) return discardCardFromKingdom(state, ctx.cardInstId);
       const target = state.allCards[ctx.targetCardInstId];
-      if (!target || target.cardType !== CardType.HERO) return state;
+      if (!target || target.cardType !== CardType.HERO) return discardCardFromKingdom(state, ctx.cardInstId);
       let s = updateCard(state, ctx.cardInstId, { attachedToInstId: ctx.targetCardInstId, strengthModifier: 2 });
       s = updateCard(s, ctx.targetCardInstId, {
         attachedItemInstIds: [...target.attachedItemInstIds, ctx.cardInstId],
@@ -220,6 +224,8 @@ export const effects: EffectDef[] = [
         villainCardInstIds: [...destLoc.villainCardInstIds, allyId],
       });
       s = updateCard(s, allyId, { locationId: destLocId, bonusThisTurn: (ally.bonusThisTurn ?? 0) + 2 });
+      // Los Objetos adjuntos viajan con su portador.
+      s = moveAttachedItems(s, allyId, destLocId);
       return addLog(s, `¡A la orden señor!: ${ally.name} movido a ${destLocId} con +2 Fuerza este turno.`);
     },
   },
@@ -261,7 +267,7 @@ export const effects: EffectDef[] = [
         fateDiscardInstIds: [...getPlayer(s, ctx.actingPlayerId).fateDiscardInstIds, ...toDiscard],
       });
       const hero = s.allCards[heroId];
-      const destLocId = hero?.defId === 'hook_fate_peter_pan'
+      const destLocId = hero?.defId === CardDefId.HOOK_PETER_PAN
         ? HookLocationId.HANGMAN
         : getPlayer(s, ctx.actingPlayerId).pawnLocationId;
       const locState = getPlayer(s, ctx.actingPlayerId).locationStates[destLocId];
@@ -380,6 +386,8 @@ export const effects: EffectDef[] = [
         heroCardInstIds: [...destLoc.heroCardInstIds, heroId],
       });
       s = updateCard(s, heroId, { locationId: destLocId });
+      // Los Objetos adjuntos viajan con su portador.
+      s = moveAttachedItems(s, heroId, destLocId);
       return addLog(s, `Sr. Starkey mueve a ${hero.name} a ${destLocId}.`);
     },
   },

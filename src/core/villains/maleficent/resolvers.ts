@@ -5,7 +5,7 @@ import type {
 } from '../../types';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
-  discardCardFromKingdom, addLog, getEffectiveStrength, computeKingdomCostMod, checkWin,
+  discardCardFromKingdom, moveAttachedItems, addLog, getEffectiveStrength, computeKingdomCostMod, checkWin,
 } from '../../engine/stateHelpers';
 import { runEffects } from '../../engine/EffectEngine';
 import { getPlugin } from '../registry';
@@ -146,17 +146,20 @@ export const conditionHandlers: Record<string, ConditionHandler> = {
 
 // ─── RESOLVE CUERVO ──────────────────────────────────────────────────────────
 
+/** Acción que el Cuervo lleva a cabo en su ubicación de destino, y los datos que necesita. */
+export interface CuervoResolutionParams {
+  targetLocationId?: LocationId;
+  cardInstId?: CardInstId;
+  targetCardInstId?: CardInstId;
+  allyInstIds?: CardInstId[];
+  cardInstIds?: CardInstId[];
+  amountOverride?: number;
+}
+
 export function resolveCuervo(
   state: GameState,
   action: ActionType,
-  params: {
-    targetLocationId?: LocationId;
-    cardInstId?: CardInstId;
-    targetCardInstId?: CardInstId;
-    allyInstIds?: CardInstId[];
-    cardInstIds?: CardInstId[];
-    amountOverride?: number;
-  } = {},
+  params: CuervoResolutionParams = {},
 ): GameState {
   if (!state.pendingCuervo) return state;
   const { playerId, locationId } = state.pendingCuervo;
@@ -216,16 +219,10 @@ export function resolveCuervo(
         s = addLog(s, 'El Cuervo: Fuerza insuficiente para vencer al Héroe.');
         break;
       }
-      const heroLocId = hero.locationId!;
+      // Descartar (no mover) cada Aliado usado: discardCardFromKingdom ya cascada sus Objetos
+      // adjuntos y limpia el pile correcto — antes esto se reimplementaba a mano sin esa cascada.
       for (const allyId of params.allyInstIds) {
-        const heroLoc = getPlayer(s, playerId).locationStates[heroLocId];
-        s = updateLocationState(s, playerId, heroLocId, {
-          villainCardInstIds: heroLoc.villainCardInstIds.filter(id => id !== allyId),
-        });
-        s = updatePlayer(s, playerId, {
-          villainDiscardInstIds: [...getPlayer(s, playerId).villainDiscardInstIds, allyId],
-        });
-        s = updateCard(s, allyId, { locationId: undefined });
+        s = discardCardFromKingdom(s, allyId);
       }
       s = discardCardFromKingdom(s, params.cardInstId);
       s = addLog(s, `El Cuervo: ${hero.name} derrotado.`);
@@ -244,6 +241,8 @@ export function resolveCuervo(
         villainCardInstIds: [...dest.villainCardInstIds, params.cardInstId],
       });
       s = updateCard(s, params.cardInstId, { locationId: params.targetLocationId });
+      // Los Objetos adjuntos viajan con su portador.
+      s = moveAttachedItems(s, params.cardInstId, params.targetLocationId);
       s = addLog(s, `El Cuervo: ${card.name} movido a ${params.targetLocationId}.`);
       break;
     }
@@ -260,6 +259,8 @@ export function resolveCuervo(
         heroCardInstIds: [...dest.heroCardInstIds, params.cardInstId],
       });
       s = updateCard(s, params.cardInstId, { locationId: params.targetLocationId });
+      // Los Objetos adjuntos viajan con su portador.
+      s = moveAttachedItems(s, params.cardInstId, params.targetLocationId);
       s = addLog(s, `El Cuervo: ${hero.name} movido a ${params.targetLocationId}.`);
       break;
     }

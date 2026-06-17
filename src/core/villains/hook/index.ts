@@ -3,6 +3,7 @@ import { getPlayer, updatePlayer } from '../../engine/stateHelpers';
 import { CardDefId } from '../effectIds';
 import { effects } from './effects';
 import { locations, villainCardDefs, fateCardDefs, HookObjectiveStep, HookLocationId } from './cards';
+import { scoreState, threatUrgency } from './ai';
 
 function onVanquish(state: GameState, playerId: PlayerId, heroInstId: CardInstId, heroLocId: LocationId): GameState {
   const hero = state.allCards[heroInstId];
@@ -70,4 +71,5 @@ export const hookPlugin: VillainPlugin = {
   checkWinCondition,
   getWinProgress,
   onVanquish,
+  aiHeuristics: { scoreState, threatUrgency },
 };

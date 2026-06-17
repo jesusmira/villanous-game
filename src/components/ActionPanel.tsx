@@ -1,12 +1,10 @@
-import { useState } from 'react';
 import { TurnPhase, ActionType } from '../core/types';
 import type { GameState, PlayerId, CardInstId } from '../core/types';
-import { getEffectDef, getPlugin } from '../core/villains/registry';
+import { getEffectDef } from '../core/villains/registry';
 import { EffectId, CardDefId } from '../core/villains/effectIds';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { modalStyles } from '../styles/modalStyles';
 import { ACTION_LABELS } from './shared/actionLabels';
-import { useGameStore } from '../state/gameStore';
 
 const ACTION_IMG: Record<string, string> = {
   GAIN_POWER:     '/images/actions/gain_power.png',
@@ -191,62 +189,6 @@ interface Props {
   onToggleHand?: () => void;
 }
 
-// ─── El Cuervo — se usa ANTES de mover el peón (fase MOVER) ─────────────────────
-function RavenFlow({ state, playerId }: { state: GameState; playerId: PlayerId }) {
-  const doActivateRaven = useGameStore(s => s.doActivateRaven);
-  const [open, setOpen]       = useState(false);
-  const [targetLoc, setTarget] = useState<string | null>(null);
-
-  const player = state.players.find(p => p.id === playerId);
-  if (!player || player.ravenUsedThisTurn) return null;
-
-  // Buscar el Cuervo en el reino (cualquier ubicación).
-  const ravenId = Object.values(state.allCards).find(
-    c => c.ownerId === playerId && c.effectIds.includes(EffectId.RAVEN_ACTIVATE) && c.locationId,
-  )?.instId;
-  if (!ravenId) return null;
-
-  const plugin = getPlugin(player.villainId);
-  const allLocs = plugin.locations.filter(l => !player.locationStates[l.id]?.isLocked);
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="shrink-0 px-2.5 py-1 rounded border border-primary/50 bg-primary/10 text-primary font-stats text-[10px] uppercase tracking-wider active:scale-95 transition-transform"
-      >
-        El Cuervo
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="font-stats text-[10px] text-primary uppercase tracking-wider shrink-0">Mover Cuervo a:</span>
-      {allLocs.map(loc => (
-        <button key={loc.id}
-          onClick={() => setTarget(loc.id)}
-          className={targetLoc === loc.id ? modalStyles.buttonActive : modalStyles.buttonSelect}
-        >{loc.name}</button>
-      ))}
-      {targetLoc && (
-        <button
-          className={modalStyles.buttonPrimary}
-          onClick={() => {
-            doActivateRaven(ravenId, targetLoc);
-            setOpen(false);
-            setTarget(null);
-          }}
-        >Mover</button>
-      )}
-      <button
-        onClick={() => { setOpen(false); setTarget(null); }}
-        className="font-stats text-[10px] text-on-surface-variant/60 hover:text-on-surface transition-colors"
-      >Cancelar</button>
-    </div>
-  );
-}
-
 /** Botón "Mano" — solo visible en móvil/tablet (oculto en desktop, que usa la pestaña lateral) */
 function HandButton({ count, revealed, onToggle }: { count: number; revealed?: boolean; onToggle?: () => void }) {
   if (!onToggle || count <= 0) return null;
@@ -287,7 +229,6 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, detailCardOpe
             Permanecer aquí
           </button>
         )}
-        <RavenFlow state={state} playerId={playerId} />
         <HandButton count={handCount} revealed={handRevealed} onToggle={onToggleHand} />
       </div>
     );

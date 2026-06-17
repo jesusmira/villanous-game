@@ -8,7 +8,6 @@ interface Props {
   state: GameState;
   selected?: boolean;
   onClick?: () => void;
-  small?: boolean;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -24,7 +23,7 @@ const CARD_GRADIENTS: Record<string, string> = {
 };
 
 
-export function CardComponent({ card, state, selected, onClick, small: _small, draggable: isDraggable, onDragStart, onDragEnd }: Props) {
+export function CardComponent({ card, state, selected, onClick, draggable: isDraggable, onDragStart, onDragEnd }: Props) {
   const effectiveStr = card.baseStrength !== undefined ? getEffectiveStrength(state, card.instId) : undefined;
   const baseStr      = card.baseStrength ?? 0;
   const hasBonus     = effectiveStr !== undefined && effectiveStr !== baseStr;
@@ -61,6 +60,11 @@ export function CardComponent({ card, state, selected, onClick, small: _small, d
       {/* Strength badge — solo si tiene bonificadores */}
       {hasBonus && (
         <div className="card-strength-badge">{effectiveStr}</div>
+      )}
+
+      {/* Stored power badge (Little John) */}
+      {(card.storedPower ?? 0) > 0 && (
+        <div className="card-stored-power-badge">{card.storedPower}</div>
       )}
 
     </div>

@@ -1,8 +1,9 @@
 import { ActionType, CardType, TurnPhase } from '../types';
-import type { GameState, CardInstId, LocationId, PlayerId } from '../types';
+import type { GameState, CardInstId, LocationId, PlayerId, ActivateCardCtx } from '../types';
 import { getPlugin, getEffectDef } from '../villains/registry';
 import { EffectId, CardDefId } from '../villains/effectIds';
 import { HookLocationId } from '../villains/hook/cards';
+import { heroHasBurla } from '../villains/hook/aiHelpers';
 import { getPlayer, getEffectiveStrength, computeKingdomCostMod } from '../engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../engine/slotHelpers';
 import {
@@ -15,6 +16,7 @@ import {
   endActivatePhase, drawCards, activateRaven,
 } from '../engine/GameEngine';
 import { resolveCuervo } from '../engine/PendingStateResolver';
+import type { CuervoResolutionParams } from '../engine/PendingStateResolver';
 import { scoreLocation, pickBestPlayTarget, locHasCurse } from './scoring';
 import { evaluateState } from './evaluate';
 import { buildPlayCtx } from './contextBuilder';
@@ -167,24 +169,24 @@ function tryVanquish(s: GameState, playerId: PlayerId, slotIdx: number): GameSta
   const plugin = getPlugin(player.villainId);
   const heroEntries = Object.entries(player.locationStates).flatMap(([, ls]) => ls.heroCardInstIds);
 
-  // Heroes with Burla block ALL other vanquish — they go first
-  const heroHasBurla = (id: CardInstId) =>
-    (s.allCards[id]?.attachedItemInstIds ?? []).some(
-      itemId => s.allCards[itemId]?.effectIds.includes(EffectId.BURLA_ATTACH),
-    );
-  const burlaHeroes = heroEntries.filter(heroHasBurla);
-
-  // Tic Tac must be defeated before Hook can win — second priority
-  const ticTacId = heroEntries.find(
-    id => s.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC && !heroHasBurla(id),
-  );
+  // Burla heroes must be defeated first — they go at the front of the ordered list
+  const burlaHeroes = heroEntries.filter(id => heroHasBurla(s, id));
 
   const ppAtJollyId = player.locationStates[HookLocationId.JOLLY_ROGER]?.heroCardInstIds.find(
     id => s.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN,
   );
-  // Fix G: entre el resto, Wendy primero (eliminarla quita el aura +1 a todos los demás héroes).
-  // Wendy tiene effectIds:[] y defId 'hook_f_wendy' — NO tiene hook_wendy_aura en sus propios efectos.
-  const others = heroEntries.filter(id => !heroHasBurla(id) && id !== ticTacId && id !== ppAtJollyId);
+  // Héroes que bloquean jugar Maldiciones (p. ej. Primavera) van antes que cualquier otro:
+  // vencerlos desbloquea la victoria, así que importa más que su fuerza relativa. Sin esto,
+  // un héroe débil pero irrelevante (p. ej. Fauna) se intenta primero solo por ser más barato,
+  // y la IA nunca llega a intentar al bloqueante real.
+  const curseBlockerIds = heroEntries.filter(id =>
+    !heroHasBurla(s, id)
+    && (s.allCards[id]?.effectIds ?? []).some(eid => getEffectDef(eid)?.blocksCursePlay),
+  );
+  // Wendy first among others (removing her strips the +1 aura from all other heroes).
+  const others = heroEntries.filter(
+    id => !heroHasBurla(s, id) && id !== ppAtJollyId && !curseBlockerIds.includes(id),
+  );
   const feasible = (heroId: CardInstId) => {
     const heroLoc = s.allCards[heroId]?.locationId;
     if (!heroLoc) return false;
@@ -228,8 +230,8 @@ function tryVanquish(s: GameState, playerId: PlayerId, slotIdx: number): GameSta
   });
   const ordered = [
     ...burlaHeroes,
-    ...(ticTacId ? [ticTacId] : []),
-    ...(ppAtJollyId && !heroHasBurla(ppAtJollyId) && ppAtJollyId !== ticTacId ? [ppAtJollyId] : []),
+    ...(ppAtJollyId ? [ppAtJollyId] : []),
+    ...curseBlockerIds,
     ...others,
   ];
 
@@ -292,38 +294,26 @@ function tryMoveItemAlly(s: GameState, playerId: PlayerId, slotIdx: number): Gam
   return best;
 }
 
-/** Garfio: mueve héroes bloqueantes (Burla → Tic Tac → Peter Pan) hacia Jolly Roger. */
+/** Garfio: mueve héroes con Burla (prerrequisito) y Peter Pan (solo vencible en JR) hacia posición óptima. */
 function tryMoveHero(s: GameState, playerId: PlayerId, slotIdx: number): GameState | null {
   const player = getPlayer(s, playerId);
   if (player.villainId !== 'hook') return null;
   const plugin = getPlugin(player.villainId);
 
-  const heroHasBurla = (id: CardInstId) =>
-    (s.allCards[id]?.attachedItemInstIds ?? []).some(
-      itemId => s.allCards[itemId]?.effectIds.includes(EffectId.BURLA_ATTACH),
-    );
-
-  // Orden de prioridad: Burla → Tic Tac → Peter Pan
-  // Para cada uno, intentar acercarlos a Jolly Roger si no están ya allí
+  // Prioridad: Burla (hay que vencerlos primero) → Peter Pan (solo vencible en JR)
   const candidateHeroIds: CardInstId[] = [];
   for (const [, ls] of Object.entries(player.locationStates)) {
-    candidateHeroIds.push(...ls.heroCardInstIds.filter(heroHasBurla));
-  }
-  for (const [, ls] of Object.entries(player.locationStates)) {
-    const tt = ls.heroCardInstIds.find(id => s.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC && !heroHasBurla(id));
-    if (tt) candidateHeroIds.push(tt);
+    candidateHeroIds.push(...ls.heroCardInstIds.filter(id => heroHasBurla(s, id)));
   }
   for (const [locId, ls] of Object.entries(player.locationStates)) {
     if (locId === HookLocationId.JOLLY_ROGER) continue;
-    const ppId = ls.heroCardInstIds.find(id => s.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN && !heroHasBurla(id));
+    const ppId = ls.heroCardInstIds.find(id => s.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN && !heroHasBurla(s, id));
     if (ppId) candidateHeroIds.push(ppId);
   }
 
   for (const heroId of candidateHeroIds) {
     const heroLoc = s.allCards[heroId]?.locationId;
     if (!heroLoc || heroLoc === HookLocationId.JOLLY_ROGER) continue;
-    // Peter Pan solo se puede vencer en JR → siempre moverlo hacia allí, sin excepción.
-    // Para Burla/Tic Tac: gestión inteligente según fuerza co-ubicada.
     const isPeterPan = s.allCards[heroId]?.defId === CardDefId.HOOK_PETER_PAN;
     if (!isPeterPan) {
       const heroStr = getEffectiveStrength(s, heroId);
@@ -334,9 +324,7 @@ function tryMoveHero(s: GameState, playerId: PlayerId, slotIdx: number): GameSta
       const needsMultiple = (s.allCards[heroId]?.effectIds ?? []).some(
         id => getEffectDef(id)?.requiresMultipleAlliesToVanquish,
       );
-      // Fuerza suficiente: no mover, vencer en su ubicación actual
       if (coLocStr >= heroStr && (!needsMultiple || coLocAllies.length >= 2)) continue;
-      // Fuerza insuficiente pero hay aliados en mano: jugarlos primero antes de mover
       const hasAllyInHand = player.handInstIds.some(id => s.allCards[id]?.cardType === CardType.ALLY);
       if (hasAllyInHand) continue;
     }
@@ -355,7 +343,7 @@ function tryMoveHero(s: GameState, playerId: PlayerId, slotIdx: number): GameSta
 function tryFate(s: GameState, playerId: PlayerId, slotIdx: number): GameState | null {
   if (!canFate(s, playerId, slotIdx).valid) return null;
   const oppIdx = (s.currentPlayerIndex + 1) % s.players.length;
-  let st = startFate(s, playerId, oppIdx, slotIdx);
+  const st = startFate(s, playerId, oppIdx, slotIdx);
   if (!st.pendingFate) return st;
 
   const { revealedInstIds, targetPlayerIndex } = st.pendingFate;
@@ -406,7 +394,7 @@ function tryActivateCard(s: GameState, playerId: PlayerId, slotIdx: number): Gam
     for (const cardId of ls.villainCardInstIds) {
       if (!canActivateCard(s, playerId, cardId, slotIdx).valid) continue;
       const card = s.allCards[cardId];
-      const ctx: { targetLocationId?: LocationId; targetCardInstId?: CardInstId } = {};
+      const ctx: ActivateCardCtx = {};
 
       if (card.effectIds.includes(EffectId.RAVEN_ACTIVATE)) {
         // El Cuervo se mueve LIBREMENTE (moverlo no quita maldiciones).
@@ -489,7 +477,7 @@ function tryDiscard(s: GameState, playerId: PlayerId, slotIdx: number): GameStat
 // ubicación donde está con una Maldición de la mano (su condición de victoria).
 export function chooseCuervoAction(state: GameState): {
   action: ActionType;
-  params: { cardInstId?: CardInstId; targetLocationId?: LocationId };
+  params: CuervoResolutionParams;
 } {
   const pc = state.pendingCuervo;
   if (!pc) return { action: ActionType.GAIN_POWER, params: {} };

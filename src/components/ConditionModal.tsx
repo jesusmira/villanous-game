@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { CardType } from '../core/types';
-import type { GameState, CardInstId, LocationId, PlayerState } from '../core/types';
+import type { GameState, CardInst, CardInstId, LocationId, PlayerState } from '../core/types';
 import { getPlugin } from '../core/villains/registry';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { EffectId } from '../core/villains/effectIds';
@@ -126,8 +126,8 @@ function ObsesionResolver({ state, reactingPlayer, condInstId, opponentPlayer }:
   const [locId, setLocId] = useState<LocationId | null>(null);
 
   const { nonHeroes, hero } = useMemo(() => {
-    const nonHeroes: NonNullable<typeof state.allCards[string]>[] = [];
-    let hero: typeof state.allCards[string] | null = null;
+    const nonHeroes: CardInst[] = [];
+    let hero: CardInst | null = null;
     for (const id of reactingPlayer.fateDeckInstIds) {
       const c = state.allCards[id];
       if (!c) continue;
@@ -250,6 +250,63 @@ function PerspicazResolver({ state, reactingPlayer, condInstId }: {
   );
 }
 
+// ─── COBARDÍA RESOLVER ───────────────────────────────────────────────────────
+
+function CobardiaResolver({ state, reactingPlayer, condInstId }: {
+  state: GameState; reactingPlayer: PlayerState; condInstId: CardInstId;
+}) {
+  const doResolveCondition = useGameStore(s => s.doResolveCondition);
+  const [allyId, setAllyId] = useState<CardInstId | null>(null);
+  const [locId,  setLocId]  = useState<LocationId | null>(null);
+
+  const allies = useMemo(() =>
+    reactingPlayer.handInstIds
+      .filter(id => id !== condInstId)
+      .map(id => state.allCards[id])
+      .filter(c => c && c.cardType === CardType.ALLY),
+  [reactingPlayer.handInstIds, condInstId, state.allCards]);
+
+  const plugin       = getPlugin(reactingPlayer.villainId);
+  const unlockedLocs = plugin.locations.filter(l => !reactingPlayer.locationStates[l.id]?.isLocked);
+
+  return (
+    <div className={PANEL}>
+      <p className="text-xs text-on-surface-variant">Elige un Aliado de tu mano para jugar gratis:</p>
+      {allies.length === 0
+        ? <p className="text-xs text-error/70">No tienes Aliados en la mano.</p>
+        : (
+          <div className="flex flex-wrap gap-1.5">
+            {allies.map(c => c && (
+              <button key={c.instId}
+                className={allyId === c.instId ? ACT : SEL}
+                onClick={() => { setAllyId(c.instId); setLocId(null); }}>
+                {c.name} (F:{c.baseStrength ?? '?'})
+              </button>
+            ))}
+          </div>
+        )}
+      {allyId && (
+        <>
+          <p className="text-xs text-on-surface-variant">Elige ubicación en tu Reino:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {unlockedLocs.map(l => (
+              <button key={l.id}
+                className={locId === l.id ? ACT : SEL}
+                onClick={() => setLocId(l.id)}>{l.name}</button>
+            ))}
+          </div>
+          {locId && (
+            <button className={BTN}
+              onClick={() => doResolveCondition(condInstId, { allyInstId: allyId, targetLocationId: locId })}>
+              Jugar Cobardía
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── ORCHESTRATOR ─────────────────────────────────────────────────────────────
 
 interface Props { state: GameState }
@@ -306,6 +363,9 @@ export function ConditionModal({ state }: Props) {
         )}
         {selectedCondId && isType(EffectId.PERSPICAZ_COND) && (
           <PerspicazResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
+        )}
+        {selectedCondId && isType(EffectId.JHON_COBARDIA_COND) && (
+          <CobardiaResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
         )}
 
         {/* Footer */}

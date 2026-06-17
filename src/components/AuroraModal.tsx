@@ -31,7 +31,7 @@ export function AuroraModal({ state }: Props) {
     if (!plugin || !targetPlayer) return [];
     return plugin.locations.filter(l => {
       const ls = targetPlayer.locationStates[l.id];
-      if (ls?.isLocked) return false;
+      if (!ls || ls.isLocked) return false;
       if (ls.villainCardInstIds.some(id =>
         state.allCards[id]?.effectIds.some(effId => getEffectDef(effId)?.blocksHeroPlay)
       )) return false;

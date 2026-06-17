@@ -84,4 +84,4 @@ Hero cards at a location cover action slots from the left — the number of hero
 
 ### AI
 
-`src/core/ai/AIPlayer.ts` exports `runAITurn(state): GameState` which handles all three phases in one synchronous call. It uses a scoring heuristic (`scoreLocation`, `scoreCard`) with villain-specific bonuses (Maleficent prioritizes curse placement; Hook prioritizes Ambush → unlock Hangman → move Peter Pan → Vanquish at Jolly Roger).
+`src/core/ai/AIPlayer.ts` exports `runAITurn(state): GameState` which handles all three phases in one synchronous call. Card plays are chosen by simulating each candidate (`playCard` + `evaluateState`) rather than a static heuristic; location/target choices use the `scoreLocation`/`pickBestPlayTarget` heuristics in `src/core/ai/scoring.ts`. Villain-specific scoring (Maleficent prioritizes curse placement; Hook prioritizes Ambush → unlock Hangman → move Peter Pan → Vanquish at Jolly Roger) lives in each `src/core/villains/<id>/ai.ts` and plugs into `evaluateState` via `VillainPlugin.aiHeuristics`.

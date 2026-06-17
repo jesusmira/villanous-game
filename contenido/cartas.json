@@ -364,67 +364,79 @@
           "nombre": "REY RICARDO",
           "tipo": "Héroe",
           "fuerza": 5,
-          "texto": "El Príncipe Juan no puede jugar Efectos."
+          "texto": "El Príncipe Juan no puede jugar Efectos.",
+          "cantidad": "1"
+          
         },
         {
           "nombre": "LADY KLUCK",
           "tipo": "Héroe",
           "fuerza": 6,
-          "texto": "Lady Kluck no puede ser jugada ni movida a la Prisión."
+          "texto": "Lady Kluck no puede ser jugada ni movida a la Prisión.",
+          "cantidad": "1"
         },
         {
           "nombre": "LITTLE JOHN",
           "tipo": "Héroe",
           "fuerza": 5,
-          "texto": "Cuando juegues a Little John, puedes cogerle hasta 4 Monedas de Poder al Príncipe Juan y ponerlas sobre Little John. Cuando Little John sea derrotado, las Monedas volverán con el Príncipe Juan."
+          "texto": "Cuando juegues a Little John, puedes cogerle hasta 4 Monedas de Poder al Príncipe Juan y ponerlas sobre Little John. Cuando Little John sea derrotado, las Monedas volverán con el Príncipe Juan.",
+          "cantidad": "1"
         },
         {
           "nombre": "LADY MARIAN",
           "tipo": "Héroe",
           "fuerza": 3,
-          "texto": "Cuando Lady Marian sea derrotada, encuentra a Robin Hood y juégalo en la misma ubicación."
+          "texto": "Cuando Lady Marian sea derrotada, encuentra a Robin Hood y juégalo en la misma ubicación.",
+          "cantidad": "1"
         },
         {
           "nombre": "ROBIN HOOD",
           "tipo": "Héroe",
           "fuerza": 5,
-          "texto": "La cantidad de Monedas de Poder que el Príncipe Juan gane de cada carta o acción se reduce en -1 Moneda."
+          "texto": "La cantidad de Monedas de Poder que el Príncipe Juan gane de cada carta o acción se reduce en -1 Moneda.",
+          "cantidad": "1"
         },
         {
           "nombre": "SKIPPY",
           "tipo": "Héroe",
           "fuerza": 2,
-          "texto": "Los Arqueros Lobo no pueden ser utilizados para derrotar a Skippy."
+          "texto": "Los Arqueros Lobo no pueden ser utilizados para derrotar a Skippy.",
+          "cantidad": "1"
         },
         {
           "nombre": "TOBY",
           "tipo": "Héroe",
           "fuerza": 2,
-          "texto": "Cuando Toby sea derrotado, vuelve a meterlo en el mazo de Destino del Príncipe Juan."
+          "texto": "Cuando Toby sea derrotado, vuelve a meterlo en el mazo de Destino del Príncipe Juan.",
+          "cantidad": "1"
         },
         {
           "nombre": "BUEN DISFRAZ",
           "tipo": "Objeto",
           "fuerza": null,
-          "texto": "Cuando juegues la carta Buen Disfraz, únela a un Héroe. Ese Héroe no puede ser derrotado. En cualquier momento, el Príncipe Juan puede pagar 2 Monedas de Poder para descartar Buen Disfraz."
+          "texto": "Cuando juegues la carta Buen Disfraz, únela a un Héroe. Ese Héroe no puede ser derrotado. En cualquier momento, el Príncipe Juan puede pagar 2 Monedas de Poder para descartar Buen Disfraz.",
+          "cantidad": "3"
         },
         {
           "nombre": "ROBAR A LOS RICOS",
           "tipo": "Efecto",
           "fuerza": null,
-          "texto": "Coge hasta 4 Monedas de Poder del Príncipe Juan y ponlas encima de cualquier Héroe. Cuando ese Héroe sea derrotado, las Monedas volverán con el Príncipe Juan."
+          "texto": "Coge hasta 4 Monedas de Poder del Príncipe Juan y ponlas encima de cualquier Héroe. Cuando ese Héroe sea derrotado, las Monedas volverán con el Príncipe Juan.",
+          "cantidad": "3"
         },
         {
           "nombre": "ALAN-A-DALE",
           "tipo": "Héroe",
           "fuerza": 2,
-          "texto": "Todos los demás Héroes que estén en el Reino del Príncipe Juan reciben +1 Fuerza."
+          "texto": "Todos los demás Héroes que estén en el Reino del Príncipe Juan reciben +1 Fuerza.",
+          "cantidad": "1"
         },
         {
           "nombre": "FRAILE TUCK",
           "tipo": "Héroe",
           "fuerza": 3,
-          "texto": "Cuando juegues al Fraile Tuck, puedes descartar todas las Órdenes de Búsqueda que haya en la ubicación del Fraile Tuck. El Príncipe Juan no puede ganar Monedas de Poder con ellas."
+          "texto": "Cuando juegues al Fraile Tuck, puedes descartar todas las Órdenes de Búsqueda que haya en la ubicación del Fraile Tuck. El Príncipe Juan no puede ganar Monedas de Poder con ellas.",
+          "cantidad": "1"
         }
       ]
     ],
@@ -435,112 +447,128 @@
           "tipo": "Condición",
           "coste": null,
           "fuerza": null,
-          "texto": "Durante su turno, si otro jugador tiene 6 o más Monedas de Poder, puedes jugar Avaricia. Recibes 3 Monedas de Poder."
+          "texto": "Durante su turno, si otro jugador tiene 6 o más Monedas de Poder, puedes jugar Avaricia. Recibes 3 Monedas de Poder.",
+          "cantidad": "2"
         },
         {
           "nombre": "TRAMPA",
           "tipo": "Efecto",
           "coste": 1,
           "fuerza": null,
-          "texto": "Puedes mover un Aliado a cualquier ubicación. Lleva a cabo una acción Vencer."
+          "texto": "Puedes mover un Aliado a cualquier ubicación. Lleva a cabo una acción Vencer.",
+          "cantidad": "2"
         },
         {
           "nombre": "CORONA DEL REY RICARDO",
           "tipo": "Objeto",
           "coste": 1,
           "fuerza": null,
-          "texto": "Si el Príncipe Juan está en esta ubicación, los Precios de todas las cartas se reducen en -1 Moneda de Poder."
+          "texto": "Si el Príncipe Juan está en esta ubicación, los Precios de todas las cartas se reducen en -1 Moneda de Poder.",
+          "cantidad": "1"
         },
         {
           "nombre": "FLECHA DORADA",
           "tipo": "Objeto",
           "coste": 0,
           "fuerza": null,
-          "texto": "Cuando juegues la Flecha Dorada, únela a un Aliado. Cuando ese Aliado sea utilizado para derrotar a un Héroe, recibe 2 Monedas de Poder."
+          "texto": "Cuando juegues la Flecha Dorada, únela a un Aliado. Cuando ese Aliado sea utilizado para derrotar a un Héroe, recibe 2 Monedas de Poder.",
+          "cantidad": "1"
         },
         {
           "nombre": "INTIMIDACIÓN",
           "tipo": "Efecto",
           "coste": 2,
           "fuerza": null,
-          "texto": "Lleva a cabo una acción Vencer, pero no descartes los Aliados utilizados para derrotar al Héroe."
+          "texto": "Lleva a cabo una acción Vencer, pero no descartes los Aliados utilizados para derrotar al Héroe.",
+          "cantidad": "1"
         },
         {
           "nombre": "LELO",
           "tipo": "Aliado",
           "coste": 2,
           "fuerza": 2,
-          "texto": "Todos los Aliados que estén en la ubicación de Lelo reciben +1 Fuerza."
+          "texto": "Todos los Aliados que estén en la ubicación de Lelo reciben +1 Fuerza.",
+          "cantidad": "1"
         },
         {
           "nombre": "SHERIFF DE NOTTINGHAM",
           "tipo": "Aliado",
           "coste": 3,
           "fuerza": 3,
-          "texto": "Antes de mover al Príncipe Juan, puedes mover al Sheriff de Notthingham a cualquier ubicación y recibir 1 Moneda de Poder si hay algún Héroe en su nueva ubicación."
+          "texto": "Antes de mover al Príncipe Juan, puedes mover al Sheriff de Notthingham a cualquier ubicación y recibir 1 Moneda de Poder si hay algún Héroe en su nueva ubicación.",
+          "cantidad": "1"
         },
         {
           "nombre": "SIR HISS",
           "tipo": "Aliado",
           "coste": 2,
           "fuerza": 2,
-          "texto": "Si el Príncipe Juan está en la ubicación del Sir Hiss, puedes llevar a cabo una acción que esté tapada por un Héroe en esa ubicación."
+          "texto": "Si el Príncipe Juan está en la ubicación del Sir Hiss, puedes llevar a cabo una acción que esté tapada por un Héroe en esa ubicación.",
+          "cantidad": "1"
         },
         {
           "nombre": "TIRO LISTO",
           "tipo": "Aliado",
           "coste": 2,
           "fuerza": 4,
-          "texto": "Todos los demás Aliados que estén en la ubicación de Tiro Listo reciben -1 de Fuerza."
+          "texto": "Todos los demás Aliados que estén en la ubicación de Tiro Listo reciben -1 de Fuerza.",
+          "cantidad": "1"
         },
         {
           "nombre": "APRECIADOS IMPUESTOS",
           "tipo": "Efecto",
           "coste": 0,
           "fuerza": null,
-          "texto": "Recibe 1 Moneda de Poder por cada Héroe que haya en tu Reino."
+          "texto": "Recibe 1 Moneda de Poder por cada Héroe que haya en tu Reino.",
+          "cantidad": "3"
         },
         {
           "nombre": "ENCARCELAMIENTO",
           "tipo": "Efecto",
           "coste": 2,
           "fuerza": null,
-          "texto": "Mueve un Héroe a La Prisión."
+          "texto": "Mueve un Héroe a La Prisión.",
+          "cantidad": "3"
         },
         {
           "nombre": "GUARDIAS RINOCERONTE",
           "tipo": "Aliado",
           "coste": 3,
           "fuerza": 4,
-          "texto": "Sin Habilidad adicional."
+          "texto": "Sin Habilidad adicional.",
+          "cantidad": "3"
         },
         {
           "nombre": "ORDEN DE BÚSQUEDA",
           "tipo": "Objeto",
           "coste": 1,
           "fuerza": null,
-          "texto": "Recibe 2 Monedas de Poder cada vez que se juegue un Héroe en esta ubicación."
+          "texto": "Recibe 2 Monedas de Poder cada vez que se juegue un Héroe en esta ubicación.",
+          "cantidad": "3"
         },
         {
           "nombre": "ARQUEROS LOBO",
           "tipo": "Aliado",
           "coste": 2,
           "fuerza": 2,
-          "texto": "Cuando estés realizando una acción Vencer, los Arqueros Lobo pueden ser utilizados para derrotar a un Héroe en su ubicación o en una ubicación adyacente."
+          "texto": "Cuando estés realizando una acción Vencer, los Arqueros Lobo pueden ser utilizados para derrotar a un Héroe en su ubicación o en una ubicación adyacente.",
+          "cantidad": "3"
         },
         {
           "nombre": "ARCO CON FLECHAS",
           "tipo": "Objeto",
           "coste": 1,
           "fuerza": null,
-          "texto": "Cuando juegues el Arco con Flechas, únelo a un Aliado. Ese Aliado recibe +1 Fuerza. Cuando ese Aliado deba ser descartado, descarta este Objeto en su lugar."
+          "texto": "Cuando juegues el Arco con Flechas, únelo a un Aliado. Ese Aliado recibe +1 Fuerza. Cuando ese Aliado deba ser descartado, descarta este Objeto en su lugar.",
+          "cantidad": "2"
         },
         {
           "nombre": "COBARDÍA",
           "tipo": "Condición",
           "coste": null,
           "fuerza": null,
-          "texto": "Durante su turno, si otro jugador tiene tres o más Aliados en su Reino, puedes jugar Cobardía. Juega un Aliado de tu mano de forma gratuita."
+          "texto": "Durante su turno, si otro jugador tiene tres o más Aliados en su Reino, puedes jugar Cobardía. Juega un Aliado de tu mano de forma gratuita.",
+          "cantidad": "2"
         }
       ]
     ]
