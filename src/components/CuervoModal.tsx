@@ -5,21 +5,13 @@ import { getPlugin } from '../core/villains/registry';
 import { getPlayer, getEffectiveStrength } from '../core/engine/stateHelpers';
 import { useGameStore } from '../state/gameStore';
 import { modalStyles } from '../styles/modalStyles';
+import { ACTION_IMG } from './shared/actionImages';
 
 const OVL  = modalStyles.overlay;
 const SEL  = modalStyles.buttonSelect;
 const ACT  = modalStyles.buttonActive;
 const BTN  = modalStyles.buttonPrimary;
 const PANEL = modalStyles.panel;
-
-const ACTION_IMG: Record<string, string> = {
-  GAIN_POWER:     '/images/actions/gain_power.png',
-  PLAY_CARD:      '/images/actions/play_card.png',
-  VANQUISH:       '/images/actions/vanquish.png',
-  MOVE_HERO:      '/images/actions/move_hero.png',
-  MOVE_ITEM_ALLY: '/images/actions/move_item_ally.png',
-  DISCARD:        '/images/actions/discard.png',
-};
 
 const ACTION_TOOLTIP: Record<string, string> = {
   GAIN_POWER:     'Ganar Poder',

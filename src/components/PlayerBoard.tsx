@@ -1,11 +1,12 @@
 import type { GameState, PlayerState, CardInstId } from '../core/types';
 import { getPlugin } from '../core/villains/registry';
 import { Image } from './Image';
+import { assetUrl } from '../lib/assets';
 
 const BOARD_IMAGES: Record<string, string> = {
-  hook:       '/images/boards/hook.png',
-  maleficent: '/images/boards/maleficent.png',
-  jhon:       '/images/boards/jhon.png',
+  hook:       assetUrl('boards/hook.webp'),
+  maleficent: assetUrl('boards/maleficent.webp'),
+  jhon:       assetUrl('boards/jhon.webp'),
 };
 import { getCoveredSlotIndices, getAvailableSlotIndices, getHissChoiceSlotIndices } from '../core/engine/slotHelpers';
 import { LocationTile } from './LocationTile';
@@ -72,7 +73,7 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
             style={{ borderColor: plugin.color }}
           >
             <Image
-              src={`/images/villains/${player.villainId}.webp`}
+              src={assetUrl(`villains/${player.villainId}.webp`)}
               className="w-full h-full object-cover scale-150"
             />
           </div>

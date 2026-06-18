@@ -2,6 +2,7 @@ import type React from 'react';
 import type { CardInst, GameState } from '../core/types';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { Image } from './Image';
+import { assetUrl } from '../lib/assets';
 
 interface Props {
   card: CardInst;
@@ -38,7 +39,7 @@ export function LargeCardComponent({ card, state, selected, onClick, draggable: 
   const isHero       = card.cardType === 'HERO';
 
   const imageUrl = card.imageFile
-    ? `/images/cards/${card.villainId}/${card.imageFile}.png`
+    ? assetUrl(`cards/${card.villainId}/${card.imageFile}.webp`)
     : null;
 
   return (

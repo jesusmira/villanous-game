@@ -5,17 +5,7 @@ import { EffectId, CardDefId } from '../core/villains/effectIds';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { modalStyles } from '../styles/modalStyles';
 import { ACTION_LABELS } from './shared/actionLabels';
-
-const ACTION_IMG: Record<string, string> = {
-  GAIN_POWER:     '/images/actions/gain_power.png',
-  VANQUISH:       '/images/actions/vanquish.png',
-  MOVE_HERO:      '/images/actions/move_hero.png',
-  MOVE_ITEM_ALLY: '/images/actions/move_item_ally.png',
-  ACTIVATE_CARD:  '/images/actions/activate_card.png',
-  DISCARD:        '/images/actions/discard.png',
-  PLAY_CARD:      '/images/actions/play_card.png',
-  FATE:           '/images/actions/fate.png',
-};
+import { ACTION_IMG } from './shared/actionImages';
 import type { ActionPanelCtx } from './useActionPanelState';
 import { Zap, MousePointerClick } from 'lucide-react';
 

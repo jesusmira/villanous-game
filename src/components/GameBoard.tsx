@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { TurnPhase, CardType, ActionType } from '../core/types';
-import type { CardInst, GameState } from '../core/types';
+import type { CardInst, GameState, VillainId } from '../core/types';
+import { preloadGameImages } from '../lib/preload';
 import { CardDefId, EffectId } from '../core/villains/effectIds';
 import { getEffectDef, getPlugin } from '../core/villains/registry';
 import { PlayerBoard } from './PlayerBoard';
@@ -56,6 +57,12 @@ export function GameBoard({ state }: Props) {
   } | null>(null);
   const [showTests, setShowTests]           = useState(false);
   const [showHookDeck, setShowHookDeck]     = useState(false);
+
+  // Precarga en memoria las imágenes de los villanos en juego (una vez por partida).
+  const villainKey = state.players.map(p => p.villainId).join(',');
+  useEffect(() => {
+    preloadGameImages(villainKey.split(',') as VillainId[]);
+  }, [villainKey]);
 
   // Swipe gesture for closing hand drawer
   const handDrawerSwipe = useSwipe({

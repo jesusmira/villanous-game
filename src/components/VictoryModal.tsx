@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import type { GameState } from '../core/types';
 import { modalStyles } from '../styles/modalStyles';
 import { Image } from './Image';
+import { assetUrl } from '../lib/assets';
 
 interface Props {
   state: GameState;
@@ -93,7 +94,7 @@ export function VictoryModal({ state, onPlayAgain }: Props) {
         <div className="flex justify-center">
           <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-tertiary/60 shadow-lg animate-bounce">
             <Image
-              src={`/images/villains/${winner?.villainId}.webp`}
+              src={assetUrl(`villains/${winner?.villainId}.webp`)}
               alt={winner?.name}
               className="w-full h-full object-cover scale-125"
             />

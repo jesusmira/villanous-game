@@ -3,6 +3,7 @@ import type { VillainId } from '../core/types';
 import { getAllPlugins } from '../core/villains/registry';
 import { useGameStore } from '../state/gameStore';
 import { Image } from './Image';
+import { assetUrl } from '../lib/assets';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const REAL_VILLAINS = getAllPlugins().map(p => ({
@@ -52,7 +53,7 @@ function VillainCircle({ villainId, name, color, desc, onSelect, isP1, isP2, act
           boxShadow: active ? `0 0 16px 3px ${color}55` : undefined,
         }}
       >
-        <img src={`/images/villains/${villainId}.webp`} alt={name} className="w-full h-full object-cover scale-125" />
+        <img src={assetUrl(`villains/${villainId}.webp`)} alt={name} className="w-full h-full object-cover scale-125" />
         {active && <div className="absolute inset-0 rounded-full" style={{ boxShadow: `inset 0 0 12px ${color}` }} />}
         {disabled && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -91,7 +92,7 @@ function PlayerCard({ label, name, villainId, vColor, vName, onNameChange, isAct
         style={{ width: 40, height: 40, borderColor: vColor ?? 'rgba(73,69,78,0.35)' }}
       >
         {villainId
-          ? <img src={`/images/villains/${villainId}.webp`} alt={vName} className="w-full h-full object-cover scale-125" />
+          ? <img src={assetUrl(`villains/${villainId}.webp`)} alt={vName} className="w-full h-full object-cover scale-125" />
           : <div className="w-full h-full bg-surface-container flex items-center justify-center">
               <span className="text-on-surface-variant/25 font-serif">?</span>
             </div>

@@ -3,18 +3,8 @@ import type { LocationDef, LocationState, GameState, CardInstId } from '../core/
 import { CardComponent } from './CardComponent';
 import { useState } from 'react';
 import { Crown } from 'lucide-react';
-
-/* Maps ActionType → public image path */
-const ACTION_IMG: Record<string, string> = {
-  GAIN_POWER:     '/images/actions/gain_power.png',
-  PLAY_CARD:      '/images/actions/play_card.png',
-  FATE:           '/images/actions/fate.png',
-  VANQUISH:       '/images/actions/vanquish.png',
-  MOVE_HERO:      '/images/actions/move_hero.png',
-  MOVE_ITEM_ALLY: '/images/actions/move_item_ally.png',
-  ACTIVATE_CARD:  '/images/actions/activate_card.png',
-  DISCARD:        '/images/actions/discard.png',
-};
+import { ACTION_IMG } from './shared/actionImages';
+import { assetUrl } from '../lib/assets';
 
 /* Border color class per action type */
 const ACTION_BORDER: Record<string, string> = {
@@ -222,7 +212,7 @@ export function LocationTile({
               <div className="absolute bottom-2 right-2 z-10">
                 <div className="rounded-2xl overflow-hidden border border-outline-variant/20 w-16 h-16">
                   <img
-                    src="/images/ui/lock.png"
+                    src={assetUrl('ui/lock.webp')}
                     alt="Bloqueado"
                     className="w-full h-full object-cover opacity-80"
                   />

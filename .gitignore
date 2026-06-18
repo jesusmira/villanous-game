@@ -22,4 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-public/images/cards/*
+
+# PNG en crudo: solo staging local para optimizar y subir a Supabase (no se sirven ni commitean)
+assets-src/

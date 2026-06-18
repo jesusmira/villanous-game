@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { GameState } from '../core/types';
 import { modalStyles } from '../styles/modalStyles';
+import { assetUrl } from '../lib/assets';
 
 interface Props {
   state: GameState;
@@ -42,7 +43,7 @@ export function StartRevealModal({ state, startingPlayerIndex, onContinue }: Pro
                 style={{ borderColor: '#e9c349' }}
               >
                 <img
-                  src={`/images/villains/${starter.villainId}.webp`}
+                  src={assetUrl(`villains/${starter.villainId}.webp`)}
                   alt={starter.name}
                   className="w-full h-full object-cover scale-125"
                 />
@@ -56,7 +57,7 @@ export function StartRevealModal({ state, startingPlayerIndex, onContinue }: Pro
                 }}
               >
                 <img
-                  src="/images/actions/gain_power.png"
+                  src={assetUrl('actions/gain_power.webp')}
                   alt="Moneda de Poder"
                   className="w-full h-full object-cover"
                 />
