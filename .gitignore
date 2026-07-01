@@ -25,3 +25,6 @@ dist-ssr
 
 # PNG en crudo: solo staging local para optimizar y subir a Supabase (no se sirven ni commitean)
 assets-src/
+
+# Capturas generadas por scripts/shots.mjs (Playwright)
+screenshots/

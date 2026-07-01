@@ -28,6 +28,7 @@ import { getAvailableSlotIndices, getActionAtSlot } from '../core/engine/slotHel
 import { buildPlayCtx, getAttachCandidates } from '../core/ai/contextBuilder';
 import { LayoutGrid, RotateCcw, X, ScrollText, Beaker, BookOpen } from 'lucide-react';
 import { useSwipe } from '../hooks/useSwipe';
+import { DragSource } from '../hooks/DragProvider';
 
 interface Props { state: GameState }
 
@@ -194,11 +195,22 @@ export function GameBoard({ state }: Props) {
 
   // ── Fate highlights: resalta ubicaciones del rival al arrastrar/seleccionar carta Destino ─
   const fateHighlights = ((): Record<string, { playState: PlayState; cost: number }> | undefined => {
-    if (!activeFateCardId || !state.pendingFate) return undefined;
+    if (!state.pendingFate || !activeFateCardId) return undefined;
     const card = state.allCards[activeFateCardId];
-    if (!card || card.cardType === CardType.EFFECT) return undefined;
+    if (!card) return undefined;
     const targetPlayer = state.players[state.pendingFate.targetPlayerIndex];
     const { locations }  = getPlugin(targetPlayer.villainId);
+
+    // Las cartas EFFECT pueden resolverse en cualquier ubicación desbloqueada.
+    if (card.cardType === CardType.EFFECT) {
+      const result: Record<string, { playState: PlayState; cost: number }> = {};
+      for (const loc of locations) {
+        result[loc.id] = targetPlayer.locationStates[loc.id]?.isLocked
+          ? { playState: 'blocked', cost: 0 }
+          : { playState: 'valid',   cost: 0 };
+      }
+      return result;
+    }
 
     const result: Record<string, { playState: PlayState; cost: number }> = {};
     for (const loc of locations) {
@@ -584,12 +596,12 @@ export function GameBoard({ state }: Props) {
                                     (isActive  ? playHighlights       : undefined)
               }
               onCardDrop={
-                dragRavenId       ? (isActive  ? handleRavenDrop        : undefined) :
-                dragSherifId      ? (isActive  ? handleSherifDrop       : undefined) :
-                activeFateCardId  ? (isFateTgt ? handleFateDrop         : undefined) :
-                dragBoardCardId   ? (isActive  ? handleBoardCardDrop    : undefined) :
-                dragHeroCardId    ? (isActive  ? handleHeroCardDrop     : undefined) :
-                (isActive && state.turnPhase === TurnPhase.ACTIVATE ? handleCardDrop : undefined)
+                dragRavenId                    ? (isActive  ? handleRavenDrop     : undefined) :
+                dragSherifId                   ? (isActive  ? handleSherifDrop    : undefined) :
+                dragBoardCardId                ? (isActive  ? handleBoardCardDrop : undefined) :
+                dragHeroCardId                 ? (isActive  ? handleHeroCardDrop  : undefined) :
+                (state.pendingFate && isFateTgt) ? handleFateDrop                             :
+                (isActive && state.turnPhase === TurnPhase.ACTIVATE) ? handleCardDrop : undefined
               }
               onVillainCardDragStart={
                 isActive && state.turnPhase === TurnPhase.ACTIVATE
@@ -613,7 +625,7 @@ export function GameBoard({ state }: Props) {
               onActionSlotClick={isActing  ? ap.handleSlotClick  : undefined}
               onLocationClick={
                 isMoving ? (locId) => ap.store.doMovePawn(locId) :
-                (activeFateCardId && isFateTgt) ? (locId) => handleFateDrop(locId) :
+                (state.pendingFate && isFateTgt) ? (locId) => handleFateDrop(locId) :
                 (isActive && state.turnPhase === TurnPhase.ACTIVATE && selectedCardId)
                   ? (locId) => handleCardDrop(locId)
                   : undefined
@@ -776,16 +788,15 @@ export function GameBoard({ state }: Props) {
                 const isCurse    = card.cardType === CardType.CURSE;
 
                 return (
-                  <div
+                  <DragSource
                     key={card.instId}
-                    draggable={!isDiscardMode}
-                    onDragStart={!isDiscardMode ? (e) => {
-                      e.dataTransfer.effectAllowed = 'move';
+                    disabled={isDiscardMode}
+                    onStart={() => {
                       setDragCardId(card.instId);
                       setSelectedCardId(card.instId);
                       setTimeout(() => setHandOpen(false), 0);
-                    } : undefined}
-                    onDragEnd={!isDiscardMode ? () => setDragCardId(null) : undefined}
+                    }}
+                    onEnd={() => setDragCardId(null)}
                     onMouseEnter={() => !isDiscardMode && setHoveredCardId(card.instId)}
                     onMouseLeave={() => setHoveredCardId(null)}
                     onClick={() => {
@@ -801,7 +812,7 @@ export function GameBoard({ state }: Props) {
                     className={`relative flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-all border-b border-outline-variant/10 last:border-b-0 ${
                       isDiscardMode
                         ? isMarkedDiscard ? 'bg-error/10 opacity-60' : 'hover:bg-error/5'
-                        : dragCardId === card.instId ? 'opacity-40 cursor-grab' : 'cursor-grab active:cursor-grabbing'
+                        : dragCardId === card.instId ? 'opacity-40 cursor-grab touch-none select-none' : 'cursor-grab active:cursor-grabbing touch-none select-none'
                     }`}
                     style={!isDiscardMode ? {
                       background: isHovered
@@ -854,7 +865,7 @@ export function GameBoard({ state }: Props) {
                         onClick={e => { e.stopPropagation(); setDetailCard(card); }}
                       >i</button>
                     )}
-                  </div>
+                  </DragSource>
                 );
               })}
             </div>

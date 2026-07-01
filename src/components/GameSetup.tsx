@@ -25,6 +25,13 @@ function pickRandomVillain(excludeId: VillainId): typeof VILLAIN_OPTIONS[0] | un
 const MOB_PER_ROW   = 6;   // < 768 px: 1 fila de 6
 const DESK_PER_PAGE = 12;  // ≥ 768 px: 2 filas de 6
 
+// Ancho del círculo de villano en el carrusel móvil.
+// El juego es landscape-only y el alto útil es pequeño (más aún con la barra del
+// navegador). Dimensionamos por ALTURA visible (svh) en vez de por ancho, para que
+// el círculo + etiqueta siempre quepan en la zona (overflow:hidden) sin recortarse.
+// svh = small viewport height → tiene en cuenta la barra del navegador cuando está visible.
+const MOB_CIRCLE_W = 'w-[clamp(26px,15svh,68px)]';
+
 type GameMode    = '1v1' | 'vsia' | null;
 type ActivePlayer = 'player1' | 'player2';
 
@@ -46,7 +53,7 @@ function VillainCircle({ villainId, name, color, desc, onSelect, isP1, isP2, act
         disabled={disabled}
         onMouseEnter={() => setTip(true)}
         onMouseLeave={() => setTip(false)}
-        className={`w-full aspect-square rounded-full border-2 overflow-hidden transition-all relative ${disabled ? 'opacity-30 grayscale cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
+        className={`w-full max-w-[min(160px,26svh)] aspect-square rounded-full border-2 overflow-hidden transition-all relative ${disabled ? 'opacity-30 grayscale cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
         style={{
           borderColor: selected ? color : 'rgba(73,69,78,0.55)',
           borderWidth: selected ? 3 : 2,
@@ -83,13 +90,13 @@ interface PCProps {
 function PlayerCard({ label, name, villainId, vColor, vName, onNameChange, isActive, onActivate }: PCProps) {
   return (
     <div
-      className="flex items-center gap-2 bg-surface-container-low border-2 rounded-xl p-2 sm:p-2.5 cursor-pointer select-none transition-colors"
+      className="flex items-center gap-2 bg-surface-container-low border-2 rounded-xl p-2 sm:p-2.5 [@media(max-height:500px)]:p-1.5 cursor-pointer select-none transition-colors"
       style={{ borderColor: isActive ? (vColor ?? '#d3bcf9') : 'rgba(73,69,78,0.4)' }}
       onClick={onActivate}
     >
       <div
-        className="shrink-0 rounded-full border-2 overflow-hidden"
-        style={{ width: 40, height: 40, borderColor: vColor ?? 'rgba(73,69,78,0.35)' }}
+        className="shrink-0 rounded-full border-2 overflow-hidden w-10 h-10 [@media(max-height:500px)]:w-8 [@media(max-height:500px)]:h-8"
+        style={{ borderColor: vColor ?? 'rgba(73,69,78,0.35)' }}
       >
         {villainId
           ? <img src={assetUrl(`villains/${villainId}.webp`)} alt={vName} className="w-full h-full object-cover scale-125" />
@@ -163,6 +170,9 @@ export function GameSetup() {
   const deskTotal = Math.ceil(VILLAIN_OPTIONS.length / DESK_PER_PAGE);
   const mobSlice  = VILLAIN_OPTIONS.slice(mobPage  * MOB_PER_ROW,   (mobPage  + 1) * MOB_PER_ROW);
   const deskSlice = VILLAIN_OPTIONS.slice(deskPage * DESK_PER_PAGE, (deskPage + 1) * DESK_PER_PAGE);
+  // Columnas = nº de villanos (máx 6). Con pocos villanos evita que queden
+  // pequeños y descentrados en una rejilla de 6 huecos.
+  const deskCols = Math.min(VILLAIN_OPTIONS.length, 6);
 
   const p1Meta = p1Villain ? VILLAIN_OPTIONS.find(v => v.id === p1Villain) ?? null : null;
   const p2Meta = p2Villain ? VILLAIN_OPTIONS.find(v => v.id === p2Villain) ?? null : null;
@@ -239,10 +249,10 @@ export function GameSetup() {
   // SIEMPRE es una sola fila de círculos → no hay problema de altura sin importar
   // el ratio del viewport.
   return (
-    <div style={{ height: '100svh', display: 'grid', gridTemplateRows: 'auto 1fr auto auto auto', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100dvh', maxHeight: '100dvh', display: 'grid', gridTemplateRows: 'auto 1fr auto auto auto', overflowY: 'auto' }}>
 
       {/* Cabecera */}
-      <div className="flex items-center justify-between px-4 pt-3 pb-1">
+      <div className="flex items-center justify-between px-4 pt-3 pb-1 [@media(max-height:500px)]:pt-1.5">
         <button onClick={goBack}
           className="p-1.5 sm:p-2 rounded-lg border border-outline-variant/50 text-on-surface-variant hover:text-on-surface transition-colors">
           <ArrowLeft className="w-4 h-4" />
@@ -254,33 +264,32 @@ export function GameSetup() {
       </div>
 
       {/* ── Zona de villanos (1fr, overflow:hidden) ── */}
-      <div style={{ overflow: 'hidden' }} className="flex items-center justify-center px-3 py-2">
+      <div style={{ overflow: 'hidden' }} className="flex items-center justify-center px-3 py-2 [@media(max-height:560px)]:py-0.5">
 
         {/* MOBILE (<768px): carrusel 1 fila, 6 por página */}
-        {/* clamp(38px, 11vw, 70px): portrait ~41px, landscape ~70px */}
         <div className="md:hidden flex items-center justify-center gap-1 px-2 w-full">
           <NavBtn dir="left"  disabled={mobPage === 0}           onClick={() => setMobPage(p => p - 1)} />
           <div className="flex gap-2 justify-center">
             {mobSlice.map((v, i) => (
-              <div key={`m${mobPage}-${i}`} style={{ width: 'clamp(38px, 11vw, 70px)' }}>
+              <div key={`m${mobPage}-${i}`} className={MOB_CIRCLE_W}>
                 <VillainCircle {...circleProps(v)} />
               </div>
             ))}
             {Array.from({ length: MOB_PER_ROW - mobSlice.length }).map((_, i) => (
-              <div key={`me${i}`} style={{ width: 'clamp(38px, 11vw, 70px)' }} />
+              <div key={`me${i}`} className={MOB_CIRCLE_W} />
             ))}
           </div>
           <NavBtn dir="right" disabled={mobPage >= mobTotal - 1} onClick={() => setMobPage(p => p + 1)} />
         </div>
 
-        {/* DESKTOP (≥768px): grid 6×2 con paginación */}
-        <div className="hidden md:flex flex-col items-center gap-3 w-full max-w-2xl">
-          <div className="grid grid-cols-6 gap-3 w-full">
+        {/* DESKTOP (≥768px) y landscape de móvil: grid de hasta 6 columnas.
+            grid-cols-6 fija las pistas, así que NO hacen falta placeholders para
+            mantener el ancho; añadirlos solo forzaba filas vacías de tamaño
+            completo que inflaban la altura y recortaban los círculos. */}
+        <div className="hidden md:flex flex-col items-center gap-3 w-full" style={{ maxWidth: deskCols * 150 }}>
+          <div className="grid gap-3 w-full" style={{ gridTemplateColumns: `repeat(${deskCols}, minmax(0, 1fr))` }}>
             {deskSlice.map((v, i) => (
               <VillainCircle key={`d${deskPage}-${i}`} {...circleProps(v)} />
-            ))}
-            {Array.from({ length: DESK_PER_PAGE - deskSlice.length }).map((_, i) => (
-              <div key={`de${i}`} className="w-full aspect-square invisible" />
             ))}
           </div>
         </div>
@@ -301,7 +310,7 @@ export function GameSetup() {
       </div>
 
       {/* Tarjetas de jugadores */}
-      <div className="flex gap-2 sm:gap-3 px-3 sm:px-4 pb-2 sm:pb-3">
+      <div className="flex gap-2 sm:gap-3 px-3 sm:px-4 pb-2 sm:pb-3 [@media(max-height:500px)]:pb-1">
         <div className="flex-1 min-w-0">
           <PlayerCard label="Jugador 1" name={p1Name} villainId={p1Villain}
             vColor={p1Meta?.color} vName={p1Meta?.name} onNameChange={setP1Name}
@@ -315,10 +324,10 @@ export function GameSetup() {
       </div>
 
       {/* Botón de inicio */}
-      <div className="flex justify-center px-4 pb-4 sm:pb-5">
+      <div className="flex justify-center px-4 pb-4 sm:pb-5 [@media(max-height:500px)]:pb-2">
         <button
           onClick={start} disabled={!p1Villain || !p2Villain}
-          className="w-full max-w-xs px-8 py-2.5 sm:py-3 min-h-10 sm:min-h-11 rounded-lg font-stats text-xs sm:text-sm font-bold uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:opacity-85 active:enabled:scale-95"
+          className="w-full max-w-xs px-8 py-2.5 sm:py-3 min-h-10 sm:min-h-11 [@media(max-height:500px)]:py-1.5 [@media(max-height:500px)]:min-h-9 rounded-lg font-stats text-xs sm:text-sm font-bold uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:opacity-85 active:enabled:scale-95"
           style={{ background: 'linear-gradient(135deg,#2d1b4d,#4f3d71)', border: '2px solid #75fd00', color: '#75fd00' }}
         >
           Comenzar Partida

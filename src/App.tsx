@@ -4,6 +4,7 @@ import { useGameStore } from './state/gameStore';
 import { GameSetup } from './components/GameSetup';
 import { GameBoard } from './components/GameBoard';
 import { StartRevealModal } from './components/StartRevealModal';
+import { DragProvider } from './hooks/DragProvider';
 import './index.css';
 
 function App() {
@@ -49,7 +50,7 @@ function App() {
   if (!state) return <GameSetup />;
 
   return (
-    <>
+    <DragProvider>
       <GameBoard state={state} />
       {startReveal !== null && (
         <StartRevealModal
@@ -58,7 +59,7 @@ function App() {
           onContinue={dismissStartReveal}
         />
       )}
-    </>
+    </DragProvider>
   );
 }
 

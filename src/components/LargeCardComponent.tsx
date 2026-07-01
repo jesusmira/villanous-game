@@ -1,16 +1,17 @@
-import type React from 'react';
 import type { CardInst, GameState } from '../core/types';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { Image } from './Image';
 import { assetUrl } from '../lib/assets';
+import { useDragSource } from '../hooks/dragCore';
 
 interface Props {
   card: CardInst;
   state: GameState;
   selected?: boolean;
   onClick?: () => void;
+  /** Habilita arrastre por puntero (ratón + táctil). */
   draggable?: boolean;
-  onDragStart?: (e: React.DragEvent) => void;
+  onDragStart?: () => void;
   onDragEnd?: () => void;
 }
 
@@ -33,6 +34,7 @@ const CARD_BORDERS: Record<string, string> = {
 };
 
 export function LargeCardComponent({ card, state, selected, onClick, draggable: isDraggable, onDragStart, onDragEnd }: Props) {
+  const { onPointerDown } = useDragSource({ disabled: !isDraggable, onStart: onDragStart, onEnd: onDragEnd });
   const effectiveStr = card.baseStrength !== undefined ? getEffectiveStrength(state, card.instId) : undefined;
   const baseStr      = card.baseStrength ?? 0;
   const hasBonus     = effectiveStr !== undefined && effectiveStr !== baseStr;
@@ -44,7 +46,7 @@ export function LargeCardComponent({ card, state, selected, onClick, draggable: 
 
   return (
     <div
-      className={`villainous-card-large ${isHero ? 'hero-card' : ''} ${onClick ? 'cursor-pointer hover:scale-110 hover:-translate-y-1' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      className={`villainous-card-large ${isHero ? 'hero-card' : ''} ${onClick ? 'cursor-pointer hover:scale-110 hover:-translate-y-1' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
       style={{
         borderColor: CARD_BORDERS[card.cardType] ?? '#888888',
         outline: selected ? '2px solid #e9c349' : undefined,
@@ -55,9 +57,7 @@ export function LargeCardComponent({ card, state, selected, onClick, draggable: 
       }}
       onClick={onClick}
       title={card.name}
-      draggable={isDraggable}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      onPointerDown={isDraggable ? onPointerDown : undefined}
     >
       {/* Gradient fallback */}
       <div

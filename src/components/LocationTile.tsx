@@ -1,7 +1,7 @@
 import { CardDeck } from '../core/types';
 import type { LocationDef, LocationState, GameState, CardInstId } from '../core/types';
 import { CardComponent } from './CardComponent';
-import { useState } from 'react';
+import { useDropTarget } from '../hooks/dragCore';
 import { Crown } from 'lucide-react';
 import { ACTION_IMG } from './shared/actionImages';
 import { assetUrl } from '../lib/assets';
@@ -95,7 +95,7 @@ export function LocationTile({
   ravenInstId, onRavenDragStart, onRavenDragEnd,
   sherifInstId, onSherifDragStart, onSherifDragEnd,
 }: Props) {
-  const [isDragOver, setIsDragOver] = useState(false);
+  const { ref: dropRef, isOver: isDragOver } = useDropTarget(onCardDrop);
 
   // CSS background-position: 4 equal sections → 0%, 33.33%, 66.67%, 100%
   const bgPos = `${locationIndex * (100 / 3)}% center`;
@@ -141,7 +141,7 @@ export function LocationTile({
                     selected={selectedCardId === card.instId}
                     onClick={() => onCardClick(card.instId)}
                     draggable={isHero && !!onHeroCardDragStart}
-                    onDragStart={isHero && onHeroCardDragStart ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.instId); onHeroCardDragStart(card.instId); } : undefined}
+                    onDragStart={isHero && onHeroCardDragStart ? () => onHeroCardDragStart(card.instId) : undefined}
                     onDragEnd={isHero ? () => onHeroCardDragEnd?.() : undefined}
                   />
                 </div>
@@ -152,10 +152,8 @@ export function LocationTile({
 
         {/* ── Visual background — starts at 15% to leave room for hero overlay ── */}
         <div
+          ref={dropRef}
           onClick={onFateLocationClick && playHighlight?.playState === 'valid' ? onFateLocationClick : onLocationClick ? () => onLocationClick(locDef.id) : undefined}
-          onDragOver={onCardDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setIsDragOver(true); } : undefined}
-          onDragLeave={onCardDrop ? () => setIsDragOver(false) : undefined}
-          onDrop={onCardDrop ? (e) => { e.preventDefault(); setIsDragOver(false); onCardDrop(); } : undefined}
           className={`absolute inset-x-0 bottom-0 rounded-xl overflow-hidden transition-all duration-150 pointer-events-auto
             ${locState.isLocked
               ? 'border border-outline-variant/30 cursor-not-allowed'
@@ -337,10 +335,10 @@ export function LocationTile({
                   draggable={isRaven || isSherif || !!onVillainCardDragStart}
                   onDragStart={
                     isRaven
-                      ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.instId); onRavenDragStart!(card.instId); }
+                      ? () => onRavenDragStart!(card.instId)
                       : isSherif
-                        ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.instId); onSherifDragStart!(card.instId); }
-                        : (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.instId); onVillainCardDragStart?.(card.instId); }
+                        ? () => onSherifDragStart!(card.instId)
+                        : () => onVillainCardDragStart?.(card.instId)
                   }
                   onDragEnd={() => isRaven ? onRavenDragEnd?.() : isSherif ? onSherifDragEnd?.() : onVillainCardDragEnd?.()}
                 />
