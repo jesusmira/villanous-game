@@ -1,10 +1,11 @@
 import { CardDeck } from '../core/types';
-import type { LocationDef, LocationState, GameState, CardInstId } from '../core/types';
+import type { LocationDef, LocationState, GameState, CardInstId, PlayerId } from '../core/types';
 import { CardComponent } from './CardComponent';
 import { useDropTarget } from '../hooks/dragCore';
 import { Crown } from 'lucide-react';
 import { ACTION_IMG } from './shared/actionImages';
 import { assetUrl } from '../lib/assets';
+import { getItemGrantedSlotEntries } from '../core/engine/slotHelpers';
 
 /* Border color class per action type */
 const ACTION_BORDER: Record<string, string> = {
@@ -41,6 +42,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 interface Props {
+  playerId: PlayerId;
   locDef: LocationDef;
   locState: LocationState;
   state: GameState;
@@ -84,6 +86,7 @@ interface Props {
 }
 
 export function LocationTile({
+  playerId,
   locDef, locState, state, villainColor, isCurrentPawn,
   coveredSlotIndices, availableSlotIndices, hissChoiceSlotIndices = [], selectedCardId,
   onSlotClick, onCardClick,
@@ -114,6 +117,12 @@ export function LocationTile({
   const row2Slots = locDef.actionsInBottomRow
     ? locDef.actions.map((slot, i) => ({ slot, idx: i }))
     : locDef.actions.slice(2, 4).map((slot, i) => ({ slot, idx: i + 2 }));
+
+  // Slots granted by items (e.g., "Mecanismo Ingenioso")
+  const itemGrantedSlots = getItemGrantedSlotEntries(state, playerId, locDef.id).map(entry => ({
+    slot: { type: entry.type, value: entry.value },
+    idx: entry.slotIndex,
+  }));
 
   return (
     <div className="flex flex-col gap-2">
@@ -290,7 +299,7 @@ export function LocationTile({
               />
             ))}
           </div>
-          <div className="flex justify-center gap-3 w-full mb-10 pointer-events-auto">
+          <div className="flex justify-center gap-3 w-full mb-10 pointer-events-auto flex-wrap">
             {row2Slots.map(({ slot, idx }) => (
               <ActionToken
                 key={idx}
@@ -299,6 +308,16 @@ export function LocationTile({
                 covered={locState.isLocked || coveredSlotIndices.includes(idx)}
                 available={!locState.isLocked && availableSlotIndices.includes(idx)}
                 hissChoice={!locState.isLocked && hissChoiceSlotIndices.includes(idx)}
+                onClick={() => onSlotClick?.(idx)}
+              />
+            ))}
+            {itemGrantedSlots.map(({ slot, idx }) => (
+              <ActionToken
+                key={`item-${idx}`}
+                slotType={slot.type}
+                slotValue={slot.value}
+                covered={locState.isLocked}
+                available={!locState.isLocked && availableSlotIndices.includes(idx)}
                 onClick={() => onSlotClick?.(idx)}
               />
             ))}
