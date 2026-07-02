@@ -25,21 +25,21 @@ export function StartRevealModal({ state, startingPlayerIndex, onContinue }: Pro
 
   return (
     <div className={modalStyles.overlay}>
-      <div className="bg-surface-container-highest/98 border-2 border-tertiary/40 rounded-3xl shadow-2xl flex flex-col items-center gap-6 p-8 w-11/12 sm:w-full sm:max-w-sm pointer-events-auto backdrop-blur-sm">
+      <div className="bg-surface-container-highest/98 border-2 border-tertiary/40 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col items-center gap-3 sm:gap-6 p-4 sm:p-8 w-11/12 sm:w-full sm:max-w-sm pointer-events-auto backdrop-blur-sm max-h-[90vh] overflow-y-auto">
 
-        <p className="font-stats text-xs uppercase tracking-widest text-on-surface-variant/60">
+        <p className="font-stats text-[9px] sm:text-xs uppercase tracking-widest text-on-surface-variant/60">
           {revealed ? 'Sorteo del turno' : 'Lanzando la moneda…'}
         </p>
 
         {/* Moneda */}
-        <div style={{ perspective: '600px' }} className="flex items-center justify-center h-28">
+        <div style={{ perspective: '600px' }} className="flex items-center justify-center h-20 sm:h-28 shrink-0">
           <div
-            className={`relative w-24 h-24 rounded-full ${revealed ? '' : 'coin-spin'}`}
+            className={`relative w-20 sm:w-24 h-20 sm:h-24 rounded-full ${revealed ? '' : 'coin-spin'}`}
             style={{ transformStyle: 'preserve-3d' }}
           >
             {revealed ? (
               <div
-                className="w-24 h-24 rounded-full border-4 overflow-hidden shadow-[0_0_24px_rgba(233,195,73,0.55)]"
+                className="w-20 sm:w-24 h-20 sm:h-24 rounded-full border-4 overflow-hidden shadow-[0_0_24px_rgba(233,195,73,0.55)]"
                 style={{ borderColor: '#e9c349' }}
               >
                 <img
@@ -50,7 +50,7 @@ export function StartRevealModal({ state, startingPlayerIndex, onContinue }: Pro
               </div>
             ) : (
               <div
-                className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center shadow-[0_0_24px_rgba(233,195,73,0.5)]"
+                className="w-20 sm:w-24 h-20 sm:h-24 rounded-full overflow-hidden flex items-center justify-center shadow-[0_0_24px_rgba(233,195,73,0.5)]"
                 style={{
                   background: 'radial-gradient(circle at 35% 30%, #f7e08a, #e9c349 55%, #b8911f)',
                   border: '4px solid #c9a227',
@@ -69,24 +69,24 @@ export function StartRevealModal({ state, startingPlayerIndex, onContinue }: Pro
         {/* Resultado */}
         {revealed ? (
           <>
-            <div className="text-center">
-              <p className="font-stats text-[11px] uppercase tracking-widest text-on-surface-variant/60 mb-1">
+            <div className="text-center w-full">
+              <p className="font-stats text-[9px] sm:text-[11px] uppercase tracking-widest text-on-surface-variant/60 mb-1">
                 ¡Empieza!
               </p>
-              <h2 className="font-serif text-3xl font-bold text-tertiary">{starter.name}</h2>
-              <p className="font-stats text-xs text-on-surface-variant/70 mt-2">
+              <h2 className="font-serif text-xl sm:text-3xl font-bold text-tertiary">{starter.name}</h2>
+              <p className="font-stats text-[8px] sm:text-xs text-on-surface-variant/70 mt-2">
                 {other.name} recibe <span className="text-tertiary font-bold">+1 ⚡</span> por ir segundo
               </p>
             </div>
             <button
               onClick={onContinue}
-              className="w-full px-6 py-3 min-h-12 rounded-xl border-2 border-tertiary bg-tertiary/20 hover:bg-tertiary/30 text-tertiary font-serif font-bold uppercase tracking-wider transition-all active:scale-95"
+              className="w-full px-4 sm:px-6 py-2 sm:py-3 min-h-10 sm:min-h-12 rounded-lg sm:rounded-xl border-2 border-tertiary bg-tertiary/20 hover:bg-tertiary/30 text-tertiary font-serif text-sm sm:text-base font-bold uppercase tracking-wider transition-all active:scale-95"
             >
               Comenzar
             </button>
           </>
         ) : (
-          <p className="font-serif text-base text-on-surface-variant/80 h-13 flex items-center">
+          <p className="font-serif text-sm sm:text-base text-on-surface-variant/80 h-auto flex items-center">
             Decidiendo quién mueve primero…
           </p>
         )}
