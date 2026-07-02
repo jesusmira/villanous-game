@@ -3,7 +3,6 @@ import type { GameState, PlayerId, CardInstId } from '../core/types';
 import { getEffectDef } from '../core/villains/registry';
 import { EffectId, CardDefId } from '../core/villains/effectIds';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
-import { canMoveHero } from '../core/engine/RuleEngine';
 import { modalStyles } from '../styles/modalStyles';
 import { ACTION_LABELS } from './shared/actionLabels';
 import { ACTION_IMG } from './shared/actionImages';
@@ -63,75 +62,6 @@ function ActivateCardFlow({ ap, state }: { ap: ActionPanelCtx; state: GameState 
             }}>Activar</button>
           )}
         </>
-      )}
-    </div>
-  );
-}
-
-// ─── MOVE_HERO flow ───────────────────────────────────────────────────────────────
-
-function MoveHeroFlow({ ap, state }: { ap: ActionPanelCtx; state: GameState }) {
-  const selectedHero = ap.selectedCardId ? state.allCards[ap.selectedCardId] : null;
-
-  if (!selectedHero) {
-    return (
-      <div className={modalStyles.panel}>
-        <p className="text-xs text-on-surface-variant">Selecciona el Héroe a mover:</p>
-        <div className="flex flex-wrap gap-1.5">
-          {ap.heroesInKingdom.map(hero => {
-            const locName   = ap.plugin.locations.find(l => l.id === hero.locationId)?.name ?? hero.locationId!;
-            return (
-              <button key={hero.instId}
-                className={modalStyles.buttonSelect}
-                onClick={() => { ap.setSelectedCardId(hero.instId); ap.setTargetLocId(null); }}
-              >
-                {hero.name}
-                <span className="text-on-surface-variant/60 ml-1 text-[10px]">({locName})</span>
-              </button>
-            );
-          })}
-          {ap.heroesInKingdom.length === 0 && (
-            <p className="text-xs text-on-surface-variant/60">No hay Héroes en tu Reino.</p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  const srcLocDef = ap.plugin.locations.find(l => l.id === selectedHero.locationId);
-  const adjacentLocIds = srcLocDef?.adjacentIds ?? [];
-  const validLocs = ap.allUnlockedLocs.filter(l => adjacentLocIds.includes(l.id));
-
-  return (
-    <div className={modalStyles.panel}>
-      <div className="flex items-center gap-3 flex-wrap">
-        <button
-          onClick={() => { ap.setSelectedCardId(null); ap.setTargetLocId(null); }}
-          className="text-xs text-on-surface-variant/60 hover:text-on-surface transition-colors shrink-0"
-        >← Cambiar</button>
-        <span className="font-stats text-xs text-on-surface-variant flex-1">
-          Mover: <span className="text-primary font-bold">{selectedHero.name}</span>
-        </span>
-      </div>
-      <p className="text-xs text-on-surface-variant">Elige ubicación destino:</p>
-      <div className="flex flex-wrap gap-1.5">
-        {validLocs.map(l => (
-          <button key={l.id} className={ap.targetLocId === l.id ? modalStyles.buttonActive : modalStyles.buttonSelect}
-            onClick={() => ap.setTargetLocId(l.id)}>{l.name}</button>
-        ))}
-        {validLocs.length === 0 && (
-          <p className="text-xs text-on-surface-variant/60">No hay ubicaciones adyacentes disponibles.</p>
-        )}
-      </div>
-      {ap.targetLocId && (
-        <button className={modalStyles.buttonPrimary} onClick={() => {
-          if (ap.pendingSlot === null) return;
-          const result = canMoveHero(state, ap.player.id, ap.selectedCardId!, ap.targetLocId!, ap.pendingSlot);
-          if (!result.valid) { alert(result.reason); return; }
-          ap.store.doMoveHero(ap.selectedCardId!, ap.targetLocId!, ap.pendingSlot);
-          ap.resetSelection();
-          ap.clearPending();
-        }}>Mover Héroe</button>
       )}
     </div>
   );
@@ -371,10 +301,6 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, detailCardOpe
         <VanquishFlow ap={ap} state={state} />
       )}
 
-      {/* Mover héroe */}
-      {ap.pendingAction === ActionType.MOVE_HERO && (
-        <MoveHeroFlow ap={ap} state={state} />
-      )}
 
       {/* Extra item slots — shown as action tokens */}
       {ap.extraSlots.length > 0 && (
