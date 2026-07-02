@@ -45,12 +45,8 @@ function getWinProgress(state: GameState, player: ReturnType<typeof getPlayer>):
   const ppInKingdom = Object.values(player.locationStates).some(ls =>
     ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN),
   );
-  const ticTacAlive = Object.values(player.locationStates).some(ls =>
-    ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC),
-  );
   return [
     steps.includes(HookObjectiveStep.HANGMAN_UNLOCKED)   ? '✅ Árbol desbloqueado'    : '❌ Árbol bloqueado',
-    ticTacAlive                                           ? '❌ Tic Tac en el Reino'   : '✅ Tic Tac derrotado/ausente',
     ppInKingdom                                           ? '✅ Peter Pan en el Reino' : '❌ Peter Pan no encontrado',
     steps.includes(HookObjectiveStep.PETER_PAN_DEFEATED)  ? '✅ Peter Pan derrotado'   : '❌ Peter Pan no derrotado',
   ].join(' | ');
