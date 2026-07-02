@@ -49,6 +49,7 @@ export function CardComponent({ card, state, selected, onClick, draggable: isDra
       onClick={onClick}
       title={card.name}
       onPointerDown={isDraggable ? onPointerDown : undefined}
+      onDragStart={(e) => e.preventDefault()}
     >
       {/* Gradient fallback */}
       <div
