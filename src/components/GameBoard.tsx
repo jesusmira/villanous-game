@@ -591,15 +591,15 @@ export function GameBoard({ state }: Props) {
                 dragRavenId       ? (isActive  ? ravenDropHighlights  : undefined) :
                 dragSherifId      ? (isActive  ? sherifDropHighlights : undefined) :
                 activeFateCardId  ? (isFateTgt ? fateHighlights       : undefined) :
-                dragBoardCardId   ? (isActive  ? moveBoardHighlights  : undefined) :
-                dragHeroCardId    ? (isActive  ? moveHeroHighlights   : undefined) :
+                dragBoardCardId   ? (isHumanTurn ? moveBoardHighlights  : undefined) :
+                dragHeroCardId    ? (isHumanTurn ? moveHeroHighlights   : undefined) :
                                     (isActive  ? playHighlights       : undefined)
               }
               onCardDrop={
                 dragRavenId                    ? (isActive  ? handleRavenDrop     : undefined) :
                 dragSherifId                   ? (isActive  ? handleSherifDrop    : undefined) :
-                dragBoardCardId                ? (isActive  ? handleBoardCardDrop : undefined) :
-                dragHeroCardId                 ? (isActive  ? handleHeroCardDrop  : undefined) :
+                dragBoardCardId                ? (isHumanTurn ? handleBoardCardDrop : undefined) :
+                dragHeroCardId                 ? (isHumanTurn ? handleHeroCardDrop  : undefined) :
                 (state.pendingFate && isFateTgt) ? handleFateDrop                             :
                 (isActive && state.turnPhase === TurnPhase.ACTIVATE) ? handleCardDrop : undefined
               }
