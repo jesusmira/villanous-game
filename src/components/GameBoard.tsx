@@ -604,13 +604,13 @@ export function GameBoard({ state }: Props) {
                 (isActive && state.turnPhase === TurnPhase.ACTIVATE) ? handleCardDrop : undefined
               }
               onVillainCardDragStart={
-                isActive && state.turnPhase === TurnPhase.ACTIVATE
+                isHumanTurn && state.turnPhase === TurnPhase.ACTIVATE
                   ? (cardId) => setDragBoardCardId(cardId)
                   : undefined
               }
               onVillainCardDragEnd={() => setDragBoardCardId(null)}
               onHeroCardDragStart={
-                isActive && state.turnPhase === TurnPhase.ACTIVATE
+                isHumanTurn && state.turnPhase === TurnPhase.ACTIVATE
                   ? (cardId) => setDragHeroCardId(cardId)
                   : undefined
               }
