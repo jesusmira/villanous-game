@@ -3,7 +3,7 @@ import { ActionType, CardType } from '../core/types';
 import type { GameState, CardInstId, LocationId } from '../core/types';
 import { getPlugin, getEffectDef } from '../core/villains/registry';
 import { getPlayer, getEffectiveStrength } from '../core/engine/stateHelpers';
-import { getAvailableSlotIndices, ITEM_SLOT_OFFSET } from '../core/engine/slotHelpers';
+import { getAvailableSlotIndices, getItemGrantedSlotEntries } from '../core/engine/slotHelpers';
 import { canVanquish, canMoveItemAlly, canMoveHero } from '../core/engine/RuleEngine';
 import { useGameStore } from '../state/gameStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -109,14 +109,11 @@ export function useActionPanelState(state: GameState, playerId: string) {
 
   const locDef = plugin.locations.find(l => l.id === player.pawnLocationId);
   const availableSlots = locDef ? getAvailableSlotIndices(state, playerId, player.pawnLocationId) : [];
-  const extraSlots = (player.locationStates[player.pawnLocationId]?.villainCardInstIds ?? [])
-    .map(cId => state.allCards[cId])
-    .filter(c => c?.grantsActionSlot)
-    .map((c, i) => ({
-      slotIndex: ITEM_SLOT_OFFSET + i,
-      slot: c!.grantsActionSlot!,
-      itemName: c!.name,
-    }));
+  const extraSlots = getItemGrantedSlotEntries(state, playerId, player.pawnLocationId).map(entry => ({
+    slotIndex: entry.slotIndex,
+    slot: { type: entry.type, value: entry.value },
+    itemName: state.allCards[entry.itemInstId]?.name ?? 'Item',
+  }));
 
   const kingdomCards = Object.values(player.locationStates)
     .flatMap(ls => [...ls.villainCardInstIds, ...ls.heroCardInstIds])

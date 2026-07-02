@@ -181,7 +181,6 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
             return (
               <LocationTile
                 key={locDef.id}
-                playerId={player.id}
                 locDef={locDef}
                 locState={locState}
                 state={state}
