@@ -30,7 +30,7 @@ const DESK_PER_PAGE = 12;  // ≥ 768 px: 2 filas de 6
 // navegador). Dimensionamos por ALTURA visible (svh) en vez de por ancho, para que
 // el círculo + etiqueta siempre quepan en la zona (overflow:hidden) sin recortarse.
 // svh = small viewport height → tiene en cuenta la barra del navegador cuando está visible.
-const MOB_CIRCLE_W = 'w-[clamp(26px,15svh,68px)]';
+const MOB_CIRCLE_W = 'w-[clamp(35px,22svh,90px)]';
 
 type GameMode    = '1v1' | 'vsia' | null;
 type ActivePlayer = 'player1' | 'player2';
