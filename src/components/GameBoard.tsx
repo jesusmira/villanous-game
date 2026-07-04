@@ -6,6 +6,7 @@ import { CardDefId, EffectId } from '../core/villains/effectIds';
 import { getEffectDef, getPlugin } from '../core/villains/registry';
 import { PlayerBoard } from './PlayerBoard';
 import { ActionPanel } from './ActionPanel';
+import { TurnIndicatorModal } from './TurnIndicatorModal';
 import { FateModal } from './FateModal';
 import { CuervoModal } from './CuervoModal';
 import { DemoslesModal } from './DemoslesModal';
@@ -58,6 +59,8 @@ export function GameBoard({ state }: Props) {
   } | null>(null);
   const [showTests, setShowTests]           = useState(false);
   const [showHookDeck, setShowHookDeck]     = useState(false);
+  const [showTurnIndicator, setShowTurnIndicator] = useState(false);
+  const [prevPlayerIndex, setPrevPlayerIndex] = useState(state.currentPlayerIndex);
 
   // Precarga en memoria las imágenes de los villanos en juego (una vez por partida).
   const villainKey = state.players.map(p => p.villainId).join(',');
@@ -92,15 +95,23 @@ export function GameBoard({ state }: Props) {
     replayRef.current = aiReplayQueue;
   }, [aiReplayQueue]);
 
+  // Auto-abrir cajón y limpiar selección al activar/desactivar modo descarte
+  const isReplaying    = replayIndex >= 0 && replayIndex < aiReplayQueue.length;
+  const displayedState = isReplaying ? aiReplayQueue[replayIndex] : state;
+
   useEffect(() => {
     if (replayIndex < 0 || replayIndex >= replayRef.current.length) return;
     const id = setTimeout(() => setReplayIndex(i => i + 1), 750);
     return () => clearTimeout(id);
   }, [replayIndex]);
 
-  // Auto-abrir cajón y limpiar selección al activar/desactivar modo descarte
-  const isReplaying    = replayIndex >= 0 && replayIndex < aiReplayQueue.length;
-  const displayedState = isReplaying ? aiReplayQueue[replayIndex] : state;
+  // Muestra el modal de turno cuando cambia el turno actual (solo en modo 2 jugadores)
+  useEffect(() => {
+    if (state.currentPlayerIndex !== prevPlayerIndex && state.players.length === 2 && !isReplaying) {
+      setShowTurnIndicator(true);
+      setPrevPlayerIndex(state.currentPlayerIndex);
+    }
+  }, [state.currentPlayerIndex, prevPlayerIndex, isReplaying]);
 
   // Descripción de la acción actual (último entry nuevo del log)
   const replayLabel = isReplaying
@@ -564,6 +575,13 @@ export function GameBoard({ state }: Props) {
       {displayedState.winner && (
         <VictoryModal state={displayedState} onPlayAgain={resetGame} />
       )}
+
+      {/* ── Turn indicator modal (2 players only) ────────────── */}
+      <TurnIndicatorModal
+        player={displayedState.players[displayedState.currentPlayerIndex]}
+        isOpen={showTurnIndicator}
+        onClose={() => setShowTurnIndicator(false)}
+      />
 
       {/* ── Main scrollable content ─────────────────────────── */}
       <main className={`w-full px-4 md:px-8 pb-48 flex flex-col gap-12 md:gap-16 max-w-375 mx-auto ${isReplaying ? 'pt-24' : displayedState.winner ? 'pt-28' : 'pt-16'}`}>
