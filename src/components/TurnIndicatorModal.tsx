@@ -18,7 +18,7 @@ export function TurnIndicatorModal({ player, isOpen, onClose }: Props) {
 
   useEffect(() => {
     if (!isOpen) return;
-    const timer = setTimeout(() => onClose(), 3000);
+    const timer = setTimeout(() => onClose(), 6000);
     return () => clearTimeout(timer);
   }, [isOpen, onClose]);
 
