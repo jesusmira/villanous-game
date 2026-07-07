@@ -26,29 +26,43 @@ export function TurnIndicatorModal({ player, isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
+      {/* Fondo oscuro para mejor contraste */}
       <div
-        className="animate-pulse pointer-events-auto"
+        className="absolute inset-0 bg-black/50 pointer-events-auto"
+        onClick={onClose}
+      />
+
+      <div
+        className="relative pointer-events-auto"
         onClick={onClose}
       >
         <div
-          className="px-12 py-8 rounded-3xl backdrop-blur-md border-2 shadow-2xl text-center cursor-pointer hover:scale-105 transition-transform"
+          className="px-16 py-12 rounded-3xl backdrop-blur-lg border-4 shadow-2xl text-center"
           style={{
             borderColor: plugin.color,
-            backgroundColor: `${plugin.color}15`,
+            backgroundColor: `${plugin.color}40`,
+            boxShadow: `0 0 60px ${plugin.color}80, 0 0 30px ${plugin.color}60, 0 10px 40px rgba(0,0,0,0.5)`,
           }}
         >
-          <p className="font-stats text-xs uppercase tracking-widest text-on-surface-variant mb-2">
-            Turno
+          <p className="font-stats text-sm uppercase tracking-widest text-white mb-3 opacity-90">
+            Turno de:
           </p>
           <h1
-            className="font-serif text-4xl sm:text-5xl leading-none font-bold"
-            style={{ color: plugin.color }}
+            className="font-serif text-6xl sm:text-7xl leading-none font-bold drop-shadow-lg"
+            style={{ color: '#ffffff', textShadow: `2px 2px 8px ${plugin.color}80` }}
           >
             {displayName}
           </h1>
-          <p className="font-stats text-[10px] uppercase tracking-[0.3em] text-on-surface-variant mt-3">
-            Haz clic para continuar
-          </p>
+          <button
+            onClick={onClose}
+            className="mt-8 px-8 py-3 bg-white/20 hover:bg-white/30 border-2 border-white rounded-lg font-stats text-sm uppercase tracking-widest text-white transition-all hover:scale-105 active:scale-95"
+            style={{
+              borderColor: plugin.color,
+              backgroundColor: `${plugin.color}20`,
+            }}
+          >
+            Aceptar
+          </button>
         </div>
       </div>
     </div>

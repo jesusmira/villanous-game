@@ -205,6 +205,7 @@ export interface GameState {
   pendingDemosles?: { playerId: PlayerId; topCardIds: CardInstId[] };
   pendingAuroraHero?: { heroInstId: CardInstId; targetPlayerId: PlayerId; actingPlayerId: PlayerId; isHero?: boolean };
   pendingJaqueca?: { itemInstIds: CardInstId[]; actingPlayerId: PlayerId };
+  intimidacionActive?: PlayerId;
   log: string[];
 }
 

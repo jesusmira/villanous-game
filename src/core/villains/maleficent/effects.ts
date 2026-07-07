@@ -252,7 +252,7 @@ export const effects: EffectDef[] = [
         );
         if (curseId) return addLog(discardCardFromKingdom(state, curseId), 'Una vez en sueños: Maldición descartada.');
       }
-      return state;
+      return addLog(state, 'Una vez en sueños: No hay Maldiciones en ubicaciones con Héroes.');
     },
   },
   {

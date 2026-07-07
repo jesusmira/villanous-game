@@ -290,4 +290,13 @@ export const effects: EffectDef[] = [
     },
     requiresTargetCard: 'HERO',
   },
+  {
+    id: EffectId.JHON_INTIMIDACION,
+    trigger: EffectTrigger.ON_PLAY,
+    description: 'Permite una acción Vencer sin descartar los Aliados utilizados',
+    execute: (state, ctx) => {
+      const s = { ...state, intimidacionActive: ctx.actingPlayerId };
+      return addLog(s, `${state.allCards[ctx.cardInstId]?.name}: próximo Vencer sin descartar Aliados.`);
+    },
+  },
 ];
