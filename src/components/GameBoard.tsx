@@ -418,7 +418,18 @@ export function GameBoard({ state }: Props) {
     if (!pendingAttachTarget) return;
     const { cardId, locId } = pendingAttachTarget;
     setPendingAttachTarget(null);
-    continuePlayCard(cardId, locId, targetCardInstId);
+
+    // Detectar si es carta de Destino o carta de mano
+    const card = displayedState.allCards[cardId];
+    if (card?.deck === 'FATE' && state.pendingFate) {
+      // Es carta de Destino → usar handleFateDrop con target
+      const ctx: { targetCardInstId?: string } = { targetCardInstId };
+      doFateResolve(cardId, locId, ctx);
+      setFateDragCardId(null);
+    } else {
+      // Es carta de mano → usar continuePlayCard
+      continuePlayCard(cardId, locId, targetCardInstId);
+    }
   }
 
   function cancelPendingAttachTarget() {
@@ -449,8 +460,22 @@ export function GameBoard({ state }: Props) {
     const ctx: { targetCardInstId?: string } = {};
 
     if (card.cardType === CardType.ITEM) {
-      const heroAtLoc = targetPlayer.locationStates[locId]?.heroCardInstIds[0];
-      if (heroAtLoc) ctx.targetCardInstId = heroAtLoc;
+      const heroesAtLoc = targetPlayer.locationStates[locId]?.heroCardInstIds ?? [];
+      // Si hay múltiples héroes, permitir elegir a cuál adjuntar (igual que cartas de mano)
+      if (heroesAtLoc.length > 1) {
+        setPendingAttachTarget({
+          cardId: fateDragCardId,
+          locId,
+          reqTarget: 'HERO',
+          candidates: heroesAtLoc,
+        });
+        setFateDragCardId(null);
+        return;
+      }
+      // Si hay un único héroe, adjuntarlo automáticamente
+      if (heroesAtLoc.length === 1) {
+        ctx.targetCardInstId = heroesAtLoc[0];
+      }
     }
 
     // EFFECT con requiresTargetCard CURSE: buscar maldición válida (en ubicación con héroe)

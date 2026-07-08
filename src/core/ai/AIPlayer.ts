@@ -532,12 +532,14 @@ function minimaxBestDest(state: GameState, playerId: PlayerId): LocationId {
   if (dests.length === 0) return player.pawnLocationId;
 
   // Pre-ordenar por evaluación 1-ply (mejor primero) para maximizar la poda alpha.
+  // FASE 2: Limitar breadth a top-4 candidatos para evitar exploración explosiva.
   const candidates = dests
     .map(d => {
       const hint = evaluateState(playOutActivate(movePawn(state, playerId, d.id), playerId), playerId);
       return { id: d.id, hint };
     })
-    .sort((a, b) => b.hint - a.hint);
+    .sort((a, b) => b.hint - a.hint)
+    .slice(0, 4);  // FASE 2: Solo considerar top-4 destinos
 
   let bestDest = candidates[0].id;
   let alpha = -Infinity;
@@ -546,7 +548,7 @@ function minimaxBestDest(state: GameState, playerId: PlayerId): LocationId {
     const afterMyTurn = simulateTurnAtDest(state, playerId, dest);
     const val = afterMyTurn.winner
       ? evaluateState(afterMyTurn, playerId)
-      : minimaxOppResponse(afterMyTurn, playerId, alpha);
+      : minimaxOppResponse(afterMyTurn, playerId, alpha, 1);  // FASE 2: Pasar profundidad
 
     if (val > alpha) { alpha = val; bestDest = dest; }
   }
@@ -554,17 +556,82 @@ function minimaxBestDest(state: GameState, playerId: PlayerId): LocationId {
 }
 
 /**
+ * FASE 2: Nodo MAX recursivo - la IA (originalPlayerId) elige el destino que MAXIMIZA su evaluación.
+ * Se alterna entre nodos MAX (nuestra respuesta) y MIN (respuesta del rival).
+ */
+function minimaxOurResponse(
+  state: GameState,
+  playerId: PlayerId,
+  beta: number,
+  depth: number,
+): number {
+  const player = getPlayer(state, playerId);
+  const plugin = getPlugin(player.villainId);
+
+  // Límite de profundidad
+  const MAX_DEPTH = 2;
+  if (depth >= MAX_DEPTH) {
+    return evaluateState(state, playerId);
+  }
+
+  const dests = plugin.locations.filter(
+    l => l.id !== player.pawnLocationId && !player.locationStates[l.id]?.isLocked,
+  );
+  if (dests.length === 0) return evaluateState(state, playerId);
+
+  // FASE 2: Limitar breadth a top-3
+  const candidates = dests
+    .map(d => {
+      const hint = evaluateState(playOutActivate(movePawn(state, playerId, d.id), playerId), playerId);
+      return { id: d.id, hint };
+    })
+    .sort((a, b) => b.hint - a.hint)
+    .slice(0, 3);
+
+  let maxVal = -Infinity;
+  let alpha = -Infinity;
+
+  for (const { id: dest } of candidates) {
+    const afterMyTurn = simulateTurnAtDest(state, playerId, dest);
+    let val: number;
+
+    if (afterMyTurn.winner) {
+      val = evaluateState(afterMyTurn, playerId);
+    } else if (depth + 1 < MAX_DEPTH) {
+      // Llamar al MIN node (rival)
+      val = minimaxOppResponse(afterMyTurn, playerId, alpha, depth + 1);
+    } else {
+      val = evaluateState(afterMyTurn, playerId);
+    }
+
+    if (val > maxVal) maxVal = val;
+    if (maxVal >= beta) break; // poda: el padre (MIN) ya tiene algo peor
+    if (maxVal > alpha) alpha = maxVal;
+  }
+  return maxVal;
+}
+
+/**
  * Nodo rival: el rival elige el destino que MINIMIZA la evaluación de `originalPlayerId`.
  * Aplica poda alpha: si el rival ya encontró una respuesta tan mala para nosotros que la
  * rama padre no la elegiría, se corta.
+ * FASE 2: Parámetro `depth` para limitar profundidad de búsqueda (max 2-3 turnos).
  */
 function minimaxOppResponse(
   state: GameState,
   originalPlayerId: PlayerId,
   alpha: number,
+  depth: number = 0,
 ): number {
   const opp = state.players[state.currentPlayerIndex];
   const oppPlugin = getPlugin(opp.villainId);
+
+  // FASE 2: Limite de profundidad - evitar búsqueda infinita
+  const MAX_DEPTH = 2;  // Máximo 2 niveles adicionales (rival + nuestra respuesta)
+  if (depth >= MAX_DEPTH) {
+    // Llegamos al límite de profundidad - evaluar el estado actual
+    return evaluateState(state, originalPlayerId);
+  }
 
   if (opp.skipNextMove) {
     let s = skipMove(state, opp.id);
@@ -587,13 +654,29 @@ function minimaxOppResponse(
     })
     .sort((a, b) => a.hint - b.hint);
 
-  let minVal = Infinity;
+  // FASE 2: Limitar breadth del rival a top-3 opciones (ascendente: peor para nosotros primero)
+  const oppCandidates = candidates.slice(0, 3);
 
-  for (const { id: dest } of candidates) {
+  let minVal = Infinity;
+  let beta = Infinity;
+
+  for (const { id: dest } of oppCandidates) {
     const afterOppTurn = simulateTurnAtDest(state, opp.id, dest);
-    const val = evaluateState(afterOppTurn, originalPlayerId);
+
+    // FASE 2: Si el rival ganó, evaluar. Sino, simular nuestra respuesta recursivamente.
+    let val: number;
+    if (afterOppTurn.winner) {
+      val = evaluateState(afterOppTurn, originalPlayerId);
+    } else if (depth + 1 < MAX_DEPTH) {
+      // Llamar recursivamente para que la IA (originalPlayerId) responda en profundidad
+      val = minimaxOurResponse(afterOppTurn, originalPlayerId, beta, depth + 1);
+    } else {
+      val = evaluateState(afterOppTurn, originalPlayerId);
+    }
+
     if (val < minVal) minVal = val;
     if (minVal <= alpha) break; // poda: el padre (MAX) ya tiene algo mejor
+    if (minVal < beta) beta = minVal; // actualizar beta para el siguiente nodo
   }
   return minVal;
 }

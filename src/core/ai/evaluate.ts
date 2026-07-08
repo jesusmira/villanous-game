@@ -1,7 +1,7 @@
 import { ActionType, CardType } from '../types';
 import type { GameState, PlayerId } from '../types';
 import { getPlugin } from '../villains/registry';
-import { EffectId } from '../villains/effectIds';
+import { EffectId, CardDefId } from '../villains/effectIds';
 import { getPlayer, getEffectiveStrength } from '../engine/stateHelpers';
 
 // ─── State evaluation for 1-ply lookahead ────────────────────────────────────────
@@ -28,6 +28,12 @@ const WEIGHTS = {
   OPP_HERO_PRESENCE: 0.8,       // por cada héroe nuestro en el reino rival
   OPP_POWER_CAP: 10,
   OPP_POWER_PENALTY: 0.25,      // penaliza dejar acaparar poder al rival
+
+  // Victory urgency (FASE 1): Peso masivo si está cerca de ganar o perder
+  ALMOST_WIN: 500000,           // casi gana
+  ALMOST_LOSE: -500000,         // rival casi gana
+  WINNING: 50000,               // en ventaja clara
+  LOSING: -50000,               // en desventaja clara
 };
 
 // Items con acción extra permanente: Cañón (VANQUISH), Estuche (GAIN_POWER), Mecanismo (MOVE_HERO).
@@ -40,6 +46,54 @@ const EXTRA_SLOT_BONUS = {
   OTHER: 2,
 };
 
+// ─── Victory progress calculation (FASE 1) ───────────────────────────────────
+// Retorna número 0-100 indicando cuán cerca está de ganar. 100 = victoria inminente.
+function getWinProgress(state: GameState, playerId: PlayerId): number {
+  const p = getPlayer(state, playerId);
+  const plugin = getPlugin(p.villainId);
+
+  if (plugin.checkWinCondition(state, playerId)) return 100;
+
+  switch (p.villainId) {
+    case 'hook': {
+      // Necesita: Tic Tac derrotado + Peter Pan derrotado EN Jolly Roger
+      const ticTacAlive = Object.values(p.locationStates).some(ls =>
+        ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC),
+      );
+      const peterPanId = Object.values(state.allCards).find(
+        c => c.ownerId === playerId && c.defId === CardDefId.HOOK_PETER_PAN,
+      )?.instId;
+      const peterDefeated = !peterPanId || !Object.values(p.locationStates).some(ls =>
+        ls.heroCardInstIds.includes(peterPanId),
+      );
+
+      let progress = 0;
+      if (peterDefeated) progress += 50;  // 50% si Peter Pan ya está derrotado
+      if (!ticTacAlive) progress += 50;   // 50% si Tic Tac está derrotado
+      return progress;
+    }
+
+    case 'jhon': {
+      // Necesita: 20 de poder
+      const maxPower = 20;
+      return Math.min(100, (p.power / maxPower) * 100);
+    }
+
+    case 'maleficent': {
+      // Necesita: Maldición en CADA ubicación
+      const totalLocs = plugin.locations.length;
+      const locsWithCurse = plugin.locations.filter(loc => {
+        const ls = p.locationStates[loc.id];
+        return ls.villainCardInstIds.some(id => state.allCards[id]?.cardType === CardType.CURSE);
+      }).length;
+      return (locsWithCurse / totalLocs) * 100;
+    }
+
+    default:
+      return 0;
+  }
+}
+
 export function evaluateState(state: GameState, playerId: PlayerId): number {
   const p = getPlayer(state, playerId);
   const plugin = getPlugin(p.villainId);
@@ -48,6 +102,20 @@ export function evaluateState(state: GameState, playerId: PlayerId): number {
   if (state.winner === playerId) return 1_000_000;
   if (state.winner && state.winner !== playerId) return -1_000_000;
   if (plugin.checkWinCondition(state, playerId)) return 1_000_000;
+
+  // FASE 1: Urgencia de victoria - Si estoy muy cerca de ganar/perder, pesa mucho
+  const ownProgress = getWinProgress(state, playerId);
+  const opp = state.players.find(pl => pl.id !== playerId);
+  const oppProgress = opp ? getWinProgress(state, opp.id) : 0;
+
+  if (ownProgress >= 85) {
+    // Casi gano → incentiva acciones que cierren la victoria
+    // return WEIGHTS.ALMOST_WIN;  // Comentado para que otras heurísticas ayuden
+  }
+  if (oppProgress >= 85) {
+    // Rival casi gana → urgencia defensiva máxima
+    // return WEIGHTS.ALMOST_LOSE;  // Comentado para que otras heurísticas ayuden
+  }
 
   // ── Poder/mano genérico: rendimientos decrecientes a partir del tope ──
   // Cada villano puede sumarle su propio bono o, si su condición de victoria lo exige
@@ -111,7 +179,6 @@ export function evaluateState(state: GameState, playerId: PlayerId): number {
   v += burlaCount * WEIGHTS.BURLA_HERO;
 
   // ── Disrupción al rival (leve): héroes que le estorban y su poder ──
-  const opp = state.players.find(pl => pl.id !== playerId);
   if (opp) {
     const oppPlugin = getPlugin(opp.villainId);
     const oppHeroes = oppPlugin.locations.reduce(
@@ -126,6 +193,16 @@ export function evaluateState(state: GameState, playerId: PlayerId): number {
     v += oppLocsCovered * WEIGHTS.OPP_LOC_COVERED * fateUrgency;
     v += oppHeroes * WEIGHTS.OPP_HERO_PRESENCE;
     v -= Math.min(opp.power, WEIGHTS.OPP_POWER_CAP) * WEIGHTS.OPP_POWER_PENALTY;
+
+    // FASE 1: Agregar bonificación si estoy ganando o penalización si estoy perdiendo
+    const progressDiff = ownProgress - oppProgress;
+    if (progressDiff >= 30) {
+      // Estoy ganando por 30+ puntos
+      v += WEIGHTS.WINNING;
+    } else if (progressDiff <= -30) {
+      // Estoy perdiendo por 30+ puntos
+      v += WEIGHTS.LOSING;
+    }
   }
 
   return v;

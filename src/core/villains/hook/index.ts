@@ -29,16 +29,8 @@ function onVanquish(state: GameState, playerId: PlayerId, heroInstId: CardInstId
 function checkWinCondition(state: GameState, playerId: PlayerId): boolean {
   const player = getPlayer(state, playerId);
 
-  // Cannot win while Tic Tac is still alive in the kingdom
-  const ticTacAlive = Object.values(player.locationStates).some(ls =>
-    ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC),
-  );
-  if (ticTacAlive) return false;
-
-  return (
-    player.completedObjectiveSteps.includes(HookObjectiveStep.PETER_PAN_DEFEATED) &&
-    player.completedObjectiveSteps.includes(HookObjectiveStep.HANGMAN_UNLOCKED)
-  );
+  // Única condición: Peter Pan derrotado en Jolly Roger
+  return player.completedObjectiveSteps.includes(HookObjectiveStep.PETER_PAN_DEFEATED);
 }
 
 function getWinProgress(state: GameState, player: ReturnType<typeof getPlayer>): string {
