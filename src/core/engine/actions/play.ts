@@ -133,22 +133,16 @@ export function vanquish(
     s = applyPowerGain(s, playerId, flechaAllyCount * 2);
     s = addLog(s, `Flecha Dorada: ${getPlayer(s, playerId).name} recibe ${flechaAllyCount * 2} Moneda(s) de Poder.`);
   }
-  // Intimidación: no descartar aliados si está activa
-  if (state.intimidacionActive !== playerId) {
-    for (const allyId of allyInstIds) {
-      const arcoId = s.allCards[allyId]?.attachedItemInstIds.find(
-        itemId => s.allCards[itemId]?.effectIds.includes(EffectId.JHON_ARCO_ATTACH),
-      );
-      if (arcoId) {
-        s = discardCardFromKingdom(s, arcoId);
-        s = addLog(s, `Arco con Flechas se descarta en lugar de ${s.allCards[allyId]?.name}.`);
-      } else {
-        s = discardCardFromKingdom(s, allyId);
-      }
+  for (const allyId of allyInstIds) {
+    const arcoId = s.allCards[allyId]?.attachedItemInstIds.find(
+      itemId => s.allCards[itemId]?.effectIds.includes(EffectId.JHON_ARCO_ATTACH),
+    );
+    if (arcoId) {
+      s = discardCardFromKingdom(s, arcoId);
+      s = addLog(s, `Arco con Flechas se descarta en lugar de ${s.allCards[allyId]?.name}.`);
+    } else {
+      s = discardCardFromKingdom(s, allyId);
     }
-  } else {
-    s = { ...s, intimidacionActive: undefined };
-    s = addLog(s, 'Intimidación: Aliados no descartados.');
   }
 
   const plugin = getPlugin(getPlayer(s, playerId).villainId);

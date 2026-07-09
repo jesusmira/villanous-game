@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { TurnPhase, CardType, ActionType } from '../core/types';
 import type { CardInst, GameState, VillainId } from '../core/types';
 import { preloadGameImages } from '../lib/preload';
@@ -34,33 +34,45 @@ import { DragSource } from '../hooks/DragProvider';
 interface Props { state: GameState }
 
 export function GameBoard({ state }: Props) {
+  // ─── Store methods ───────────────────────────────────────────────────────
   const resetGame       = useGameStore(s => s.resetGame);
   const aiReplayQueue   = useGameStore(s => s.aiReplayQueue);
   const doFateResolve   = useGameStore(s => s.doFateResolve);
   const doActivateRaven  = useGameStore(s => s.doActivateRaven);
   const doActivateSherif = useGameStore(s => s.doActivateSherif);
+  const doResolveTrampa = useGameStore(s => s.doResolveTrampa);
 
+  // ─── UI State: Card selection & detail ────────────────────────────────────
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [detailCard, setDetailCard]         = useState<CardInst | null>(null);
+  const [hoveredCardId, setHoveredCardId]   = useState<string | null>(null);
+
+  // ─── UI State: Drawers & modals ───────────────────────────────────────────
   const [handOpen, setHandOpen]             = useState(false);
   const [historyOpen, setHistoryOpen]       = useState(false);
   const [floraOpen, setFloraOpen]           = useState(false);
-  const [hoveredCardId, setHoveredCardId]   = useState<string | null>(null);
-  const [discardIds, setDiscardIds]         = useState<string[]>([]);
+  const [showTests, setShowTests]           = useState(false);
+  const [showHookDeck, setShowHookDeck]     = useState(false);
+  const [showTurnIndicator, setShowTurnIndicator] = useState(false);
+
+  // ─── Drag & Drop State ────────────────────────────────────────────────────
   const [dragCardId, setDragCardId]         = useState<string | null>(null);
   const [fateDragCardId, setFateDragCardId] = useState<string | null>(null);
   const [dragBoardCardId, setDragBoardCardId] = useState<string | null>(null);
   const [dragHeroCardId, setDragHeroCardId]   = useState<string | null>(null);
   const [dragRavenId, setDragRavenId]         = useState<string | null>(null);
   const [dragSherifId, setDragSherifId]       = useState<string | null>(null);
+  const [dragAllyForTrampaId, setDragAllyForTrampaId] = useState<string | null>(null);
+
+  // ─── Pending Actions ──────────────────────────────────────────────────────
+  const [discardIds, setDiscardIds]         = useState<string[]>([]);
   const [pendingItemDrop, setPendingItemDrop] = useState<{ cardId: string; locId: string; mapaId: string; normalCost: number; forcedTargetCardInstId?: string } | null>(null);
   const [pendingAttachTarget, setPendingAttachTarget] = useState<{
     cardId: string; locId: string; reqTarget: 'ALLY' | 'HERO'; candidates: string[];
   } | null>(null);
-  const [showTests, setShowTests]           = useState(false);
-  const [showHookDeck, setShowHookDeck]     = useState(false);
-  const [showTurnIndicator, setShowTurnIndicator] = useState(false);
-  const [prevPlayerIndex, setPrevPlayerIndex] = useState(state.currentPlayerIndex);
+
+  // ─── Replay & Turn tracking ───────────────────────────────────────────────
+  const prevPlayerIndexRef = useRef(state.currentPlayerIndex);
 
   // Precarga en memoria las imágenes de los villanos en juego (una vez por partida).
   const villainKey = state.players.map(p => p.villainId).join(',');
@@ -106,12 +118,12 @@ export function GameBoard({ state }: Props) {
   }, [replayIndex]);
 
   // Muestra el modal de turno cuando cambia el turno actual (solo en modo 2 jugadores)
-  useEffect(() => {
-    if (state.currentPlayerIndex !== prevPlayerIndex && state.players.length === 2 && !isReplaying) {
+  useLayoutEffect(() => {
+    if (state.currentPlayerIndex !== prevPlayerIndexRef.current && state.players.length === 2 && !isReplaying) {
       setShowTurnIndicator(true);
-      setPrevPlayerIndex(state.currentPlayerIndex);
     }
-  }, [state.currentPlayerIndex, prevPlayerIndex, isReplaying]);
+    prevPlayerIndexRef.current = state.currentPlayerIndex;
+  }, [state.currentPlayerIndex, state.players.length, isReplaying]);
 
   // Descripción de la acción actual (último entry nuevo del log)
   const replayLabel = isReplaying
@@ -361,6 +373,12 @@ export function GameBoard({ state }: Props) {
     if (!canMoveItemAlly(displayedState, currentPlayer.id, dragBoardCardId, locId, slotIdx).valid) return;
     ap.store.doMoveItemAlly(dragBoardCardId, locId, slotIdx);
     setDragBoardCardId(null);
+  }
+
+  function handleTrampaDrop(locId: string) {
+    if (!dragAllyForTrampaId || !isHumanTurn || !state.trampaActive) return;
+    doResolveTrampa(dragAllyForTrampaId, locId);
+    setDragAllyForTrampaId(null);
   }
 
   function handleCardDrop(locId: string) {
@@ -641,17 +659,23 @@ export function GameBoard({ state }: Props) {
               onCardDrop={
                 dragRavenId                    ? (isActive  ? handleRavenDrop     : undefined) :
                 dragSherifId                   ? (isActive  ? handleSherifDrop    : undefined) :
+                dragAllyForTrampaId            ? (isHumanTurn ? handleTrampaDrop : undefined) :
                 dragBoardCardId                ? (isHumanTurn ? handleBoardCardDrop : undefined) :
                 dragHeroCardId                 ? (isHumanTurn ? handleHeroCardDrop  : undefined) :
                 (state.pendingFate && isFateTgt) ? handleFateDrop                             :
                 (isActive && state.turnPhase === TurnPhase.ACTIVATE) ? handleCardDrop : undefined
               }
               onVillainCardDragStart={
-                isHumanTurn && state.turnPhase === TurnPhase.ACTIVATE
+                (isHumanTurn && state.trampaActive && state.turnPhase === TurnPhase.ACTIVATE)
+                  ? (cardId) => setDragAllyForTrampaId(cardId)
+                  : (isHumanTurn && state.turnPhase === TurnPhase.ACTIVATE)
                   ? (cardId) => setDragBoardCardId(cardId)
                   : undefined
               }
-              onVillainCardDragEnd={() => setDragBoardCardId(null)}
+              onVillainCardDragEnd={() => {
+                setDragBoardCardId(null);
+                setDragAllyForTrampaId(null);
+              }}
               onHeroCardDragStart={
                 isHumanTurn && state.turnPhase === TurnPhase.ACTIVATE
                   ? (cardId) => setDragHeroCardId(cardId)
@@ -668,6 +692,7 @@ export function GameBoard({ state }: Props) {
               onActionSlotClick={isActing  ? ap.handleSlotClick  : undefined}
               onLocationClick={
                 isMoving ? (locId) => ap.store.doMovePawn(locId) :
+                (state.trampaActive && isHumanTurn && dragAllyForTrampaId) ? (locId) => handleTrampaDrop(locId) :
                 (state.pendingFate && isFateTgt) ? (locId) => handleFateDrop(locId) :
                 (isActive && state.turnPhase === TurnPhase.ACTIVATE && selectedCardId)
                   ? (locId) => handleCardDrop(locId)

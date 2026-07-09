@@ -14,15 +14,22 @@ function locHasCurse(state: GameState, ls: LocationState): boolean {
 }
 
 const WEIGHTS = {
-  CURSED_LOCATION: 30,              // por cada ubicación cubierta: es el objetivo de victoria
-  CURSE_THREATENED: -12,            // maldición con un héroe encima que podría retirarla
-  BLOCKER_ALLY_MATCH: 2,             // progreso de fuerza de aliados contra el héroe bloqueante
-  UNCOVERED_READY: 10,               // sin maldición y SIN bloqueante: lista para cubrirse pronto
+  CURSED_LOCATION: 35,              // por cada ubicación cubierta: es el objetivo de victoria — AUMENTADO
+  CURSE_THREATENED: -18,            // maldición con un héroe encima que podría retirarla — AUMENTADO (MÁS URGENTE VENCER)
+  BLOCKER_ALLY_MATCH: 2.5,          // progreso de fuerza de aliados contra el héroe bloqueante — AUMENTADO
+  UNCOVERED_READY: 14,              // sin maldición y SIN bloqueante: lista para cubrirse pronto — AUMENTADO
+  BLOCKER_READY: 22,                // NUEVO: bono si ya hay aliados suficientes para vencer bloqueante
+
+  // FASE 3: Urgencia de victoria según maldiciones colocadas
+  ALL_LOCATIONS_CURSED: 150,        // Las 4 ubicaciones cubiertas: victoria inminente — AUMENTADO
+  THREE_CURSED: 70,                 // 3/4 ubicaciones cubiertas: muy cerca — AUMENTADO
+  TWO_CURSED: 30,                   // 2/4 ubicaciones cubiertas: buen progreso — AUMENTADO
+
   // ── Conciencia del avance de Garfio (cuando es el rival) ──
-  HOOK_HANGMAN_UNLOCKED: -30,       // Árbol del Ahorcado desbloqueado: Garfio en fase final
-  HOOK_PP_IN_KINGDOM: -12,          // Peter Pan ya está en el reino de Garfio
-  HOOK_PP_VANQUISHABLE: -20,        // Garfio ya tiene aliados suficientes para vencer a PP
-  HOOK_PP_AT_JOLLY_ROGER: -8,       // PP está en su ubicación de victoria
+  HOOK_HANGMAN_UNLOCKED: -50,       // Árbol del Ahorcado desbloqueado: Garfio en fase final — AUMENTADO
+  HOOK_PP_IN_KINGDOM: -25,          // Peter Pan ya está en el reino de Garfio — AUMENTADO
+  HOOK_PP_VANQUISHABLE: -35,        // Garfio ya tiene aliados suficientes para vencer a PP — AUMENTADO
+  HOOK_PP_AT_JOLLY_ROGER: -45,      // PP está en su ubicación de victoria — AUMENTADO (CASI GAME OVER)
 };
 
 // Umbrales de threatUrgency(): cuántas maldiciones en pie disparan cada nivel de urgencia.
@@ -39,6 +46,16 @@ export function scoreState(state: GameState, player: PlayerState, genericPowerSc
   // ── Cubrir las 4 ubicaciones con maldición: el objetivo de victoria ──
   const covered = plugin.locations.filter(l => locHasCurse(state, player.locationStates[l.id])).length;
   v += covered * WEIGHTS.CURSED_LOCATION;
+
+  // FASE 3: Urgencia escalada según maldiciones colocadas
+  if (covered === 4) {
+    v += WEIGHTS.ALL_LOCATIONS_CURSED; // Victoria inminente
+  } else if (covered === 3) {
+    v += WEIGHTS.THREE_CURSED; // Una ubicación para ganar
+  } else if (covered === 2) {
+    v += WEIGHTS.TWO_CURSED; // Buen progreso
+  }
+
   // Maldición amenazada = héroe en esa ubicación que puede retirarla.
   // Penaliza fuerte para incentivar vencer en esas ubicaciones de forma urgente.
   for (const l of plugin.locations) {
@@ -64,6 +81,10 @@ export function scoreState(state: GameState, player: PlayerState, genericPowerSc
         .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
         .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
       v += Math.min(allyStr, heroStr) * WEIGHTS.BLOCKER_ALLY_MATCH;
+      // NUEVO: bono si ya tenemos aliados suficientes para vencer
+      if (allyStr >= heroStr && heroStr > 0) {
+        v += WEIGHTS.BLOCKER_READY;
+      }
     } else {
       v += WEIGHTS.UNCOVERED_READY;
     }

@@ -20,26 +20,32 @@ const WEIGHTS = {
   // ── Posicionamiento de aliados contra bloqueantes (Burla / Tic Tac) ──
   BLOCKER_MATCH_AT_BURLA_LOC: 1.5,   // multiplicador de min(fuerzaAliados, fuerzaBloqueante) con Burla
   BLOCKER_MATCH_AT_OTHER_LOC: 1.8,   // ... cuando el bloqueante es solo Tic Tac
-  BLOCKER_READY_AT_BURLA_LOC: 12,    // bono si ya hay aliados suficientes para vencer (Burla)
-  BLOCKER_READY_AT_OTHER_LOC: 15,    // ... (Tic Tac)
-  BLOCKER_NEEDS_MULTIPLE_BONUS: 8,   // bono extra si el bloqueante exige 2+ aliados y ya los tenemos
+  BLOCKER_READY_AT_BURLA_LOC: 25,    // bono si ya hay aliados suficientes para vencer (Burla) — AUMENTADO
+  BLOCKER_READY_AT_OTHER_LOC: 28,    // ... (Tic Tac) — AUMENTADO
+  BLOCKER_NEEDS_MULTIPLE_BONUS: 12,  // bono extra si el bloqueante exige 2+ aliados y ya los tenemos — AUMENTADO
   PELOTON_VS_BURLA_MATCH: 1.5,       // Pelotones en JR listos para vencer Burla en Roca Calavera
-  PELOTON_VS_BURLA_READY: 12,
+  PELOTON_VS_BURLA_READY: 18,        // — AUMENTADO
 
   NORMAL_HERO_ALLY_MATCH: 1.0,       // co-ubicación con héroes normales (sin Burla/Tic Tac)
-  NORMAL_HERO_READY: 6,
+  NORMAL_HERO_READY: 10,             // — AUMENTADO
+  NORMAL_HERO_BLOCKING_UNCURSED: -15, // NUEVO: penalización por héroes sin vencer que bloquean
+  NORMAL_HERO_STRONG_NO_ALLIES: -20,  // NUEVO: penalización por héroes F4+ que no podemos vencer
 
   PP_IN_KINGDOM: 15,                 // Peter Pan ya está en el reino
   // Por cada paso más cerca del Jolly Roger (máx. 3 pasos). Tiene que ser lo bastante alto para
   // competir con visitar una ubicación con más slots de Jugar Carta (p. ej. Laguna tiene 2):
   // con un valor bajo, la IA prefiere acumular Aliados sin fin antes que ir a buscar a PP.
-  PP_PROXIMITY_STEP: 10,
-  PP_ALLY_MATCH: 1.5,
-  PP_VANQUISHABLE: 25,               // ya hay aliados suficientes para vencerlo
-  PP_AT_JOLLY_ROGER: 12,
+  PP_PROXIMITY_STEP: 12,             // — AUMENTADO
+  PP_ALLY_MATCH: 1.8,                // — AUMENTADO
+  PP_VANQUISHABLE: 35,               // ya hay aliados suficientes para vencerlo — AUMENTADO
+  PP_AT_JOLLY_ROGER: 20,             // — AUMENTADO
 
   DEAD_FATE_CARD: -2.5,              // Rival Digno / Susto, muertas una vez que PP ya apareció
   DEAD_CONDITION: -2.5,              // Perspicaz / Obsesión cuyo disparador no puede activarse
+
+  // FASE 3: Urgencia de victoria cuando PP está muy cerca
+  PP_ALMOST_VICTORY: 80,             // PP está en Jolly Roger, solo falta vencerlo
+  PP_FINAL_PHASE: 35,                // PP está en Roca (adyacente a JR)
 
   // ── Conciencia del avance de Maléfica (cuando es la rival) ──
   MALEFICENT_CURSE_IN_PLAY: -10,
@@ -133,6 +139,15 @@ function scoreHookObjective(state: GameState, p: PlayerState): number {
       .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
     v += Math.min(allyStr, heroStr) * WEIGHTS.NORMAL_HERO_ALLY_MATCH;
     if (allyStr >= heroStr && heroStr > 0) v += WEIGHTS.NORMAL_HERO_READY;
+    // NUEVO: penalizar héroes sin vencer
+    if (allyStr < heroStr && heroStr > 0) {
+      v += WEIGHTS.NORMAL_HERO_BLOCKING_UNCURSED;
+    }
+    // NUEVO: penalizar fuerte héroes F4+ que no podemos vencer (amenaza)
+    const strongNormalHeroes = normHeroes.filter(id => getEffectiveStrength(state, id) >= 4);
+    if (strongNormalHeroes.length > 0 && allyStr < heroStr) {
+      v += strongNormalHeroes.length * WEIGHTS.NORMAL_HERO_STRONG_NO_ALLIES;
+    }
   }
 
   // Penalización por ranuras bloqueadas: 1+ héroe = 2 primeros slots inaccesibles.
@@ -161,15 +176,19 @@ function scoreHookObjective(state: GameState, p: PlayerState): number {
   const pp = findPeterPan(state, p);
   if (pp) {
     v += WEIGHTS.PP_IN_KINGDOM;
-    // Fix: bonus de proximidad de PP siempre activo (con o sin bloqueantes).
-    // Mover PP del Árbol a la Laguna, de la Laguna a Roca, vale algo aunque Burla siga viva.
-    // IMPORTANTE: se aplica también en distancia 0 (JR) — si no, dar el último paso (Roca → JR)
-    // BAJARÍA la nota (se pierde este bono y solo se gana PP_AT_JOLLY_ROGER), y la IA nunca daría
-    // ese último paso. Con la fórmula continua, JR siempre puntúa más que cualquier paso anterior.
+
     const ppDistToJR = pp.locId === HookLocationId.JOLLY_ROGER ? 0
       : pp.locId === HookLocationId.SKULL_ROCK ? 1
       : pp.locId === HookLocationId.LAGOON ? 2
       : 3; // hangman u otro
+
+    // FASE 3: Urgencia escalada según proximidad a Jolly Roger
+    if (ppDistToJR === 0) {
+      v += WEIGHTS.PP_ALMOST_VICTORY; // PP EN Jolly Roger: urgencia máxima
+    } else if (ppDistToJR === 1) {
+      v += WEIGHTS.PP_FINAL_PHASE; // PP en Roca: fase final
+    }
+
     v += (4 - ppDistToJR) * WEIGHTS.PP_PROXIMITY_STEP; // JR > Roca > Laguna > Árbol
     // Con bloqueantes vivos, acumular aliados en JR para PP no avanza hacia la victoria
     if (!hasBlocker) {
@@ -235,10 +254,12 @@ function scoreHookObjective(state: GameState, p: PlayerState): number {
     const cursesInPlay = malPlugin.locations.filter(
       l => locHasCurse(state, opp.locationStates[l.id]),
     ).length;
-    v += cursesInPlay * WEIGHTS.MALEFICENT_CURSE_IN_PLAY;
+    // AUMENTADO: más urgencia por maldiciones
+    v += cursesInPlay * (WEIGHTS.MALEFICENT_CURSE_IN_PLAY - 5);
+
     // Héroe en la ubicación del peón rival bloquea sus acciones actuales — muy disruptivo.
     if ((opp.locationStates[opp.pawnLocationId]?.heroCardInstIds.length ?? 0) > 0) {
-      v += WEIGHTS.MALEFICENT_HERO_AT_OPP_PAWN;
+      v += WEIGHTS.MALEFICENT_HERO_AT_OPP_PAWN + 8;  // AUMENTADO
     }
     // Héroes en ubicaciones SIN maldición son especialmente valiosos:
     // bloquean ranuras de acción y retrasan/impiden colocar la maldición allí.
@@ -246,11 +267,11 @@ function scoreHookObjective(state: GameState, p: PlayerState): number {
       const ls = opp.locationStates[l.id];
       if (ls.heroCardInstIds.length === 0) continue;
       if (!locHasCurse(state, ls)) {
-        // sin maldición → muy disruptivo
-        v += WEIGHTS.MALEFICENT_HERO_BLOCKING_UNCURSED_BASE
-          + ls.heroCardInstIds.length * WEIGHTS.MALEFICENT_HERO_BLOCKING_UNCURSED_PER_HERO;
+        // sin maldición → muy disruptivo (AUMENTADO)
+        v += (WEIGHTS.MALEFICENT_HERO_BLOCKING_UNCURSED_BASE + 8)
+          + ls.heroCardInstIds.length * (WEIGHTS.MALEFICENT_HERO_BLOCKING_UNCURSED_PER_HERO + 2);
       } else {
-        v += WEIGHTS.MALEFICENT_HERO_BLOCKING_CURSED; // con maldición → bloquea ranuras, menos crítico
+        v += WEIGHTS.MALEFICENT_HERO_BLOCKING_CURSED + 2; // con maldición → bloquea ranuras, menos crítico
       }
     }
   }

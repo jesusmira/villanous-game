@@ -119,8 +119,9 @@ function playOutActivate(state: GameState, playerId: PlayerId, steps?: GameState
     }
 
     if (!best) break;
-    // No realizar acciones que empeoren claramente nuestra posición (p. ej. malgastar aliados).
-    if (bestVal < currentVal - 0.9) break;
+    // FASE 4: Umbral más bajo para que la IA sea más agresiva en jugar cartas estratégicas
+    // (p. ej. Maleficent jugando maldiciones incluso si no mejoran mucho localmente)
+    if (bestVal < currentVal - 0.1) break;
     s = best;
     if (steps) steps.push(s);
   }

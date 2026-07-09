@@ -293,10 +293,67 @@ export const effects: EffectDef[] = [
   {
     id: EffectId.JHON_INTIMIDACION,
     trigger: EffectTrigger.ON_PLAY,
-    description: 'Permite una acción Vencer sin descartar los Aliados utilizados',
+    description: 'Derrota un Héroe sin necesidad de usar una acción de Vencer o Aliados.',
+    execute: (state, ctx): GameState => {
+      const player = getPlayer(state, ctx.actingPlayerId);
+
+      // Use provided target hero; otherwise pick first available hero
+      let heroId = ctx.targetCardInstId;
+      if (!heroId || state.allCards[heroId]?.cardType !== CardType.HERO) {
+        for (const ls of Object.values(player.locationStates)) {
+          heroId = ls.heroCardInstIds[0];
+          if (heroId) break;
+        }
+      }
+      if (!heroId) return addLog(state, 'Intimidación: no hay Héroes disponibles.');
+
+      const hero = state.allCards[heroId];
+      if (!hero?.locationId) return state;
+
+      const heroLocId = hero.locationId;
+      const srcLoc = getPlayer(state, ctx.actingPlayerId).locationStates[heroLocId];
+
+      // Remove hero from location
+      let s = updateLocationState(state, ctx.actingPlayerId, heroLocId, {
+        heroCardInstIds: srcLoc.heroCardInstIds.filter(id => id !== heroId),
+      });
+
+      // Return stored power (if any) to the player
+      if (hero.storedPower && hero.storedPower > 0) {
+        s = updatePlayer(s, ctx.actingPlayerId, { power: getPlayer(s, ctx.actingPlayerId).power + hero.storedPower });
+      }
+
+      // Discard the hero
+      s = discardCardFromKingdom(s, heroId);
+      s = addLog(s, `Intimidación: ${hero.name} derrotado/a sin usar Aliados.`);
+
+      return s;
+    },
+    requiresTargetCard: 'HERO',
+  },
+  {
+    id: EffectId.JHON_AVARICIA,
+    trigger: EffectTrigger.ON_PLAY,
+    description: 'Si otro jugador tiene 6+ Monedas, recibe 3 Monedas de Poder.',
     execute: (state, ctx) => {
-      const s = { ...state, intimidacionActive: ctx.actingPlayerId };
-      return addLog(s, `${state.allCards[ctx.cardInstId]?.name}: próximo Vencer sin descartar Aliados.`);
+      let s = state;
+      const player = getPlayer(s, ctx.actingPlayerId);
+      const opp = s.players.find(p => p.id !== ctx.actingPlayerId);
+
+      if (opp && opp.power >= 6) {
+        s = applyPowerGain(s, ctx.actingPlayerId, 3);
+        return addLog(s, `Avaricia: ${player.name} gana 3 Monedas de Poder (rival tiene ${opp.power} poder).`);
+      }
+      return addLog(s, `Avaricia: no se dispara (rival tiene menos de 6 poder).`);
+    },
+  },
+  {
+    id: EffectId.JHON_TRAMPA,
+    trigger: EffectTrigger.ON_PLAY,
+    description: 'Mueve un Aliado a cualquier ubicación. Lleva a cabo una acción Vencer.',
+    execute: (state, ctx) => {
+      const s = { ...state, trampaActive: ctx.actingPlayerId };
+      return addLog(s, `Trampa: selecciona un Aliado para mover y ejecutar Vencer.`);
     },
   },
 ];

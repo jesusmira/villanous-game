@@ -127,6 +127,42 @@ export function evaluateState(state: GameState, playerId: PlayerId): number {
     ? plugin.aiHeuristics.scoreState(state, p, genericPowerScore)
     : genericPowerScore;
 
+  // FASE 4: Pathfinding de largo plazo — bonus por estar en el camino correcto hacia victoria
+  // Detecta patrones de acciones estratégicas y recompensa estar más cerca del objetivo
+  let pathfindingBonus = 0;
+  if (p.villainId === 'hook') {
+    // Hook: está en el camino correcto si está construyendo aliados en Jolly Roger
+    // y Peter Pan está en el reino (o mejor aún, en Skull Rock)
+    const jrAllyStr = (p.locationStates['jollyroger']?.villainCardInstIds ?? [])
+      .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+      .length;
+    if (jrAllyStr >= 2) pathfindingBonus += 25; // Preparando Jolly Roger
+    if (jrAllyStr >= 3) pathfindingBonus += 20; // Muy preparado
+  } else if (p.villainId === 'jhon') {
+    // Príncipe Juan: está en el camino correcto si tiene Items que generan poder
+    // y está acumulando poder de forma constante
+    const itemsGeneratingPower = p.locationStates[Object.keys(p.locationStates)[0]]?.villainCardInstIds
+      ?.filter(id => {
+        const c = state.allCards[id];
+        return c?.cardType === CardType.ITEM &&
+               (c.defId === 'jhon_v_orden_1' || c.defId === 'jhon_v_orden_2' || c.defId === 'jhon_v_orden_3');
+      }).length ?? 0;
+    if (itemsGeneratingPower >= 1) pathfindingBonus += 20;
+    if (itemsGeneratingPower >= 2) pathfindingBonus += 15;
+  } else if (p.villainId === 'maleficent') {
+    // Maleficent: está en el camino correcto si tiene un buen plan para cubrir ubicaciones
+    // Bonus por tener acceso a efectos que coloquen maldiciones
+    const curseEffectsInHand = p.handInstIds.filter(id => {
+      const c = state.allCards[id];
+      return c?.cardType === CardType.EFFECT && c.effectIds.some(_eid =>
+        state.allCards[id]?.name?.includes('Maldición')
+      );
+    }).length;
+    if (curseEffectsInHand >= 1) pathfindingBonus += 18;
+    if (curseEffectsInHand >= 2) pathfindingBonus += 12;
+  }
+  v += pathfindingBonus;
+
   // ── Desarrollo propio: aliados en juego (incentiva jugar cartas y construir fuerza) ──
   const ownAllyStr = plugin.locations.reduce((sum, l) => {
     const ls = p.locationStates[l.id];
@@ -202,6 +238,39 @@ export function evaluateState(state: GameState, playerId: PlayerId): number {
     } else if (progressDiff <= -30) {
       // Estoy perdiendo por 30+ puntos
       v += WEIGHTS.LOSING;
+    }
+
+    // FASE 4: Defensa anticipada — detectar si el rival está ejecutando su estrategia ganadora
+    // Si el rival está en el camino correcto, penalizar mucho estados que NO lo bloquean
+    let oppStrategicProgress = 0;
+    if (opp.villainId === 'hook') {
+      // Hook está en el camino si tiene Peter Pan en el reino Y está acumulando fuerza en Jolly Roger
+      const ppInKingdom = Object.values(opp.locationStates).some(ls =>
+        ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN),
+      );
+      const jrStr = (opp.locationStates['jollyroger']?.villainCardInstIds ?? [])
+        .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+        .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
+      if (ppInKingdom && jrStr >= 2) oppStrategicProgress = 20;
+      if (ppInKingdom && jrStr >= 4) oppStrategicProgress = 40;
+    } else if (opp.villainId === 'jhon') {
+      // Príncipe Juan está en el camino si tiene 10+ poder Y Orden de Búsqueda en juego
+      const hasOrdenInPlay = Object.values(opp.locationStates).some(ls =>
+        ls.villainCardInstIds.some(id => state.allCards[id]?.defId?.startsWith?.('jhon_v_orden')),
+      );
+      if (opp.power >= 10 && hasOrdenInPlay) oppStrategicProgress = 15;
+      if (opp.power >= 14) oppStrategicProgress = 30;
+    } else if (opp.villainId === 'maleficent') {
+      // Maleficent está en el camino si tiene 2+ maldiciones colocadas
+      const cursesPlaced = oppPlugin.locations.filter(l =>
+        opp.locationStates[l.id]?.villainCardInstIds.some(id => state.allCards[id]?.cardType === CardType.CURSE),
+      ).length;
+      if (cursesPlaced >= 2) oppStrategicProgress = 15;
+      if (cursesPlaced >= 3) oppStrategicProgress = 35;
+    }
+    // Si el rival está en el camino ganador, penalizar no bloquearlo
+    if (oppStrategicProgress > 0) {
+      v -= oppStrategicProgress; // Penalizar estados donde el rival continúa su estrategia sin interferencia
     }
   }
 

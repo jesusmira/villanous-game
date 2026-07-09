@@ -33,6 +33,8 @@ export const EffectId = {
   JHON_HISS:            'jhon_hiss',
   JHON_ROBAR_RICOS:     'jhon_robar_ricos',
   JHON_INTIMIDACION:    'jhon_intimidacion',
+  JHON_AVARICIA:        'jhon_avaricia',
+  JHON_TRAMPA:          'jhon_trampa',
 } as const;
 
 export const CardDefId = {
