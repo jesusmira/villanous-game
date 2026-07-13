@@ -152,6 +152,8 @@ export interface EffectDef {
   blocksHeroPlay?: boolean;
   blocksCursePlay?: boolean;
   heroMinStrengthRequired?: number;
+  /** El Héroe portador no puede jugarse ni moverse a esta ubicación (p. ej. Lady Kluck → La Prisión). */
+  cannotEnterLocationId?: LocationId;
   requiresMultipleAlliesToVanquish?: boolean;
   conditionTrigger?: ConditionTriggerType;
 }
@@ -206,6 +208,8 @@ export interface GameState {
   pendingAuroraHero?: { heroInstId: CardInstId; targetPlayerId: PlayerId; actingPlayerId: PlayerId; isHero?: boolean };
   pendingJaqueca?: { itemInstIds: CardInstId[]; actingPlayerId: PlayerId };
   trampaActive?: PlayerId;
+  /** Trampa (fase 2): el aliado ya se movió; el jugador puede llevar a cabo un Vencer gratuito. */
+  trampaVanquish?: PlayerId;
   log: string[];
 }
 
@@ -253,6 +257,13 @@ export interface VillainPlugin {
      * hacia la victoria. Se invoca sobre el plugin del oponente. Por defecto 1.0 (neutral).
      */
     threatUrgency?: (state: GameState, self: PlayerState) => number;
+    /**
+     * FASE 2 (descarte inteligente): cartas de la mano que ya no pueden aportar nada en lo que
+     * queda de partida (p. ej. buscadores de Peter Pan cuando PP ya está en el reino). La IA
+     * las descarta proactivamente en las casillas DISCARD para ciclar el mazo, y evaluate.ts
+     * penaliza tenerlas en mano.
+     */
+    deadHandCards?: (state: GameState, self: PlayerState) => CardInstId[];
   };
 }
 

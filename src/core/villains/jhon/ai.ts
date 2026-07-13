@@ -3,9 +3,9 @@
 // IGNORA el score de poder genérico: acumular Monedas sin tope ES su condición de victoria,
 // así que el "rendimiento decreciente" del genérico no aplica.
 import { CardType } from '../../types';
-import type { GameState, PlayerState, LocationState } from '../../types';
+import type { GameState, PlayerState, LocationState, CardInstId } from '../../types';
 import { getPlugin } from '../registry';
-import { CardDefId } from '../effectIds';
+import { CardDefId, EffectId } from '../effectIds';
 import { getEffectiveStrength } from '../../engine/stateHelpers';
 
 function locHasCurse(state: GameState, ls: LocationState): boolean {
@@ -74,6 +74,43 @@ export function scoreState(state: GameState, player: PlayerState): number {
     }
   }
 
+  v += scoreOppAwareness(state, player);
+
+  return v;
+}
+
+/**
+ * FASE 2 (descarte inteligente): cartas del Príncipe Juan que conviene ciclar.
+ * A diferencia de Garfio, casi nada suyo está muerto para siempre (Encarcelamiento vuelve a
+ * servir cuando aparezca un héroe, Trampa cuando tenga aliados...), así que solo se marcan
+ * cartas que ahora mismo no aportan y que el rebarajado devolverá al mazo:
+ * - Condiciones duplicadas: con una copia en mano basta; la segunda solo atasca.
+ * - Avaricia con el rival muy lejos de 6 Monedas: jugarla no haría nada.
+ */
+export function deadHandCards(state: GameState, p: PlayerState): CardInstId[] {
+  const out: CardInstId[] = [];
+  const opp = state.players.find(pl => pl.id !== p.id);
+
+  const seenCondNames = new Set<string>();
+  for (const id of p.handInstIds) {
+    const c = state.allCards[id];
+    if (!c) continue;
+    // Condición duplicada (misma carta, p. ej. 2ª Avaricia o 2ª Cobardía) → ciclar la extra.
+    if (c.cardType === CardType.CONDITION) {
+      if (seenCondNames.has(c.name)) { out.push(id); continue; }
+      seenCondNames.add(c.name);
+    }
+    // Avaricia: "si otro jugador tiene 6+ Monedas". Con el rival por debajo de 3, hoy no
+    // dispara — mejor ciclarla y recuperarla del rebarajado cuando el rival acumule.
+    if (opp && opp.power < 3 && c.effectIds.includes(EffectId.JHON_AVARICIA)) {
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+function scoreOppAwareness(state: GameState, player: PlayerState): number {
+  let v = 0;
   // ── Conciencia del avance de Maléfica, si es la rival ──
   const opp = state.players.find(pl => pl.id !== player.id);
   if (opp?.villainId === 'maleficent') {

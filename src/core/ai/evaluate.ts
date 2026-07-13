@@ -15,8 +15,11 @@ const WEIGHTS = {
   // Poder/mano genérico: rendimientos decrecientes a partir del tope.
   POWER_CAP: 6,
   POWER_USEFUL: 0.55,           // cada moneda hasta el tope
-  POWER_HOARD_PENALTY: 0.35,    // penaliza acaparar poder pasado el tope
+  // OJO: debe ser casi 0. Con 0.35, ganar poder por encima del tope BAJABA la nota y la IA
+  // prefería pasar turno para siempre antes que coger monedas (partidas estancadas).
+  POWER_HOARD_PENALTY: 0.05,    // desincentiva acaparar, pero nunca peor que no hacer nada
   HAND_CARD: 0.15,              // opciones en mano (poco peso: no frena jugar)
+  DEAD_HAND_CARD: -3,           // FASE 2: carta muerta en mano — ocupa hueco que podría ciclarse
 
   OWN_ALLY_STRENGTH: 0.8,       // desarrollo propio: incentiva jugar/cuidar aliados
   OWN_HERO_STRENGTH_PENALTY: 0.9, // héroes en TU reino tapan ranuras: penaliza tenerlos
@@ -26,6 +29,9 @@ const WEIGHTS = {
   // Disrupción al rival (leve): cuánto vale estorbarle.
   OPP_LOC_COVERED: 10,          // por ubicación rival con al menos un héroe nuestro
   OPP_HERO_PRESENCE: 0.8,       // por cada héroe nuestro en el reino rival
+  OPP_HERO_STRENGTH: 0.35,      // por punto de fuerza: héroes más fuertes = más difíciles de
+                                // vencer para el rival (hace que adjuntar Espada de la Verdad
+                                // a un héroe puntúe mejor que descartarla sin objetivo)
   OPP_POWER_CAP: 10,
   OPP_POWER_PENALTY: 0.25,      // penaliza dejar acaparar poder al rival
 
@@ -56,21 +62,24 @@ function getWinProgress(state: GameState, playerId: PlayerId): number {
 
   switch (p.villainId) {
     case 'hook': {
-      // Necesita: Tic Tac derrotado + Peter Pan derrotado EN Jolly Roger
-      const ticTacAlive = Object.values(p.locationStates).some(ls =>
-        ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_TIC_TAC),
-      );
-      const peterPanId = Object.values(state.allCards).find(
-        c => c.ownerId === playerId && c.defId === CardDefId.HOOK_PETER_PAN,
-      )?.instId;
-      const peterDefeated = !peterPanId || !Object.values(p.locationStates).some(ls =>
-        ls.heroCardInstIds.includes(peterPanId),
-      );
+      // Necesita: Peter Pan derrotado EN el Jolly Roger. El progreso sigue la cadena real:
+      // encontrar a PP (sacarlo del mazo de Destino) → acercarlo al Jolly Roger → vencerlo.
+      // OJO: "PP aún no encontrado" NO es "PP derrotado" — el bug anterior daba 100% de
+      // progreso a Garfio en el turno 1 y distorsionaba los bonos WINNING/LOSING.
+      const steps = p.completedObjectiveSteps ?? [];
+      if (steps.includes('PETER_PAN_DEFEATED_AT_JOLLYROGER')) return 100;
 
-      let progress = 0;
-      if (peterDefeated) progress += 50;  // 50% si Peter Pan ya está derrotado
-      if (!ticTacAlive) progress += 50;   // 50% si Tic Tac está derrotado
-      return progress;
+      const ppEntry = Object.entries(p.locationStates).find(([, ls]) =>
+        ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN),
+      );
+      if (!ppEntry) {
+        // PP sigue en el mazo de Destino: progreso bajo; algo más si el Árbol ya está abierto.
+        return steps.includes('HANGMAN_UNLOCKED') ? 25 : 10;
+      }
+      const ppLocId = ppEntry[0];
+      if (ppLocId === 'jollyroger') return 85; // solo falta vencerlo
+      if (ppLocId === 'skullrock') return 65;  // a un paso del Jolly Roger
+      return 45;                               // en el reino, lejos todavía
     }
 
     case 'jhon': {
@@ -92,6 +101,26 @@ function getWinProgress(state: GameState, playerId: PlayerId): number {
     default:
       return 0;
   }
+}
+
+/**
+ * FASE 2: cartas muertas en mano = las que declara el plugin del villano (deadHandCards)
+ * + regla genérica: copias DUPLICADAS de una misma Condición (con una en mano basta;
+ * las condiciones no se juegan como acción, solo disparan — dos copias solo atascan).
+ * Compartido entre evaluateState (penalización) y tryDiscard (ciclado proactivo).
+ */
+export function getDeadHandCards(state: GameState, playerId: PlayerId): string[] {
+  const p = getPlayer(state, playerId);
+  const plugin = getPlugin(p.villainId);
+  const dead = new Set(plugin.aiHeuristics?.deadHandCards?.(state, p) ?? []);
+  const seenCondNames = new Set<string>();
+  for (const id of p.handInstIds) {
+    const c = state.allCards[id];
+    if (c?.cardType !== CardType.CONDITION) continue;
+    if (seenCondNames.has(c.name)) dead.add(id);
+    else seenCondNames.add(c.name);
+  }
+  return [...dead];
 }
 
 export function evaluateState(state: GameState, playerId: PlayerId): number {
@@ -127,6 +156,11 @@ export function evaluateState(state: GameState, playerId: PlayerId): number {
     ? plugin.aiHeuristics.scoreState(state, p, genericPowerScore)
     : genericPowerScore;
 
+  // FASE 2: cartas muertas en mano (las del plugin + duplicados de condición genéricos).
+  // Penalizarlas hace que tryDiscard las cicle proactivamente y que la IA valore pasar
+  // por casillas de DISCARD cuando la mano está atascada.
+  v += getDeadHandCards(state, playerId).length * WEIGHTS.DEAD_HAND_CARD;
+
   // FASE 4: Pathfinding de largo plazo — bonus por estar en el camino correcto hacia victoria
   // Detecta patrones de acciones estratégicas y recompensa estar más cerca del objetivo
   let pathfindingBonus = 0;
@@ -150,16 +184,13 @@ export function evaluateState(state: GameState, playerId: PlayerId): number {
     if (itemsGeneratingPower >= 1) pathfindingBonus += 20;
     if (itemsGeneratingPower >= 2) pathfindingBonus += 15;
   } else if (p.villainId === 'maleficent') {
-    // Maleficent: está en el camino correcto si tiene un buen plan para cubrir ubicaciones
-    // Bonus por tener acceso a efectos que coloquen maldiciones
-    const curseEffectsInHand = p.handInstIds.filter(id => {
-      const c = state.allCards[id];
-      return c?.cardType === CardType.EFFECT && c.effectIds.some(_eid =>
-        state.allCards[id]?.name?.includes('Maldición')
-      );
-    }).length;
-    if (curseEffectsInHand >= 1) pathfindingBonus += 18;
-    if (curseEffectsInHand >= 2) pathfindingBonus += 12;
+    // Maléfica: tener una Maldición en mano lista para jugar es estar en el camino correcto.
+    // (El bloque anterior buscaba Efectos cuyo NOMBRE contuviera «Maldición» — no existe
+    // ninguno, así que nunca se activaba.)
+    const cursesInHand = p.handInstIds.filter(
+      id => state.allCards[id]?.cardType === CardType.CURSE,
+    ).length;
+    if (cursesInHand >= 1) pathfindingBonus += 8;
   }
   v += pathfindingBonus;
 
@@ -228,6 +259,11 @@ export function evaluateState(state: GameState, playerId: PlayerId): number {
     const fateUrgency = oppPlugin.aiHeuristics?.threatUrgency?.(state, opp) ?? 1.0;
     v += oppLocsCovered * WEIGHTS.OPP_LOC_COVERED * fateUrgency;
     v += oppHeroes * WEIGHTS.OPP_HERO_PRESENCE;
+    // Fuerza total de los héroes en el reino rival: cuanto más fuertes, más le cuesta vencerlos.
+    const oppHeroStr = oppPlugin.locations.reduce((sum, l) =>
+      sum + (opp.locationStates[l.id]?.heroCardInstIds ?? [])
+        .reduce((t, id) => t + getEffectiveStrength(state, id), 0), 0);
+    v += oppHeroStr * WEIGHTS.OPP_HERO_STRENGTH;
     v -= Math.min(opp.power, WEIGHTS.OPP_POWER_CAP) * WEIGHTS.OPP_POWER_PENALTY;
 
     // FASE 1: Agregar bonificación si estoy ganando o penalización si estoy perdiendo

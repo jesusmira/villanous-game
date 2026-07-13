@@ -3,11 +3,11 @@ import type { GameState, CardInstId, LocationId, PlayerId, ActivateCardCtx } fro
 import { getPlugin, getEffectDef } from '../villains/registry';
 import { EffectId, CardDefId } from '../villains/effectIds';
 import { HookLocationId } from '../villains/hook/cards';
-import { heroHasBurla } from '../villains/hook/aiHelpers';
+import { heroHasBurla, chooseDemoslesResolution } from '../villains/hook/aiHelpers';
 import { getPlayer, getEffectiveStrength, computeKingdomCostMod } from '../engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../engine/slotHelpers';
 import {
-  canPlayCard, canVanquish, canMoveItemAlly,
+  canPlayCard, canVanquish, canVanquishFree, canMoveItemAlly,
   canMoveHero, canFate, canActivateCard, canDiscard,
 } from '../engine/RuleEngine';
 import {
@@ -15,10 +15,13 @@ import {
   moveHero, startFate, resolveFate, activateCard, discardFromHand,
   endActivatePhase, drawCards, activateRaven,
 } from '../engine/GameEngine';
-import { resolveCuervo } from '../engine/PendingStateResolver';
+import {
+  resolveCuervo, resolveDemosles,
+  resolveTrampaMove, resolveTrampaVanquish, skipTrampa,
+} from '../engine/PendingStateResolver';
 import type { CuervoResolutionParams } from '../engine/PendingStateResolver';
 import { scoreLocation, pickBestPlayTarget, locHasCurse } from './scoring';
-import { evaluateState } from './evaluate';
+import { evaluateState, getDeadHandCards } from './evaluate';
 import { buildPlayCtx } from './contextBuilder';
 
 // ─── AI TURN EXECUTION ────────────────────────────────────────────────────────
@@ -84,8 +87,9 @@ export function runAITurn(state: GameState): GameState[] {
     return steps;
   }
 
-  // ACTIVATE phase (real) — mismo razonamiento que el rollout, registrando pasos.
-  s = playOutActivate(s, playerId, steps);
+  // ACTIVATE phase (real) — con rollout profundo: ve combos de varias acciones
+  // (p. ej. Vencer al bloqueante → jugar la Maldición en la ubicación liberada).
+  s = playOutActivate(s, playerId, steps, true);
 
   // DRAW phase
   if (s.turnPhase === TurnPhase.ACTIVATE) s = endActivatePhase(s);
@@ -94,35 +98,54 @@ export function runAITurn(state: GameState): GameState[] {
   return steps;
 }
 
-// ─── ACTIVATE play-out: lookahead 1-ply, aplica la mejor acción hasta agotar ─────
+// FASE 3: profundidad del rollout en la fase ACTIVATE del turno real. Cada acción se
+// valora por el MEJOR final de turno alcanzable después de tomarla, no por su efecto
+// inmediato — sin esto, un Vencer que "pierde" bonos de preparación pero habilita jugar
+// la Maldición ganadora en la siguiente acción se rechazaba siempre.
+const ROLLOUT_DEPTH = 3;
+
+/**
+ * Valor de `s` mirando hasta `depth` acciones hacia delante dentro del mismo turno.
+ * Devuelve la mejor primera acción (o null si quedarse quieto es lo mejor) y su valor.
+ */
+function bestActionByRollout(
+  s: GameState, playerId: PlayerId, depth: number,
+): { next: GameState | null; val: number } {
+  const stopVal = evaluateState(s, playerId);
+  if (depth === 0 || s.turnPhase !== TurnPhase.ACTIVATE || s.winner) return { next: null, val: stopVal };
+  const player = getPlayer(s, playerId);
+  const available = getAvailableSlotIndices(s, playerId, player.pawnLocationId);
+  if (available.length === 0) return { next: null, val: stopVal };
+
+  let best: GameState | null = null;
+  let bestVal = stopVal;
+  for (const slotIdx of available) {
+    const slot = getActionAtSlot(s, playerId, slotIdx);
+    if (!slot) continue;
+    const next = tryActionForSlot(s, playerId, slotIdx, slot);
+    if (!next) continue;
+    const { val } = bestActionByRollout(next, playerId, depth - 1);
+    if (val > bestVal + 1e-9) { bestVal = val; best = next; }
+  }
+  return { next: best, val: bestVal };
+}
+
+// ─── ACTIVATE play-out: aplica la mejor acción hasta agotar ──────────────────────
 // Si `steps` se pasa, registra cada estado intermedio (para la animación de la IA).
-function playOutActivate(state: GameState, playerId: PlayerId, steps?: GameState[]): GameState {
+// `deep` activa el rollout multi-acción (solo en el turno REAL: dentro del minimax de
+// movimiento se usa el modo voraz 1-ply para no disparar el coste computacional).
+function playOutActivate(
+  state: GameState, playerId: PlayerId, steps?: GameState[], deep = false,
+): GameState {
   let s = state;
   const MAX_ITERATIONS = 20;
   let iterations = 0;
   while (s.turnPhase === TurnPhase.ACTIVATE && iterations++ < MAX_ITERATIONS) {
-    const player = getPlayer(s, playerId);
-    const available = getAvailableSlotIndices(s, playerId, player.pawnLocationId);
-    if (available.length === 0) break;
-
-    const currentVal = evaluateState(s, playerId);
-    let best: GameState | null = null;
-    let bestVal = -Infinity;
-
-    for (const slotIdx of available) {
-      const slot = getActionAtSlot(s, playerId, slotIdx);
-      if (!slot) continue;
-      const next = tryActionForSlot(s, playerId, slotIdx, slot);
-      if (!next) continue;
-      const val = evaluateState(next, playerId);
-      if (val > bestVal) { bestVal = val; best = next; }
-    }
-
-    if (!best) break;
-    // FASE 4: Umbral más bajo para que la IA sea más agresiva en jugar cartas estratégicas
-    // (p. ej. Maleficent jugando maldiciones incluso si no mejoran mucho localmente)
-    if (bestVal < currentVal - 0.1) break;
-    s = best;
+    const { next } = bestActionByRollout(s, playerId, deep ? ROLLOUT_DEPTH : 1);
+    // El rollout ya contempla "no hacer nada" como opción: si nada supera quedarse
+    // quieto (con margen 1e-9), devuelve null y el turno de acciones termina.
+    if (!next) break;
+    s = next;
     if (steps) steps.push(s);
   }
   return s;
@@ -146,6 +169,82 @@ function tryActionForSlot(
   }
 }
 
+/**
+ * Resuelve estados pendientes que una jugada de la propia IA acaba de crear (p. ej. Démosles
+ * un susto → pendingDemosles, Trampa → mover Aliado + Vencer gratuito). Sin esto, la
+ * simulación evaluaba el estado SIN resolver: solo veía el coste pagado y ningún beneficio,
+ * así que esas cartas no se jugaban jamás.
+ */
+function autoResolveOwnPendings(s: GameState, playerId: PlayerId): GameState {
+  if (s.pendingDemosles?.playerId === playerId) {
+    const { discardIds, orderedKeepIds } = chooseDemoslesResolution(s, s.pendingDemosles);
+    s = resolveDemosles(s, discardIds, orderedKeepIds);
+  }
+  if (s.trampaActive === playerId) s = resolveTrampaForAI(s, playerId);
+  if (s.trampaVanquish === playerId) s = bestTrampaVanquish(s, playerId);
+  return s;
+}
+
+/**
+ * Trampa (fase 2) para la IA: mejor Vencer gratuito posible con aliados mínimos, o
+ * renunciar si ninguno mejora el estado.
+ */
+export function bestTrampaVanquish(state: GameState, playerId: PlayerId): GameState {
+  let best = skipTrampa(state);
+  let bestVal = evaluateState(best, playerId);
+  const player = getPlayer(state, playerId);
+  for (const ls of Object.values(player.locationStates)) {
+    for (const heroId of ls.heroCardInstIds) {
+      const heroStr = getEffectiveStrength(state, heroId);
+      const needsMultiple = (state.allCards[heroId]?.effectIds ?? [])
+        .some(id => getEffectDef(id)?.requiresMultipleAlliesToVanquish);
+      const allies = ls.villainCardInstIds
+        .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+        .sort((a, b) => getEffectiveStrength(state, b) - getEffectiveStrength(state, a));
+      const chosen: CardInstId[] = [];
+      let total = 0;
+      for (const a of allies) {
+        chosen.push(a);
+        total += getEffectiveStrength(state, a);
+        if (total >= heroStr && (!needsMultiple || chosen.length >= 2)) break;
+      }
+      if (total < heroStr) continue;
+      if (!canVanquishFree(state, playerId, heroId, chosen).valid) continue;
+      const next = resolveTrampaVanquish(state, heroId, chosen);
+      const val = evaluateState(next, playerId);
+      if (val > bestVal) { bestVal = val; best = next; }
+    }
+  }
+  return best;
+}
+
+/**
+ * Trampa (fase 1) para la IA: prueba cada Aliado × ubicación, encadena el mejor Vencer
+ * gratuito tras el movimiento y se queda con la mejor combinación (o renuncia).
+ */
+export function resolveTrampaForAI(state: GameState, playerId: PlayerId): GameState {
+  const player = getPlayer(state, playerId);
+  const plugin = getPlugin(player.villainId);
+  let best = skipTrampa(state);
+  let bestVal = evaluateState(best, playerId);
+  for (const ls of Object.values(player.locationStates)) {
+    for (const allyId of ls.villainCardInstIds) {
+      const ally = state.allCards[allyId];
+      if (ally?.cardType !== CardType.ALLY || ally.attachedToInstId) continue;
+      for (const loc of plugin.locations) {
+        if (loc.id === ally.locationId) continue;
+        if (player.locationStates[loc.id]?.isLocked) continue;
+        const moved = resolveTrampaMove(state, allyId, loc.id);
+        if (moved === state) continue;
+        const next = bestTrampaVanquish(moved, playerId);
+        const val = evaluateState(next, playerId);
+        if (val > bestVal) { bestVal = val; best = next; }
+      }
+    }
+  }
+  return best;
+}
+
 /** Elige, entre las cartas asequibles de la mano, la jugada que deja el mejor estado. */
 function tryPlayCard(s: GameState, playerId: PlayerId, slotIdx: number): GameState | null {
   const player = getPlayer(s, playerId);
@@ -157,7 +256,7 @@ function tryPlayCard(s: GameState, playerId: PlayerId, slotIdx: number): GameSta
     const targetLoc = pickBestPlayTarget(s, player, id);
     if (!canPlayCard(s, playerId, id, slotIdx, targetLoc).valid) continue;
     const ctx = buildPlayCtx(s, playerId, id, targetLoc);
-    const next = playCard(s, playerId, id, slotIdx, targetLoc, ctx);
+    const next = autoResolveOwnPendings(playCard(s, playerId, id, slotIdx, targetLoc, ctx), playerId);
     const val = evaluateState(next, playerId);
     if (val > bestVal) { bestVal = val; best = next; }
   }
@@ -185,8 +284,12 @@ function tryVanquish(s: GameState, playerId: PlayerId, slotIdx: number): GameSta
     && (s.allCards[id]?.effectIds ?? []).some(eid => getEffectDef(eid)?.blocksCursePlay),
   );
   // Wendy first among others (removing her strips the +1 aura from all other heroes).
+  // Peter Pan se excluye SIEMPRE que no esté en el Jolly Roger: vencerlo en otra ubicación
+  // no cuenta para el objetivo de Garfio y lo devuelve al descarte de Destino (desastre).
   const others = heroEntries.filter(
-    id => !heroHasBurla(s, id) && id !== ppAtJollyId && !curseBlockerIds.includes(id),
+    id => !heroHasBurla(s, id)
+      && s.allCards[id]?.defId !== CardDefId.HOOK_PETER_PAN
+      && !curseBlockerIds.includes(id),
   );
   const feasible = (heroId: CardInstId) => {
     const heroLoc = s.allCards[heroId]?.locationId;
@@ -365,14 +468,27 @@ function tryFate(s: GameState, playerId: PlayerId, slotIdx: number): GameState |
     if (card.cardType === CardType.HERO) {
       for (const locDef of validFateLocs) {
         const result = resolveFate(st, cardId, locDef.id, {});
+        // Resolución rechazada (p. ej. Lady Kluck → La Prisión): pendingFate sigue activo.
+        if (result.pendingFate) continue;
         const val = evaluateState(result, playerId);
         if (val > bestVal) { bestVal = val; bestResult = result; }
       }
     } else if (card.cardType === CardType.ITEM) {
-      for (const locDef of validFateLocs) {
-        const heroAtLoc = oppPlayer.locationStates[locDef.id]?.heroCardInstIds[0];
-        const ctx = heroAtLoc ? { targetCardInstId: heroAtLoc } : {};
-        const result = resolveFate(st, cardId, locDef.id, ctx);
+      // Objetos de Destino (p. ej. Espada de la Verdad) se unen a un Héroe: probar TODOS los
+      // héroes del reino rival como objetivo. Sin objetivo el efecto descarta el Objeto sin
+      // hacer nada, así que jugarlo "suelto" solo se contempla si el rival no tiene héroes.
+      const heroTargets = validFateLocs.flatMap(locDef =>
+        (oppPlayer.locationStates[locDef.id]?.heroCardInstIds ?? [])
+          .map(heroId => ({ locId: locDef.id, heroId })),
+      );
+      if (heroTargets.length > 0) {
+        for (const { locId, heroId } of heroTargets) {
+          const result = resolveFate(st, cardId, locId, { targetCardInstId: heroId });
+          const val = evaluateState(result, playerId);
+          if (val > bestVal) { bestVal = val; bestResult = result; }
+        }
+      } else {
+        const result = resolveFate(st, cardId, fallbackLoc.id, {});
         const val = evaluateState(result, playerId);
         if (val > bestVal) { bestVal = val; bestResult = result; }
       }
@@ -433,7 +549,7 @@ function tryActivateCard(s: GameState, playerId: PlayerId, slotIdx: number): Gam
   return null;
 }
 
-/** Descarta solo cuando es beneficioso: nunca objetos, solo si mano grande o mejora estado. */
+/** Descarta cuando es beneficioso: cartas muertas SIEMPRE (ciclar el mazo), nunca objetos. */
 function tryDiscard(s: GameState, playerId: PlayerId, slotIdx: number): GameState | null {
   const player = getPlayer(s, playerId);
   if (player.handInstIds.length === 0 || !canDiscard(s, playerId, slotIdx).valid) return null;
@@ -442,23 +558,21 @@ function tryDiscard(s: GameState, playerId: PlayerId, slotIdx: number): GameStat
     id => s.allCards[id]?.cardType !== CardType.ITEM,
   );
   if (discardable.length === 0) return null;
-  // Fix J: solo descartar si la mano es grande o el descarte mejora genuinamente el estado
+
+  // FASE 2: las cartas muertas (plugin + duplicados de condición) se descartan siempre
+  // que haya casilla DISCARD — ciclarlas es la única forma de convertirlas en cartas útiles.
+  const dead = getDeadHandCards(s, playerId).filter(id => discardable.includes(id));
+
+  // Fix J: para el resto, solo descartar si mejora genuinamente el estado o la mano es enorme.
   const handTooBig = player.handInstIds.length > 5;
-  if (!handTooBig) {
-    const currentVal = evaluateState(s, playerId);
-    const anyImproves = discardable.some(id => {
-      const next = discardFromHand(s, playerId, [id], slotIdx);
-      return evaluateState(next, playerId) > currentVal;
-    });
-    if (!anyImproves) return null;
-  }
-  // Elegir la carta cuyo descarte mejora más evaluateState.
+  const currentVal = evaluateState(s, playerId);
+  const withDeltas = discardable
+    .filter(id => !dead.includes(id))
+    .map(id => ({
+      id,
+      delta: evaluateState(discardFromHand(s, playerId, [id], slotIdx), playerId) - currentVal,
+    }));
   // Si hay empate, condiciones > efectos > aliados (las condiciones raramente se necesitan).
-  const currentVal = handTooBig ? 0 : evaluateState(s, playerId);
-  const withDeltas = discardable.map(id => ({
-    id,
-    delta: evaluateState(discardFromHand(s, playerId, [id], slotIdx), playerId) - currentVal,
-  }));
   withDeltas.sort((a, b) => {
     if (Math.abs(b.delta - a.delta) > 0.01) return b.delta - a.delta;
     const typeOrder: Record<string, number> = { [CardType.CONDITION]: 0, [CardType.EFFECT]: 1, [CardType.ALLY]: 2 };
@@ -466,10 +580,15 @@ function tryDiscard(s: GameState, playerId: PlayerId, slotIdx: number): GameStat
     const tb = typeOrder[s.allCards[b.id]?.cardType ?? ''] ?? 3;
     return ta - tb;
   });
-  // Descartar todas las cartas beneficiosas a la vez (el juego permite cualquier cantidad).
   const beneficial = withDeltas.filter(d => d.delta > 0).map(d => d.id);
-  if (!handTooBig && beneficial.length === 0) return null;
-  const toDiscard = beneficial.length > 0 ? beneficial : [withDeltas[0].id];
+
+  // Descartar muertas + beneficiosas a la vez (el juego permite cualquier cantidad).
+  const toDiscard = [...dead, ...beneficial];
+  if (toDiscard.length === 0) {
+    // Mano atascada sin carta claramente mala: soltar la peor para ciclar.
+    if (!handTooBig || withDeltas.length === 0) return null;
+    toDiscard.push(withDeltas[0].id);
+  }
   return discardFromHand(s, playerId, toDiscard, slotIdx);
 }
 

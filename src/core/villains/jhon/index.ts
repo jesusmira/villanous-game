@@ -4,7 +4,7 @@ import { getPlayer } from '../../engine/stateHelpers';
 import { effects } from './effects';
 import { locations, villainCardDefs, fateCardDefs, JhonLocationId } from './cards';
 import { conditionHandlers, onVanquish, onHeroDiscarded } from './resolvers';
-import { scoreState } from './ai';
+import { scoreState, deadHandCards } from './ai';
 
 // ── Win condition ─────────────────────────────────────────────────────────────
 function checkWinCondition(state: GameState, playerId: PlayerId): boolean {
@@ -38,5 +38,5 @@ export const jhonPlugin: VillainPlugin = {
   onHeroDiscarded,
 
   conditionHandlers,
-  aiHeuristics: { scoreState },
+  aiHeuristics: { scoreState, deadHandCards },
 };

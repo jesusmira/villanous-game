@@ -2,7 +2,7 @@
 // Extraído de core/ai/evaluate.ts (antes vivía como `if (villainId === 'maleficent')`
 // repartido en código compartido entre villanos).
 import { CardType } from '../../types';
-import type { GameState, PlayerState, LocationState } from '../../types';
+import type { GameState, PlayerState, LocationState, CardInstId } from '../../types';
 import { getPlugin, getEffectDef } from '../registry';
 import { EffectId } from '../effectIds';
 import { getEffectiveStrength } from '../../engine/stateHelpers';
@@ -16,9 +16,17 @@ function locHasCurse(state: GameState, ls: LocationState): boolean {
 const WEIGHTS = {
   CURSED_LOCATION: 35,              // por cada ubicación cubierta: es el objetivo de victoria — AUMENTADO
   CURSE_THREATENED: -18,            // maldición con un héroe encima que podría retirarla — AUMENTADO (MÁS URGENTE VENCER)
-  BLOCKER_ALLY_MATCH: 2.5,          // progreso de fuerza de aliados contra el héroe bloqueante — AUMENTADO
+  // OJO: gradiente de "estar a punto de vencer al bloqueante" — debe ser bajo, porque al
+  // vencer se pierde (junto con los aliados gastados) y si supera al premio de la ubicación
+  // liberada (UNCOVERED_READY + maldición jugable) la IA nunca remata.
+  BLOCKER_ALLY_MATCH: 1.2,
   UNCOVERED_READY: 14,              // sin maldición y SIN bloqueante: lista para cubrirse pronto — AUMENTADO
-  BLOCKER_READY: 22,                // NUEVO: bono si ya hay aliados suficientes para vencer bloqueante
+  // Sin Maldiciones en mano y con ubicaciones por cubrir, hay que CICLAR la mano para
+  // encontrarlas: premio por mano pequeña → incentiva jugar/descartar y robar más al final.
+  DIG_FOR_CURSES_PER_SLOT: 2.5,
+  // OJO: debe ser MENOR que UNCOVERED_READY, o "estar a punto de vencer al bloqueante"
+  // puntuaría más que haberlo vencido y la IA nunca remataría.
+  BLOCKER_READY: 6,                 // bono si ya hay aliados suficientes para vencer bloqueante
 
   // FASE 3: Urgencia de victoria según maldiciones colocadas
   ALL_LOCATIONS_CURSED: 150,        // Las 4 ubicaciones cubiertas: victoria inminente — AUMENTADO
@@ -61,6 +69,18 @@ export function scoreState(state: GameState, player: PlayerState, genericPowerSc
   for (const l of plugin.locations) {
     const ls = player.locationStates[l.id];
     if (locHasCurse(state, ls) && ls.heroCardInstIds.length > 0) v += WEIGHTS.CURSE_THREATENED;
+  }
+
+  // Motor de ciclado: sin Maldiciones en mano y con ubicaciones por cubrir, cada carta
+  // jugada/descartada acerca el robo de la Maldición que falta (verificado en simulación:
+  // sin esto Maléfica se estancaba con la mano llena de Efectos/Condiciones que no jugaba).
+  if (covered < plugin.locations.length) {
+    const cursesInHand = player.handInstIds.filter(
+      id => state.allCards[id]?.cardType === CardType.CURSE,
+    ).length;
+    if (cursesInHand === 0) {
+      v += (4 - player.handInstIds.length) * WEIGHTS.DIG_FOR_CURSES_PER_SLOT;
+    }
   }
 
   // Héroe bloqueando la última ubicación sin maldición (p. ej. Primavera): sin vencerlo no se
@@ -117,6 +137,19 @@ export function scoreState(state: GameState, player: PlayerState, genericPowerSc
   }
 
   return v;
+}
+
+/**
+ * FASE 2 (descarte inteligente): maldiciones sobrantes en mano. Solo son útiles para las
+ * ubicaciones aún sin cubrir (+1 de reserva por si un héroe retira una); las que exceden
+ * ese número solo ocupan espacio en la mano.
+ */
+export function deadHandCards(state: GameState, p: PlayerState): CardInstId[] {
+  const plugin = getPlugin(p.villainId);
+  const uncovered = plugin.locations.filter(l => !locHasCurse(state, p.locationStates[l.id])).length;
+  const cursesInHand = p.handInstIds.filter(id => state.allCards[id]?.cardType === CardType.CURSE);
+  const surplus = cursesInHand.length - (uncovered + 1);
+  return surplus > 0 ? cursesInHand.slice(-surplus) : [];
 }
 
 /** Cuán urgente es para el rival desbaratar a Maléfica: escala con las maldiciones ya colocadas. */

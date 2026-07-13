@@ -2,7 +2,7 @@
 // Extraído de core/ai/evaluate.ts (antes vivía como `if (villainId === 'hook')`
 // repartido en código compartido entre villanos).
 import { ActionType, CardType } from '../../types';
-import type { GameState, PlayerState, LocationState } from '../../types';
+import type { GameState, PlayerState, LocationState, CardInstId } from '../../types';
 import { getPlugin, getEffectDef } from '../registry';
 import { CardDefId, CardDefPrefix, EffectId } from '../effectIds';
 import { getEffectiveStrength } from '../../engine/stateHelpers';
@@ -18,18 +18,29 @@ const WEIGHTS = {
   TIC_TAC_ALIVE: -22,     // bloqueante temprano: descarta toda la mano si el peón llega a su ubicación
 
   // ── Posicionamiento de aliados contra bloqueantes (Burla / Tic Tac) ──
+  // OJO con los bonos de "estar a punto": deben ser MENORES que el beneficio de vencer
+  // de verdad (recuperar ranuras + trofeo + quitar TIC_TAC_ALIVE), o la IA se queda
+  // eternamente "preparada" sin rematar (verificado con scripts/simulate.ts).
   BLOCKER_MATCH_AT_BURLA_LOC: 1.5,   // multiplicador de min(fuerzaAliados, fuerzaBloqueante) con Burla
   BLOCKER_MATCH_AT_OTHER_LOC: 1.8,   // ... cuando el bloqueante es solo Tic Tac
-  BLOCKER_READY_AT_BURLA_LOC: 25,    // bono si ya hay aliados suficientes para vencer (Burla) — AUMENTADO
-  BLOCKER_READY_AT_OTHER_LOC: 28,    // ... (Tic Tac) — AUMENTADO
-  BLOCKER_NEEDS_MULTIPLE_BONUS: 12,  // bono extra si el bloqueante exige 2+ aliados y ya los tenemos — AUMENTADO
+  BLOCKER_READY_AT_BURLA_LOC: 10,    // bono si ya hay aliados suficientes para vencer (Burla)
+  BLOCKER_READY_AT_OTHER_LOC: 12,    // ... (Tic Tac)
+  BLOCKER_NEEDS_MULTIPLE_BONUS: 6,   // bono extra si el bloqueante exige 2+ aliados y ya los tenemos
   PELOTON_VS_BURLA_MATCH: 1.5,       // Pelotones en JR listos para vencer Burla en Roca Calavera
-  PELOTON_VS_BURLA_READY: 18,        // — AUMENTADO
+  PELOTON_VS_BURLA_READY: 10,
 
   NORMAL_HERO_ALLY_MATCH: 1.0,       // co-ubicación con héroes normales (sin Burla/Tic Tac)
-  NORMAL_HERO_READY: 10,             // — AUMENTADO
-  NORMAL_HERO_BLOCKING_UNCURSED: -15, // NUEVO: penalización por héroes sin vencer que bloquean
-  NORMAL_HERO_STRONG_NO_ALLIES: -20,  // NUEVO: penalización por héroes F4+ que no podemos vencer
+  // OJO: READY debe ser MENOR que el beneficio real de vencer (recuperar ranuras + trofeo),
+  // o la IA preferirá quedarse "a punto de vencer" para siempre antes que hacerlo.
+  NORMAL_HERO_READY: 4,
+  NORMAL_HERO_BLOCKING_UNCURSED: -15, // penalización por héroes sin vencer que bloquean
+  NORMAL_HERO_STRONG_NO_ALLIES: -20,  // penalización por héroes F4+ que no podemos vencer
+  HERO_TROPHY: 6,                     // por héroe ya vencido (en el descarte de Destino): hace
+                                      // que vencer SUBA la nota de forma permanente y no se
+                                      // pierda al soltar los bonos de "estar a punto"
+  // Buscar a Peter Pan: bonus por tenerlo cerca de la cima del mazo de Destino. Da valor a
+  // Démosles un susto / Rival Digno (cavar el mazo), que antes puntuaban 0.
+  PP_DECK_PROXIMITY: 1.2,             // × (10 - profundidad), solo si PP sigue en el mazo
 
   PP_IN_KINGDOM: 15,                 // Peter Pan ya está en el reino
   // Por cada paso más cerca del Jolly Roger (máx. 3 pasos). Tiene que ser lo bastante alto para
@@ -39,9 +50,6 @@ const WEIGHTS = {
   PP_ALLY_MATCH: 1.8,                // — AUMENTADO
   PP_VANQUISHABLE: 35,               // ya hay aliados suficientes para vencerlo — AUMENTADO
   PP_AT_JOLLY_ROGER: 20,             // — AUMENTADO
-
-  DEAD_FATE_CARD: -2.5,              // Rival Digno / Susto, muertas una vez que PP ya apareció
-  DEAD_CONDITION: -2.5,              // Perspicaz / Obsesión cuyo disparador no puede activarse
 
   // FASE 3: Urgencia de victoria cuando PP está muy cerca
   PP_ALMOST_VICTORY: 80,             // PP está en Jolly Roger, solo falta vencerlo
@@ -207,44 +215,30 @@ function scoreHookObjective(state: GameState, p: PlayerState): number {
       if (ppStr > 0 && allyStr >= ppStr) v += WEIGHTS.PP_VANQUISHABLE;
       if (pp.locId === HookLocationId.JOLLY_ROGER) v += WEIGHTS.PP_AT_JOLLY_ROGER;
     }
-  }
-
-  // Rival Digno y Susto solo sirven para encontrar a PP en el mazo de Destino.
-  // Si PP ya está en el reino, son cartas muertas → penalizar tenerlas en mano.
-  if (pp) {
-    const deadCount = p.handInstIds.filter(id => {
-      const c = state.allCards[id];
-      return c?.defId.startsWith(CardDefPrefix.HOOK_RIVAL) || c?.defId.startsWith(CardDefPrefix.HOOK_SUSTO);
-    }).length;
-    v += deadCount * WEIGHTS.DEAD_FATE_CARD;
-  }
-
-  // Condiciones muertas: Perspicaz y Obsesión no aportan si su trigger no puede disparar.
-  // Penalizarlas hace que tryDiscard las elimine proactivamente para liberar espacio en mano.
-  const oppForCond = state.players.find(pl => pl.id !== p.id);
-  if (oppForCond) {
-    // Perspicaz: "si otro jugador tiene un Aliado de F4+"
-    const oppHasF4Ally = Object.values(oppForCond.locationStates).some(ls =>
-      ls.villainCardInstIds.some(id => {
-        const c = state.allCards[id];
-        return c?.cardType === CardType.ALLY && getEffectiveStrength(state, id) >= 4;
-      }),
+  } else {
+    // PP aún no está en el reino: premiar tenerlo cerca de la cima del mazo de Destino.
+    // Esto da valor real a cavar el mazo (Démosles un susto descarta 2 → PP sube 2 puestos;
+    // Rival Digno revela hasta un héroe → puede descartarle muchas cartas de encima).
+    const ppDeckIdx = p.fateDeckInstIds.findIndex(
+      id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN,
     );
-    const perspicazCount = p.handInstIds.filter(id =>
-      state.allCards[id]?.defId.startsWith(CardDefPrefix.HOOK_PERSPICAZ),
-    ).length;
-    if (!oppHasF4Ally && perspicazCount > 0) v += perspicazCount * WEIGHTS.DEAD_CONDITION;
-
-    // Obsesión: "cuando otro jugador derrote un Héroe de F4+"
-    // Muerta si el oponente no tiene héroes F4+ en su reino que se puedan vencer.
-    const oppHasF4Hero = Object.values(oppForCond.locationStates).some(ls =>
-      ls.heroCardInstIds.some(id => getEffectiveStrength(state, id) >= 4),
-    );
-    const obsesionCount = p.handInstIds.filter(id =>
-      state.allCards[id]?.defId.startsWith(CardDefPrefix.HOOK_OBSESION),
-    ).length;
-    if (!oppHasF4Hero && obsesionCount > 0) v += obsesionCount * WEIGHTS.DEAD_CONDITION;
+    if (ppDeckIdx >= 0) {
+      v += Math.max(0, 10 - ppDeckIdx) * WEIGHTS.PP_DECK_PROXIMITY;
+    }
   }
+
+  // Trofeos: cada héroe ya vencido (en el descarte de Destino) suma de forma PERMANENTE.
+  // Sin esto, vencer un héroe pierde los bonos de "estar a punto" (READY/match) y la IA
+  // prefiere no rematar nunca. PP se excluye: su derrota solo cuenta en el Jolly Roger.
+  const trophies = p.fateDiscardInstIds.filter(id => {
+    const c = state.allCards[id];
+    return c?.cardType === CardType.HERO && c.defId !== CardDefId.HOOK_PETER_PAN;
+  }).length;
+  v += trophies * WEIGHTS.HERO_TROPHY;
+
+  // FASE 2: las cartas muertas en mano (Rival Digno/Susto con PP en el reino, Mapa con el
+  // Árbol desbloqueado, condiciones sin disparador posible) se detectan en deadHandCards()
+  // y se penalizan genéricamente en evaluate.ts — no duplicar la penalización aquí.
 
   // ── Conciencia del avance de Maléfica, si es la rival ──
   const opp = state.players.find(pl => pl.id !== p.id);
@@ -277,6 +271,36 @@ function scoreHookObjective(state: GameState, p: PlayerState): number {
   }
 
   return v;
+}
+
+/**
+ * FASE 2 (descarte inteligente): cartas de la mano de Garfio que ya no aportan nada.
+ * - Rival Digno / Susto: solo sirven para buscar a PP en el mazo de Destino → muertas si PP ya está en el reino.
+ * - Mapa de Nunca Jamás: desbloquea el Árbol del Ahorcado → muerto si ya está desbloqueado.
+ * - Perspicaz / Obsesión: condiciones cuyo disparador no puede activarse contra este rival.
+ */
+export function deadHandCards(state: GameState, p: PlayerState): CardInstId[] {
+  const pp = findPeterPan(state, p);
+  const hangmanUnlocked = (p.completedObjectiveSteps ?? []).includes(HookObjectiveStep.HANGMAN_UNLOCKED);
+  const opp = state.players.find(pl => pl.id !== p.id);
+  const oppHasF4Ally = !!opp && Object.values(opp.locationStates).some(ls =>
+    ls.villainCardInstIds.some(id => {
+      const c = state.allCards[id];
+      return c?.cardType === CardType.ALLY && getEffectiveStrength(state, id) >= 4;
+    }),
+  );
+  const oppHasF4Hero = !!opp && Object.values(opp.locationStates).some(ls =>
+    ls.heroCardInstIds.some(id => getEffectiveStrength(state, id) >= 4),
+  );
+
+  return p.handInstIds.filter(id => {
+    const defId = state.allCards[id]?.defId ?? '';
+    if (pp && (defId.startsWith(CardDefPrefix.HOOK_RIVAL) || defId.startsWith(CardDefPrefix.HOOK_SUSTO))) return true;
+    if (hangmanUnlocked && defId.startsWith(CardDefPrefix.HOOK_MAPA)) return true;
+    if (!oppHasF4Ally && defId.startsWith(CardDefPrefix.HOOK_PERSPICAZ)) return true;
+    if (!oppHasF4Hero && defId.startsWith(CardDefPrefix.HOOK_OBSESION)) return true;
+    return false;
+  });
 }
 
 const THREAT_URGENCY = {

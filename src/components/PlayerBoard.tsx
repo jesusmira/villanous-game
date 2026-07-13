@@ -1,7 +1,29 @@
+import type { ReactNode } from 'react';
 import type { GameState, PlayerState, CardInstId } from '../core/types';
 import { getPlugin } from '../core/villains/registry';
 import { Image } from './Image';
 import { assetUrl } from '../lib/assets';
+
+/**
+ * Estadística de la píldora con tooltip accesible: aparece con hover (ratón) y con
+ * focus (un toque en táctil, gracias a tabIndex). Se cierra al tocar fuera (blur).
+ */
+function StatTip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="relative group flex items-center gap-0.5 sm:gap-1 outline-none" tabIndex={0}>
+      {children}
+      <span
+        className="pointer-events-none absolute top-full right-0 mt-2 whitespace-nowrap rounded-md
+          bg-black/90 border border-outline-variant/40 px-2 py-1 font-stats text-[9px] uppercase
+          tracking-wider text-on-surface opacity-0 transition-opacity duration-150 z-50
+          group-hover:opacity-100 group-focus:opacity-100 group-active:opacity-100"
+        role="tooltip"
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
 
 const BOARD_IMAGES: Record<string, string> = {
   hook:       assetUrl('boards/hook.webp'),
@@ -140,25 +162,25 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
 
           {/* Stats pill */}
           <div className="bg-surface-container-low/60 backdrop-blur-md border border-outline-variant/40 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full flex items-center gap-2 sm:gap-3 shadow-xl">
-            <div className="flex items-center gap-0.5 sm:gap-1">
+            <StatTip label="Poder (Monedas)">
               <Zap className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-secondary-container" fill="currentColor" />
               <span className="font-stats text-xs sm:text-sm font-bold">{player.power}</span>
-            </div>
+            </StatTip>
             <div className="hidden sm:block w-px h-3 bg-outline-variant/40" />
-            <div className="flex items-center gap-0.5 sm:gap-1">
+            <StatTip label="Cartas en mano">
               <Star className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-primary" />
               <span className="font-stats text-xs sm:text-sm">{player.handInstIds.length}</span>
-            </div>
+            </StatTip>
             <div className="hidden sm:block w-px h-3 bg-outline-variant/40" />
-            <div className="flex items-center gap-0.5 sm:gap-1">
+            <StatTip label="Mazo de Villano restante">
               <Layers className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-on-surface-variant" />
               <span className="font-stats text-xs sm:text-sm">{player.villainDeckInstIds.length}</span>
-            </div>
+            </StatTip>
             <div className="hidden sm:block w-px h-3 bg-outline-variant/40" />
-            <div className="flex items-center gap-0.5 sm:gap-1">
+            <StatTip label="Mazo de Destino restante">
               <BookOpen className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-error" />
               <span className="font-stats text-sm">{player.fateDeckInstIds.length}</span>
-            </div>
+            </StatTip>
           </div>
         </div>
       </header>

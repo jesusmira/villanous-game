@@ -3,7 +3,7 @@ import { ActionType } from '../core/types';
 import type { GameState, PlayerId } from '../core/types';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { getEffectDef } from '../core/villains/registry';
-import { canVanquish } from '../core/engine/RuleEngine';
+import { canVanquish, canVanquishFree } from '../core/engine/RuleEngine';
 import { CardComponent } from './CardComponent';
 import type { ActionPanelCtx } from './useActionPanelState';
 
@@ -11,9 +11,11 @@ interface Props {
   ap: ActionPanelCtx;
   state: GameState;
   playerId: PlayerId;
+  /** Vencer gratuito de Trampa: sin casilla de acción; confirma vía doTrampaVanquish. */
+  free?: boolean;
 }
 
-export function VanquishModal({ ap, state, playerId }: Props) {
+export function VanquishModal({ ap, state, playerId, free = false }: Props) {
   const [selectedHeroId, setSelectedHeroId]   = useState<string | null>(null);
   const [selectedAllyIds, setSelectedAllyIds] = useState<string[]>([]);
   const [burning, setBurning]                 = useState(false);
@@ -26,13 +28,15 @@ export function VanquishModal({ ap, state, playerId }: Props) {
     return () => clearTimeout(t);
   }, [embers]);
 
-  if (ap.pendingAction !== ActionType.VANQUISH) return null;
+  if (!free && ap.pendingAction !== ActionType.VANQUISH) return null;
 
   const hero     = selectedHeroId ? state.allCards[selectedHeroId] : null;
   const heroStr  = selectedHeroId ? getEffectiveStrength(state, selectedHeroId) : 0;
   const allyStr  = selectedAllyIds.reduce((s, id) => s + getEffectiveStrength(state, id), 0);
   const canConfirm = selectedHeroId && selectedAllyIds.length > 0
-    && canVanquish(state, playerId, selectedHeroId, selectedAllyIds, ap.pendingSlot!).valid;
+    && (free
+      ? canVanquishFree(state, playerId, selectedHeroId, selectedAllyIds).valid
+      : canVanquish(state, playerId, selectedHeroId, selectedAllyIds, ap.pendingSlot!).valid);
 
   const alliesForHero = hero ? ap.alliesInKingdom.filter(c => {
     if (c.locationId === hero.locationId) return true;
@@ -42,7 +46,8 @@ export function VanquishModal({ ap, state, playerId }: Props) {
   }) : [];
 
   function close() {
-    ap.clearPending();
+    if (free) ap.store.doTrampaSkip();
+    else ap.clearPending();
     setSelectedHeroId(null);
     setSelectedAllyIds([]);
     setBurning(false);
@@ -62,11 +67,13 @@ export function VanquishModal({ ap, state, playerId }: Props) {
   }
 
   function confirm() {
-    if (!selectedHeroId || ap.pendingSlot === null || selectedAllyIds.length === 0) return;
+    if (!selectedHeroId || selectedAllyIds.length === 0) return;
+    if (!free && ap.pendingSlot === null) return;
     setBurning(true);
     spawnEmbers();
     setTimeout(() => {
-      ap.store.doVanquish(selectedHeroId, selectedAllyIds, ap.pendingSlot!);
+      if (free) ap.store.doTrampaVanquish(selectedHeroId, selectedAllyIds);
+      else ap.store.doVanquish(selectedHeroId, selectedAllyIds, ap.pendingSlot!);
       ap.resetSelection();
       ap.clearPending();
       setSelectedHeroId(null);
@@ -83,8 +90,12 @@ export function VanquishModal({ ap, state, playerId }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-serif text-base text-error">Vencer</h2>
-            <p className="text-[10px] text-on-surface-variant/60 mt-0.5">Elige un Héroe y los Aliados para combatir</p>
+            <h2 className="font-serif text-base text-error">{free ? 'Trampa — Vencer gratuito' : 'Vencer'}</h2>
+            <p className="text-[10px] text-on-surface-variant/60 mt-0.5">
+              {free
+                ? 'No consume casilla de acción. Cierra (×) si no quieres vencer a nadie.'
+                : 'Elige un Héroe y los Aliados para combatir'}
+            </p>
           </div>
           <button onClick={close} className="text-on-surface-variant/40 hover:text-on-surface transition-colors text-lg leading-none">×</button>
         </div>

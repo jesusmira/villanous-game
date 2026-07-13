@@ -31,6 +31,12 @@ import { LayoutGrid, RotateCcw, X, ScrollText, Beaker, BookOpen } from 'lucide-r
 import { useSwipe } from '../hooks/useSwipe';
 import { DragSource } from '../hooks/DragProvider';
 
+// Dispositivo cuyo puntero PRIMARIO es táctil (tablet/móvil). En estos, la lista lateral
+// de la mano usa "deslizar = vista previa" y "toque en dos pasos" en lugar del hover/clic
+// de ratón. Un portátil con pantalla táctil pero ratón sigue siendo puntero fino.
+const IS_COARSE_POINTER =
+  typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
 interface Props { state: GameState }
 
 export function GameBoard({ state }: Props) {
@@ -46,6 +52,9 @@ export function GameBoard({ state }: Props) {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [detailCard, setDetailCard]         = useState<CardInst | null>(null);
   const [hoveredCardId, setHoveredCardId]   = useState<string | null>(null);
+  // Carta que estaba en vista previa ANTES del toque actual: permite el "toque en dos
+  // pasos" táctil (1º toque = vista previa, 2º toque sobre la misma carta = seleccionar).
+  const touchPrevHoveredRef = useRef<string | null>(null);
 
   // ─── UI State: Drawers & modals ───────────────────────────────────────────
   const [handOpen, setHandOpen]             = useState(false);
@@ -576,20 +585,27 @@ export function GameBoard({ state }: Props) {
           >
             <ScrollText className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => setShowHookDeck(true)}
-            title="Cartas de Garfio"
-            className="text-on-surface-variant hover:text-primary transition-colors"
-          >
-            <BookOpen className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setShowTests(true)}
-            title="Pruebas de modales"
-            className="text-on-surface-variant hover:text-primary transition-colors"
-          >
-            <Beaker className="w-4 h-4" />
-          </button>
+          {/* Botones de depuración: solo visibles en desarrollo (npm run dev).
+              import.meta.env.DEV es false en el build de producción, y Vite elimina
+              este bloque del bundle final (tree-shaking). */}
+          {import.meta.env.DEV && (
+            <>
+              <button
+                onClick={() => setShowHookDeck(true)}
+                title="Cartas de Garfio"
+                className="text-on-surface-variant hover:text-primary transition-colors"
+              >
+                <BookOpen className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setShowTests(true)}
+                title="Pruebas de modales"
+                className="text-on-surface-variant hover:text-primary transition-colors"
+              >
+                <Beaker className="w-4 h-4" />
+              </button>
+            </>
+          )}
           <button onClick={resetGame} title="Nueva partida" className="text-on-surface-variant hover:text-primary transition-colors">
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -615,7 +631,9 @@ export function GameBoard({ state }: Props) {
       )}
 
       {/* ── Winner banner ───────────────────────────────────── */}
-      {displayedState.winner && (
+      {/* Durante el replay de la IA no se muestra: primero se ve su turno ganador
+          paso a paso; el modal (con el resumen de la jugada final) llega al terminar. */}
+      {displayedState.winner && !isReplaying && (
         <VictoryModal state={displayedState} onPlayAgain={resetGame} />
       )}
 
@@ -843,7 +861,26 @@ export function GameBoard({ state }: Props) {
             </div>
 
             {/* ── DESKTOP: lista vertical compacta ── */}
-            <div className="hidden lg:flex flex-1 overflow-y-auto py-1 flex-col">
+            {/* En táctil (tablets con layout de escritorio, p. ej. iPad horizontal), deslizar
+                el dedo por la lista muestra la vista previa grande como el hover del ratón. */}
+            <div
+              className="hidden lg:flex flex-1 overflow-y-auto py-1 flex-col"
+              onTouchStart={e => {
+                if (ap.pendingAction === ActionType.DISCARD) return;
+                touchPrevHoveredRef.current = hoveredCardId;
+                const t = e.touches[0];
+                const id = (document.elementFromPoint(t.clientX, t.clientY)
+                  ?.closest('[data-cardid]') as HTMLElement | null)?.dataset.cardid;
+                if (id) setHoveredCardId(id);
+              }}
+              onTouchMove={e => {
+                if (ap.pendingAction === ActionType.DISCARD) return;
+                const t = e.touches[0];
+                const id = (document.elementFromPoint(t.clientX, t.clientY)
+                  ?.closest('[data-cardid]') as HTMLElement | null)?.dataset.cardid;
+                if (id) setHoveredCardId(id);
+              }}
+            >
               {handCards.length === 0 && (
                 <p className="text-[11px] text-on-surface-variant/40 italic px-4 pt-3">Mano vacía</p>
               )}
@@ -858,7 +895,10 @@ export function GameBoard({ state }: Props) {
                 return (
                   <DragSource
                     key={card.instId}
-                    disabled={isDiscardMode}
+                    dataCardId={card.instId}
+                    // En táctil el gesto de deslizar es "vista previa", no arrastre: sin esto,
+                    // cualquier movimiento del dedo iniciaría un drag y cerraría el cajón.
+                    disabled={isDiscardMode || IS_COARSE_POINTER}
                     onStart={() => {
                       setDragCardId(card.instId);
                       setSelectedCardId(card.instId);
@@ -866,12 +906,15 @@ export function GameBoard({ state }: Props) {
                     }}
                     onEnd={() => setDragCardId(null)}
                     onMouseEnter={() => !isDiscardMode && setHoveredCardId(card.instId)}
-                    onMouseLeave={() => setHoveredCardId(null)}
+                    onMouseLeave={() => !IS_COARSE_POINTER && setHoveredCardId(null)}
                     onClick={() => {
                       if (isDiscardMode) {
                         setDiscardIds(prev =>
                           prev.includes(card.instId) ? prev.filter(id => id !== card.instId) : [...prev, card.instId]
                         );
+                      } else if (IS_COARSE_POINTER && touchPrevHoveredRef.current !== card.instId) {
+                        // 1er toque en táctil: solo vista previa (el 2º toque selecciona).
+                        setHoveredCardId(card.instId);
                       } else {
                         setSelectedCardId(card.instId);
                         setTimeout(() => setHandOpen(false), 100);
@@ -1025,6 +1068,10 @@ export function GameBoard({ state }: Props) {
       )}
 
       {isHumanTurn && <VanquishModal ap={ap} state={displayedState} playerId={currentPlayer.id} />}
+      {/* Trampa (fase 2): Vencer gratuito tras mover el Aliado */}
+      {isHumanTurn && state.trampaVanquish === currentPlayer.id && (
+        <VanquishModal ap={ap} state={displayedState} playerId={currentPlayer.id} free />
+      )}
       {state.pendingAuroraHero && <AuroraModal state={state} />}
       {state.pendingJaqueca    && <JaquecaModal state={state} />}
       {state.pendingCondition  && <ConditionModal state={state} />}

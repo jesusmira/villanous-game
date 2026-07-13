@@ -6,7 +6,10 @@ import { createInitialState, movePawn, gainPower, playCard, vanquish,
   discardFromHand, endActivatePhase, drawCards, skipMove, resolveAuroraHero,
   revertToActivate, activateRaven, activateSherif,
 } from '../core/engine/GameEngine';
-import { resolveCondition, resolveCuervo, resolveDemosles, resolveJaqueca } from '../core/engine/PendingStateResolver';
+import {
+  resolveCondition, resolveCuervo, resolveDemosles, resolveJaqueca,
+  resolveTrampaMove, resolveTrampaVanquish, skipTrampa,
+} from '../core/engine/PendingStateResolver';
 
 interface AIWorkerResponse {
   final: GameState;
@@ -46,6 +49,8 @@ interface GameStore {
   doActivateSherif: (sherifInstId: CardInstId, targetLocationId: LocationId) => void;
   doResolveJaqueca: (itemInstId: CardInstId) => void;
   doResolveTrampa: (allyInstId: CardInstId, targetLocationId: LocationId) => void;
+  doTrampaVanquish: (heroInstId: CardInstId, allyInstIds: CardInstId[]) => void;
+  doTrampaSkip: () => void;
 }
 
 // ─── Web Worker ───────────────────────────────────────────────────────────────
@@ -273,65 +278,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
   doResolveTrampa: (allyInstId, targetLocationId) => {
     const { state } = get();
     if (!state || !state.trampaActive) return;
-    const playerId = state.trampaActive;
-    const allyCard = state.allCards[allyInstId];
-    if (!allyCard || allyCard.ownerId !== playerId) return;
+    // Mueve el Aliado y deja pendiente el Vencer gratuito (trampaVanquish) para la UI.
+    const next = resolveTrampaMove(state, allyInstId, targetLocationId);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
+  },
 
-    let s = state;
-    // Mover aliado a la ubicación destino
-    const srcLocId = allyCard.locationId;
-    if (!srcLocId) return;
+  doTrampaVanquish: (heroInstId, allyInstIds) => {
+    const { state } = get();
+    if (!state || !state.trampaVanquish) return;
+    const next = resolveTrampaVanquish(state, heroInstId, allyInstIds);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
+  },
 
-    // Remover del lugar de origen
-    const srcLocState = s.players.find(p => p.id === playerId)?.locationStates[srcLocId];
-    if (!srcLocState) return;
-    s = {
-      ...s,
-      players: s.players.map(p =>
-        p.id === playerId
-          ? {
-              ...p,
-              locationStates: {
-                ...p.locationStates,
-                [srcLocId]: {
-                  ...srcLocState,
-                  villainCardInstIds: srcLocState.villainCardInstIds.filter(id => id !== allyInstId),
-                },
-              },
-            }
-          : p,
-      ),
-    };
-
-    // Agregar a la ubicación destino
-    const destPlayer = s.players.find(p => p.id === playerId);
-    if (!destPlayer) return;
-    const destLocState = destPlayer.locationStates[targetLocationId];
-    if (!destLocState) return;
-
-    s = {
-      ...s,
-      allCards: { ...s.allCards, [allyInstId]: { ...allyCard, locationId: targetLocationId } },
-      players: s.players.map(p =>
-        p.id === playerId
-          ? {
-              ...p,
-              locationStates: {
-                ...p.locationStates,
-                [targetLocationId]: {
-                  ...destLocState,
-                  villainCardInstIds: [...destLocState.villainCardInstIds, allyInstId],
-                },
-              },
-            }
-          : p,
-      ),
-    };
-
-    // Limpiar trampaActive
-    s = { ...s, trampaActive: undefined };
-
-    set(needsAIProcessing(s) ? dispatchAI(s) : { state: s, aiReplayQueue: [] });
+  doTrampaSkip: () => {
+    const { state } = get();
+    if (!state) return;
+    const next = skipTrampa(state);
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
   },
 }));
 

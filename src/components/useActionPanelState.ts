@@ -16,6 +16,8 @@ export function useActionPanelState(state: GameState, playerId: string) {
     doSkipMove:        s.doSkipMove,
     doPlayCard:        s.doPlayCard,
     doVanquish:        s.doVanquish,
+    doTrampaVanquish:  s.doTrampaVanquish,
+    doTrampaSkip:      s.doTrampaSkip,
     doMoveItemAlly:    s.doMoveItemAlly,
     doMoveHero:        s.doMoveHero,
     doDrawCards:        s.doDrawCards,

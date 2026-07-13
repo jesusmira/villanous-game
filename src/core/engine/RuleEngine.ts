@@ -2,7 +2,7 @@ import { ActionType, TurnPhase, CardType } from '../types';
 import type { GameState, PlayerId, LocationId, CardInstId } from '../types';
 import { getPlugin, getEffectDef } from '../villains/registry';
 import { EffectId, CardDefId } from '../villains/effectIds';
-import { getPlayer, getEffectiveStrength, computeKingdomCostMod } from './stateHelpers';
+import { getPlayer, getEffectiveStrength, computeKingdomCostMod, heroBlockedFromLocation } from './stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from './slotHelpers';
 
 export interface ValidationResult {
@@ -120,10 +120,24 @@ export function canVanquish(
   const slotCheck = canUseSlot(state, playerId, slotIndex);
   if (!slotCheck.valid) return slotCheck;
 
-  const player = getPlayer(state, playerId);
-  const plugin = getPlugin(player.villainId);
   const slot = getActionAtSlot(state, playerId, slotIndex);
   if (!slot || slot.type !== ActionType.VANQUISH) return fail('Esa ranura no es Vencer.');
+
+  return canVanquishFree(state, playerId, heroInstId, allyInstIds);
+}
+
+/**
+ * Validación de Vencer SIN consumir casilla de acción — para efectos que otorgan un
+ * Vencer gratuito (p. ej. Trampa del Príncipe Juan tras mover el Aliado).
+ */
+export function canVanquishFree(
+  state: GameState,
+  playerId: PlayerId,
+  heroInstId: CardInstId,
+  allyInstIds: CardInstId[],
+): ValidationResult {
+  const player = getPlayer(state, playerId);
+  const plugin = getPlugin(player.villainId);
 
   if (allyInstIds.length === 0) return fail('Necesitas al menos un Aliado para Vencer.');
 
@@ -251,6 +265,10 @@ export function canMoveHero(
 
   const targetLocState = player.locationStates[targetLocationId];
   if (targetLocState?.isLocked) return fail('Ubicación destino bloqueada.');
+
+  // Lady Kluck: no puede ser movida a La Prisión (cannotEnterLocationId).
+  if (heroBlockedFromLocation(state, heroInstId, targetLocationId))
+    return fail(`${hero.name} no puede moverse a esa ubicación.`);
 
   return ok;
 }

@@ -139,7 +139,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
 
 /** Envoltorio arrastrable para elementos que no son CardComponent (filas de mano, etc.). */
 export function DragSource({
-  disabled, onStart, onEnd, className, style, onClick, onMouseEnter, onMouseLeave, children,
+  disabled, onStart, onEnd, className, style, onClick, onMouseEnter, onMouseLeave, dataCardId, children,
 }: {
   disabled?: boolean;
   onStart?: () => void;
@@ -149,6 +149,8 @@ export function DragSource({
   onClick?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  /** Marca el elemento con data-cardid, para localizar la carta bajo el dedo (elementFromPoint). */
+  dataCardId?: string;
   children: ReactNode;
 }) {
   const { onPointerDown } = useDragSource({ disabled, onStart, onEnd });
@@ -156,6 +158,7 @@ export function DragSource({
     <div
       className={className}
       style={style}
+      data-cardid={dataCardId}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

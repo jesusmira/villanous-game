@@ -85,6 +85,15 @@ export function VictoryModal({ state, onPlayAgain }: Props) {
 
   const winner = state.players.find(p => p.id === state.winner);
 
+  // Jugada final: las líneas del log desde el último separador de turno. Si el ganador
+  // es la IA, esto es exactamente su turno ganador — lo que el jugador no vio en vivo.
+  const lastTurnSeparator = state.log.reduce(
+    (last, line, i) => (line.startsWith('--- Turno de') ? i : last), -1,
+  );
+  const finalTurnLines = state.log
+    .slice(lastTurnSeparator + 1)
+    .filter(line => line.trim().length > 0);
+
   return (
     <div className={modalStyles.overlay}>
 
@@ -128,6 +137,22 @@ export function VictoryModal({ state, onPlayAgain }: Props) {
             <span className="font-stats text-lg font-bold text-tertiary">{state.roundNumber}</span>
           </div>
         </div>
+
+        {/* Jugada final */}
+        {finalTurnLines.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <p className="font-stats text-[10px] uppercase tracking-wider text-on-surface-variant/60 text-center">
+              Jugada final
+            </p>
+            <div className="bg-surface-container/60 rounded-lg border border-tertiary/20 px-3 py-2 max-h-32 overflow-y-auto flex flex-col gap-1">
+              {finalTurnLines.map((line, i) => (
+                <p key={i} className="text-[11px] leading-snug text-on-surface-variant/80">
+                  {line}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Button */}
         <button

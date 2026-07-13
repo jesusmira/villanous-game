@@ -6,6 +6,7 @@ import { shuffle } from '../../utils/shuffle';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
   discardCardFromKingdom, addLog, checkWin, getEffectiveStrength,
+  heroBlockedFromLocation,
 } from '../stateHelpers';
 import { getActionAtSlot } from '../slotHelpers';
 import { firePawnArrivalIfMoved } from './_helpers';
@@ -78,6 +79,14 @@ export function resolveFate(
   if (!state.pendingFate) return state;
   const { actingPlayerId, targetPlayerIndex, revealedInstIds } = state.pendingFate;
   const targetPlayer = state.players[targetPlayerIndex];
+
+  // Lady Kluck: no puede ser JUGADA en La Prisión. Se rechaza la resolución (pendingFate
+  // queda intacto) para que quien resuelve elija otra ubicación — a diferencia de los
+  // bloqueos de ubicación (Fuego Verde), aquí la carta NO se descarta.
+  const chosen = state.allCards[chosenInstId];
+  if (chosen?.cardType === CardType.HERO && heroBlockedFromLocation(state, chosenInstId, targetLocationId)) {
+    return addLog(state, `${chosen.name} no puede jugarse en esa ubicación — elige otra.`);
+  }
 
   const discarded = revealedInstIds.filter(id => id !== chosenInstId);
   let s = updatePlayer(state, targetPlayer.id, {

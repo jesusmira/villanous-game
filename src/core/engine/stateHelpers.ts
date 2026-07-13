@@ -5,6 +5,17 @@ import type {
 } from '../types';
 import { getPlugin, getEffectDef } from '../villains/registry';
 
+/** True si el Héroe tiene un efecto que le impide entrar en `locationId` (p. ej. Lady Kluck → La Prisión). */
+export function heroBlockedFromLocation(
+  state: GameState,
+  heroInstId: CardInstId,
+  locationId: LocationId,
+): boolean {
+  return (state.allCards[heroInstId]?.effectIds ?? []).some(
+    effId => getEffectDef(effId)?.cannotEnterLocationId === locationId,
+  );
+}
+
 export function computeKingdomPowerGainMod(
   state: GameState,
   playerId: PlayerId,

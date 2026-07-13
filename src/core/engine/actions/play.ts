@@ -6,7 +6,7 @@ import { runEffects } from '../EffectEngine';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
   discardCardFromKingdom, moveAttachedItems, addLog, checkWin, getEffectiveStrength, computeKingdomCostMod,
-  applyPowerGain,
+  applyPowerGain, heroBlockedFromLocation,
 } from '../stateHelpers';
 import { getActionAtSlot } from '../slotHelpers';
 import { checkConditions, firePawnArrivalIfMoved } from './_helpers';
@@ -108,6 +108,26 @@ export function vanquish(
   allyInstIds: CardInstId[],
   slotIndex: number,
 ): GameState {
+  return executeVanquish(state, playerId, heroInstId, allyInstIds, slotIndex);
+}
+
+/** Vencer gratuito (sin consumir casilla de acción) — p. ej. el de Trampa del Príncipe Juan. */
+export function vanquishFree(
+  state: GameState,
+  playerId: PlayerId,
+  heroInstId: CardInstId,
+  allyInstIds: CardInstId[],
+): GameState {
+  return executeVanquish(state, playerId, heroInstId, allyInstIds);
+}
+
+function executeVanquish(
+  state: GameState,
+  playerId: PlayerId,
+  heroInstId: CardInstId,
+  allyInstIds: CardInstId[],
+  slotIndex?: number,
+): GameState {
   const hero = state.allCards[heroInstId];
   const heroLocId = hero.locationId!;
   const heroStr = getEffectiveStrength(state, heroInstId);
@@ -150,7 +170,9 @@ export function vanquish(
 
   s = discardCardFromKingdom(s, heroInstId);
   if (plugin.onHeroDiscarded) s = plugin.onHeroDiscarded(s, playerId, heroInstId);
-  s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
+  if (slotIndex !== undefined) {
+    s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
+  }
   s = addLog(s, `${getPlayer(s, playerId).name} derrota a ${hero.name}.`);
 
   for (const cId of [...(getPlayer(s, playerId).locationStates[heroLocId]?.villainCardInstIds ?? [])]) {
@@ -200,6 +222,10 @@ export function moveHero(
   slotIndex: number,
 ): GameState {
   const hero = state.allCards[heroInstId];
+  // Guardia defensiva (la validación vive en canMoveHero): Lady Kluck no entra en La Prisión.
+  if (heroBlockedFromLocation(state, heroInstId, targetLocationId)) {
+    return addLog(state, `${hero.name} no puede moverse a esa ubicación.`);
+  }
   const srcLocId = hero.locationId!;
   const src = getPlayer(state, playerId).locationStates[srcLocId];
   let s = updateLocationState(state, playerId, srcLocId, {

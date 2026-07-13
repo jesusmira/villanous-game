@@ -35,6 +35,7 @@ export const EffectId = {
   JHON_INTIMIDACION:    'jhon_intimidacion',
   JHON_AVARICIA:        'jhon_avaricia',
   JHON_TRAMPA:          'jhon_trampa',
+  JHON_KLUCK_NO_PRISON: 'jhon_kluck_no_prison',
 } as const;
 
 export const CardDefId = {

@@ -1,8 +1,29 @@
 // ─── Helpers de IA específicos de Garfio, compartidos entre core/ai/* y este plugin ──
 // Antes vivían duplicados (con pequeñas variantes) en AIPlayer.ts, evaluate.ts y scoring.ts.
-import type { GameState, PlayerState, CardInstId, LocationId } from '../../types';
+import type { GameState, PlayerState, CardInstId, PlayerId, LocationId } from '../../types';
 import { CardDefId, EffectId } from '../effectIds';
 import { HookLocationId } from './cards';
+
+/**
+ * Resolución de "Démosles un susto" para la IA. Estrategia de búsqueda de Peter Pan:
+ * - Si PP está entre las cartas reveladas → devolverlo a la CIMA del mazo (el próximo
+ *   Rival Digno lo encontrará de inmediato) y descartar la otra.
+ * - Si no → descartar ambas: cava el mazo 2 posiciones hacia PP.
+ * Antes el worker descartaba siempre las dos a ciegas — podía tirar a PP al descarte.
+ */
+export function chooseDemoslesResolution(
+  state: GameState,
+  pending: { playerId: PlayerId; topCardIds: CardInstId[] },
+): { discardIds: CardInstId[]; orderedKeepIds: CardInstId[] } {
+  const ppId = pending.topCardIds.find(id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN);
+  if (ppId) {
+    return {
+      discardIds: pending.topCardIds.filter(id => id !== ppId),
+      orderedKeepIds: [ppId],
+    };
+  }
+  return { discardIds: pending.topCardIds, orderedKeepIds: [] };
+}
 
 /** True si el héroe tiene un Objeto con Burla adjunto (bloqueante prioritario: hay que vencerlo primero). */
 export function heroHasBurla(state: GameState, heroId: CardInstId): boolean {

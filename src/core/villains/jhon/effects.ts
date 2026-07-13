@@ -5,7 +5,7 @@ import type {
 import { EffectId, CardDefId } from '../effectIds';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard, addLog, applyPowerGain,
-  moveAttachedItems, discardCardFromKingdom,
+  moveAttachedItems, discardCardFromKingdom, heroBlockedFromLocation,
 } from '../../engine/stateHelpers';
 import { JhonLocationId } from './cards';
 
@@ -261,12 +261,17 @@ export const effects: EffectDef[] = [
     execute: (state, ctx): GameState => {
       const player = getPlayer(state, ctx.actingPlayerId);
 
-      // Use provided target hero; otherwise pick first hero not already in prison
-      let heroId = ctx.targetCardInstId;
-      if (!heroId || state.allCards[heroId]?.cardType !== CardType.HERO) {
+      // Lady Kluck (y similares) no pueden ser movidas a La Prisión.
+      const eligible = (id: string | undefined): boolean =>
+        !!id && state.allCards[id]?.cardType === CardType.HERO
+        && !heroBlockedFromLocation(state, id, JhonLocationId.PRISON);
+
+      // Use provided target hero; otherwise pick first eligible hero not already in prison
+      let heroId = eligible(ctx.targetCardInstId) ? ctx.targetCardInstId : undefined;
+      if (!heroId) {
         for (const [locId, ls] of Object.entries(player.locationStates)) {
           if (locId === JhonLocationId.PRISON) continue;
-          heroId = ls.heroCardInstIds[0];
+          heroId = ls.heroCardInstIds.find(eligible);
           if (heroId) break;
         }
       }
@@ -353,7 +358,18 @@ export const effects: EffectDef[] = [
     description: 'Mueve un Aliado a cualquier ubicación. Lleva a cabo una acción Vencer.',
     execute: (state, ctx) => {
       const s = { ...state, trampaActive: ctx.actingPlayerId };
-      return addLog(s, `Trampa: selecciona un Aliado para mover y ejecutar Vencer.`);
+      return addLog(s, `Trampa: mueve un Aliado a cualquier ubicación y luego lleva a cabo un Vencer.`);
     },
+  },
+
+  // Lady Kluck — marcador CONTINUOUS: no puede ser jugada ni movida a La Prisión.
+  // La restricción se aplica en canMoveHero, resolveFate y Encarcelamiento vía
+  // EffectDef.cannotEnterLocationId (helper heroBlockedFromLocation).
+  {
+    id: EffectId.JHON_KLUCK_NO_PRISON,
+    trigger: EffectTrigger.CONTINUOUS,
+    description: 'Lady Kluck no puede ser jugada ni movida a La Prisión.',
+    execute: (s) => s,
+    cannotEnterLocationId: JhonLocationId.PRISON,
   },
 ];
