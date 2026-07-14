@@ -4,7 +4,8 @@ import { getAllPlugins } from '../core/villains/registry';
 import { useGameStore } from '../state/gameStore';
 import { Image } from './Image';
 import { assetUrl } from '../lib/assets';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, History } from 'lucide-react';
+import { MatchHistoryScreen } from './MatchHistoryScreen';
 
 const REAL_VILLAINS = getAllPlugins().map(p => ({
   id: p.id as VillainId,
@@ -154,6 +155,7 @@ function PageDots({ total, current }: { total: number; current: number }) {
 export function GameSetup() {
   const initGame = useGameStore(s => s.initGame);
   const [gameMode, setGameMode]         = useState<GameMode>(null);
+  const [showHistory, setShowHistory]   = useState(false);
   const [activePlayer, setActivePlayer] = useState<ActivePlayer>('player1');
 
   // Página independiente por breakpoint (no se puede saber cuál se muestra sin JS)
@@ -222,6 +224,11 @@ export function GameSetup() {
     });
   }
 
+  // ── Historial de partidas / perfil del rival ──────────────────────────────
+  if (showHistory) {
+    return <MatchHistoryScreen onBack={() => setShowHistory(false)} />;
+  }
+
   // ── Modo de juego ──────────────────────────────────────────────────────────
   if (gameMode === null) {
     return (
@@ -237,6 +244,10 @@ export function GameSetup() {
             className="px-6 py-3 min-h-11 text-sm rounded-lg font-serif font-bold uppercase transition-all hover:scale-105 active:scale-95"
             style={{ background: 'linear-gradient(135deg,#e9c349,#f97316)', color: '#1c1b1b' }}>
             Jugador vs IA
+          </button>
+          <button onClick={() => setShowHistory(true)}
+            className="px-6 py-2.5 min-h-10 text-xs rounded-lg font-stats font-bold uppercase tracking-widest transition-all hover:scale-105 active:scale-95 border border-outline-variant/50 text-on-surface-variant hover:text-on-surface flex items-center justify-center gap-2">
+            <History className="w-3.5 h-3.5" /> Historial
           </button>
         </div>
       </div>

@@ -198,8 +198,13 @@ function scoreHookObjective(state: GameState, p: PlayerState): number {
     }
 
     v += (4 - ppDistToJR) * WEIGHTS.PP_PROXIMITY_STEP; // JR > Roca > Laguna > Árbol
-    // Con bloqueantes vivos, acumular aliados en JR para PP no avanza hacia la victoria
-    if (!hasBlocker) {
+    // Con bloqueantes vivos EN OTRA UBICACIÓN, acumular aliados en JR "por si acaso" antes de
+    // que PP llegue puede no compensar frente a resolver el bloqueante. PERO si PP YA está en
+    // Jolly Roger, vencerlo es la victoria inmediata sin importar qué bloqueante siga vivo en
+    // otra parte del reino — sin esta excepción, un solo Tic Tac o Burla vivo en cualquier
+    // ubicación anulaba TODO incentivo de juntar aliados en JR aunque PP estuviera ahí mismo
+    // esperando (bug real: la IA se quedaba "atascada" sin rematar la partida).
+    if (!hasBlocker || pp.locId === HookLocationId.JOLLY_ROGER) {
       const ppStr = getEffectiveStrength(state, pp.id);
       const jollyLocDef = plugin.locations.find(l => l.id === HookLocationId.JOLLY_ROGER);
       const sameAllies = (p.locationStates[HookLocationId.JOLLY_ROGER]?.villainCardInstIds ?? [])

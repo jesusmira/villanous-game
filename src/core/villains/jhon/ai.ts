@@ -21,6 +21,17 @@ const WEIGHTS = {
   HERO_OUTSIDE_PRISON: -8,      // por cada héroe que bloquea ranuras fuera de La Prisión — AUMENTADO
   HERO_STRONG_BLOCKING: -15,    // NUEVO: penalización por héroe F4+ sin vencer
 
+  // Coincidir aliados con el héroe de su ubicación: a diferencia de Garfio (NORMAL_HERO_ALLY_MATCH/
+  // READY), el Príncipe Juan no tenía ningún término de este tipo — solo las penalizaciones fijas de
+  // arriba, que no cambian si hay o no aliados listos junto al héroe. Sin esto, tryMoveItemAlly
+  // (mover un aliado YA jugado) no tenía ninguna razón para acercarlo a un héroe: la misma fuerza de
+  // aliado puntúa igual en cualquier ubicación, así que un aliado colocado en otro sitio se quedaba
+  // ahí para siempre aunque hubiera un héroe esperando cerca sin vencer.
+  // OJO: READY debe ser MENOR que quitar HERO_OUTSIDE_PRISON/HERO_STRONG_BLOCKING al vencer de
+  // verdad, o la IA se queda "a punto" sin rematar (ver [[project-ai-gradient-trap]]).
+  HERO_ALLY_MATCH: 1.0,
+  HERO_READY_TO_VANQUISH: 5,
+
   // FASE 3: Urgencia de victoria según proximidad a 20 poder
   POWER_ALMOST_WIN: 120,        // 18+ poder: victoria muy cercana — AUMENTADO
   POWER_NEAR_WIN: 60,           // 14-17 poder: ganando — AUMENTADO
@@ -63,10 +74,19 @@ export function scoreState(state: GameState, player: PlayerState): number {
   for (const l of plugin.locations) {
     if (l.heroesNeverCoverSlots) continue;
     const ls = player.locationStates[l.id];
-    const strongHeroes = ls.heroCardInstIds.filter(id => getEffectiveStrength(state, id) >= 4);
+    if (ls.heroCardInstIds.length === 0) continue;
     const allyStr = ls.villainCardInstIds
       .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
       .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
+
+    // Coincidir aliados con los héroes de esta ubicación (ver WEIGHTS.HERO_ALLY_MATCH arriba):
+    // da a tryMoveItemAlly una razón real para acercar un aliado ya jugado a un héroe sin vencer.
+    const heroStr = ls.heroCardInstIds
+      .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
+    v += Math.min(allyStr, heroStr) * WEIGHTS.HERO_ALLY_MATCH;
+    if (allyStr >= heroStr) v += WEIGHTS.HERO_READY_TO_VANQUISH;
+
+    const strongHeroes = ls.heroCardInstIds.filter(id => getEffectiveStrength(state, id) >= 4);
     for (const heroId of strongHeroes) {
       if (allyStr < getEffectiveStrength(state, heroId)) {
         v += WEIGHTS.HERO_STRONG_BLOCKING;

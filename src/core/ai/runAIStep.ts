@@ -6,6 +6,7 @@ import { resolveCondition, resolveCuervo, resolveDemosles, resolveJaqueca } from
 import { chooseDemoslesResolution } from '../villains/hook/aiHelpers';
 import { CardDefPrefix } from '../villains/effectIds';
 import type { GameState, PlayerId } from '../types';
+import type { OpponentProfile } from './opponentModel';
 
 export interface AIStepResult {
   final: GameState;
@@ -89,7 +90,7 @@ export function autoResolveAIPendings(state: GameState): GameState {
  * Un paso completo de IA: resuelve pendientes, juega el turno si le toca a una IA y
  * vuelve a resolver los pendientes que el propio turno haya creado.
  */
-export function runAIStep(state: GameState): AIStepResult {
+export function runAIStep(state: GameState, profile?: OpponentProfile): AIStepResult {
   const s = autoResolveAIPendings(state);
 
   const current = s.players[s.currentPlayerIndex];
@@ -97,7 +98,7 @@ export function runAIStep(state: GameState): AIStepResult {
     return { final: s, steps: [] };
   }
 
-  const steps = runAITurn(s);
+  const steps = runAITurn(s, profile);
   let final = steps.length > 0 ? steps[steps.length - 1] : s;
   final = autoResolveAIPendings(final);
   if (steps.length > 0) steps[steps.length - 1] = final;

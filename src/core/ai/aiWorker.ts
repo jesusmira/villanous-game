@@ -4,10 +4,16 @@
 import { runAIStep } from './runAIStep';
 import type { GameState } from '../types';
 import type { AIStepResult } from './runAIStep';
+import type { OpponentProfile } from './opponentModel';
 
 export type AIWorkerResponse = AIStepResult;
+export interface AIWorkerRequest {
+  state: GameState;
+  /** Perfil del jugador humano (Fase 2), construido desde el historial de partidas. */
+  profile?: OpponentProfile;
+}
 
-self.onmessage = (e: MessageEvent<GameState>) => {
-  const response: AIWorkerResponse = runAIStep(e.data);
+self.onmessage = (e: MessageEvent<AIWorkerRequest>) => {
+  const response: AIWorkerResponse = runAIStep(e.data.state, e.data.profile);
   self.postMessage(response);
 };

@@ -3,6 +3,7 @@ import type { GameState, PlayerId } from '../types';
 import { getPlugin } from '../villains/registry';
 import { EffectId, CardDefId } from '../villains/effectIds';
 import { getPlayer, getEffectiveStrength } from '../engine/stateHelpers';
+import type { OpponentProfile } from './opponentModel';
 
 // ─── State evaluation for 1-ply lookahead ────────────────────────────────────────
 // Cuanto más alto, mejor para `playerId`. Usado por la IA para elegir, entre las
@@ -40,7 +41,18 @@ const WEIGHTS = {
   ALMOST_LOSE: -500000,         // rival casi gana
   WINNING: 50000,               // en ventaja clara
   LOSING: -50000,               // en desventaja clara
+
+  // Modelo del rival (historial de partidas): si el humano, jugando su villano
+  // actual, tiene el hábito de lanzar Destino contra nosotros cerca de cierto
+  // % de progreso nuestro, empuja a cerrar la partida ANTES de entrar en esa
+  // franja de riesgo. Debe ser modesto — del orden de los bonos de "pathfinding"
+  // (ver project_ai_gradient_trap: nunca puede acercarse al premio de completar).
+  FATE_WINDOW_URGENCY: 20,
 };
+
+/** Franja de progreso propio (±) en la que se activa FATE_WINDOW_URGENCY. */
+const FATE_WINDOW_BEFORE = 15;
+const FATE_WINDOW_AFTER = 5;
 
 // Items con acción extra permanente: Cañón (VANQUISH), Estuche (GAIN_POWER), Mecanismo (MOVE_HERO).
 // El bonus VANQUISH vale más si la ubicación tiene héroes a los que aplicarlo.
@@ -54,7 +66,7 @@ const EXTRA_SLOT_BONUS = {
 
 // ─── Victory progress calculation (FASE 1) ───────────────────────────────────
 // Retorna número 0-100 indicando cuán cerca está de ganar. 100 = victoria inminente.
-function getWinProgress(state: GameState, playerId: PlayerId): number {
+export function getWinProgress(state: GameState, playerId: PlayerId): number {
   const p = getPlayer(state, playerId);
   const plugin = getPlugin(p.villainId);
 
@@ -123,7 +135,7 @@ export function getDeadHandCards(state: GameState, playerId: PlayerId): string[]
   return [...dead];
 }
 
-export function evaluateState(state: GameState, playerId: PlayerId): number {
+export function evaluateState(state: GameState, playerId: PlayerId, profile?: OpponentProfile): number {
   const p = getPlayer(state, playerId);
   const plugin = getPlugin(p.villainId);
 
@@ -265,6 +277,18 @@ export function evaluateState(state: GameState, playerId: PlayerId): number {
         .reduce((t, id) => t + getEffectiveStrength(state, id), 0), 0);
     v += oppHeroStr * WEIGHTS.OPP_HERO_STRENGTH;
     v -= Math.min(opp.power, WEIGHTS.OPP_POWER_CAP) * WEIGHTS.OPP_POWER_PENALTY;
+
+    // Modelo del rival: si el humano, jugando su villano actual, tiene el hábito histórico
+    // de lanzar Destino contra nosotros alrededor de cierto % de nuestro progreso, empuja a
+    // avanzar rápido justo antes de esa franja en vez de demorarse en ella sin necesidad.
+    if (!opp.isAI) {
+      const fateThreshold = profile?.byVillain[opp.villainId]?.avgFateTriggerOppProgress ?? null;
+      if (fateThreshold !== null
+        && ownProgress >= fateThreshold - FATE_WINDOW_BEFORE
+        && ownProgress < fateThreshold + FATE_WINDOW_AFTER) {
+        v += WEIGHTS.FATE_WINDOW_URGENCY;
+      }
+    }
 
     // FASE 1: Agregar bonificación si estoy ganando o penalización si estoy perdiendo
     const progressDiff = ownProgress - oppProgress;

@@ -23,10 +23,12 @@ import type { CuervoResolutionParams } from '../engine/PendingStateResolver';
 import { scoreLocation, pickBestPlayTarget, locHasCurse } from './scoring';
 import { evaluateState, getDeadHandCards } from './evaluate';
 import { buildPlayCtx } from './contextBuilder';
+import { pickFavoredDestination } from './opponentModel';
+import type { OpponentProfile } from './opponentModel';
 
 // ─── AI TURN EXECUTION ────────────────────────────────────────────────────────
 
-export function runAITurn(state: GameState): GameState[] {
+export function runAITurn(state: GameState, profile?: OpponentProfile): GameState[] {
   const steps: GameState[] = [];
   let s = state;
   const playerId = s.players[s.currentPlayerIndex].id;
@@ -42,14 +44,14 @@ export function runAITurn(state: GameState): GameState[] {
         const plugin0 = getPlugin(player0.villainId);
         const openLocs = plugin0.locations.filter(l => !player0.locationStates[l.id]?.isLocked);
         let bestRavenDest: LocationId | undefined;
-        let bestRavenVal = evaluateState(s, playerId); // solo mover si mejora
+        let bestRavenVal = evaluateState(s, playerId, profile); // solo mover si mejora
         for (const loc of openLocs) {
           const afterRaven = activateRaven(s, playerId, ravenId, loc.id);
           // Auto-resolver el pendingCuervo para ver el efecto completo.
           const resolved = afterRaven.pendingCuervo
             ? (() => { const { action, params } = chooseCuervoAction(afterRaven); return resolveCuervo(afterRaven, action, params); })()
             : afterRaven;
-          const val = evaluateState(playOutActivate(movePawn(resolved, playerId, player0.pawnLocationId === loc.id ? openLocs.find(l => l.id !== player0.pawnLocationId)?.id ?? loc.id : player0.pawnLocationId), playerId), playerId);
+          const val = evaluateState(playOutActivate(movePawn(resolved, playerId, player0.pawnLocationId === loc.id ? openLocs.find(l => l.id !== player0.pawnLocationId)?.id ?? loc.id : player0.pawnLocationId), playerId, undefined, false, profile), playerId, profile);
           if (val > bestRavenVal) { bestRavenVal = val; bestRavenDest = loc.id; }
         }
         if (bestRavenDest) {
@@ -76,7 +78,7 @@ export function runAITurn(state: GameState): GameState[] {
         .filter(loc => loc.id !== player.pawnLocationId && !player.locationStates[loc.id]?.isLocked);
 
       if (dests.length > 0) {
-        s = movePawn(s, playerId, minimaxBestDest(s, playerId));
+        s = movePawn(s, playerId, minimaxBestDest(s, playerId, profile));
       }
     }
     steps.push(s);
@@ -89,7 +91,7 @@ export function runAITurn(state: GameState): GameState[] {
 
   // ACTIVATE phase (real) — con rollout profundo: ve combos de varias acciones
   // (p. ej. Vencer al bloqueante → jugar la Maldición en la ubicación liberada).
-  s = playOutActivate(s, playerId, steps, true);
+  s = playOutActivate(s, playerId, steps, true, profile);
 
   // DRAW phase
   if (s.turnPhase === TurnPhase.ACTIVATE) s = endActivatePhase(s);
@@ -109,9 +111,9 @@ const ROLLOUT_DEPTH = 3;
  * Devuelve la mejor primera acción (o null si quedarse quieto es lo mejor) y su valor.
  */
 function bestActionByRollout(
-  s: GameState, playerId: PlayerId, depth: number,
+  s: GameState, playerId: PlayerId, depth: number, profile?: OpponentProfile,
 ): { next: GameState | null; val: number } {
-  const stopVal = evaluateState(s, playerId);
+  const stopVal = evaluateState(s, playerId, profile);
   if (depth === 0 || s.turnPhase !== TurnPhase.ACTIVATE || s.winner) return { next: null, val: stopVal };
   const player = getPlayer(s, playerId);
   const available = getAvailableSlotIndices(s, playerId, player.pawnLocationId);
@@ -124,7 +126,7 @@ function bestActionByRollout(
     if (!slot) continue;
     const next = tryActionForSlot(s, playerId, slotIdx, slot);
     if (!next) continue;
-    const { val } = bestActionByRollout(next, playerId, depth - 1);
+    const { val } = bestActionByRollout(next, playerId, depth - 1, profile);
     if (val > bestVal + 1e-9) { bestVal = val; best = next; }
   }
   return { next: best, val: bestVal };
@@ -135,13 +137,13 @@ function bestActionByRollout(
 // `deep` activa el rollout multi-acción (solo en el turno REAL: dentro del minimax de
 // movimiento se usa el modo voraz 1-ply para no disparar el coste computacional).
 function playOutActivate(
-  state: GameState, playerId: PlayerId, steps?: GameState[], deep = false,
+  state: GameState, playerId: PlayerId, steps?: GameState[], deep = false, profile?: OpponentProfile,
 ): GameState {
   let s = state;
   const MAX_ITERATIONS = 20;
   let iterations = 0;
   while (s.turnPhase === TurnPhase.ACTIVATE && iterations++ < MAX_ITERATIONS) {
-    const { next } = bestActionByRollout(s, playerId, deep ? ROLLOUT_DEPTH : 1);
+    const { next } = bestActionByRollout(s, playerId, deep ? ROLLOUT_DEPTH : 1, profile);
     // El rollout ya contempla "no hacer nada" como opción: si nada supera quedarse
     // quieto (con margen 1e-9), devuelve null y el turno de acciones termina.
     if (!next) break;
@@ -631,9 +633,9 @@ export function chooseCuervoAction(state: GameState): {
 // Profundidad-2 = mi turno + respuesta del rival (~9-16 simulaciones por decisión).
 
 /** Simula un turno completo en `dest`: MOVE → ACTIVATE → DRAW. */
-function simulateTurnAtDest(state: GameState, playerId: PlayerId, dest: LocationId): GameState {
+function simulateTurnAtDest(state: GameState, playerId: PlayerId, dest: LocationId, profile?: OpponentProfile): GameState {
   let s = movePawn(state, playerId, dest);
-  s = playOutActivate(s, playerId);
+  s = playOutActivate(s, playerId, undefined, false, profile);
   if (s.turnPhase === TurnPhase.ACTIVATE) s = endActivatePhase(s);
   if (s.turnPhase === TurnPhase.DRAW) s = drawCards(s, playerId);
   return s;
@@ -643,7 +645,7 @@ function simulateTurnAtDest(state: GameState, playerId: PlayerId, dest: Location
  * Devuelve el mejor destino para `playerId` con minimax profundidad-2 y poda alpha-beta.
  * El rival responde eligiendo el destino que maximiza su propio evaluador (minimiza el nuestro).
  */
-function minimaxBestDest(state: GameState, playerId: PlayerId): LocationId {
+function minimaxBestDest(state: GameState, playerId: PlayerId, profile?: OpponentProfile): LocationId {
   const player = getPlayer(state, playerId);
   const plugin = getPlugin(player.villainId);
   const dests = plugin.locations.filter(
@@ -655,7 +657,7 @@ function minimaxBestDest(state: GameState, playerId: PlayerId): LocationId {
   // FASE 2: Limitar breadth a top-4 candidatos para evitar exploración explosiva.
   const candidates = dests
     .map(d => {
-      const hint = evaluateState(playOutActivate(movePawn(state, playerId, d.id), playerId), playerId);
+      const hint = evaluateState(playOutActivate(movePawn(state, playerId, d.id), playerId, undefined, false, profile), playerId, profile);
       return { id: d.id, hint };
     })
     .sort((a, b) => b.hint - a.hint)
@@ -665,10 +667,10 @@ function minimaxBestDest(state: GameState, playerId: PlayerId): LocationId {
   let alpha = -Infinity;
 
   for (const { id: dest } of candidates) {
-    const afterMyTurn = simulateTurnAtDest(state, playerId, dest);
+    const afterMyTurn = simulateTurnAtDest(state, playerId, dest, profile);
     const val = afterMyTurn.winner
-      ? evaluateState(afterMyTurn, playerId)
-      : minimaxOppResponse(afterMyTurn, playerId, alpha, 1);  // FASE 2: Pasar profundidad
+      ? evaluateState(afterMyTurn, playerId, profile)
+      : minimaxOppResponse(afterMyTurn, playerId, alpha, 1, profile);  // FASE 2: Pasar profundidad
 
     if (val > alpha) { alpha = val; bestDest = dest; }
   }
@@ -684,6 +686,7 @@ function minimaxOurResponse(
   playerId: PlayerId,
   beta: number,
   depth: number,
+  profile?: OpponentProfile,
 ): number {
   const player = getPlayer(state, playerId);
   const plugin = getPlugin(player.villainId);
@@ -691,18 +694,18 @@ function minimaxOurResponse(
   // Límite de profundidad
   const MAX_DEPTH = 2;
   if (depth >= MAX_DEPTH) {
-    return evaluateState(state, playerId);
+    return evaluateState(state, playerId, profile);
   }
 
   const dests = plugin.locations.filter(
     l => l.id !== player.pawnLocationId && !player.locationStates[l.id]?.isLocked,
   );
-  if (dests.length === 0) return evaluateState(state, playerId);
+  if (dests.length === 0) return evaluateState(state, playerId, profile);
 
   // FASE 2: Limitar breadth a top-3
   const candidates = dests
     .map(d => {
-      const hint = evaluateState(playOutActivate(movePawn(state, playerId, d.id), playerId), playerId);
+      const hint = evaluateState(playOutActivate(movePawn(state, playerId, d.id), playerId, undefined, false, profile), playerId, profile);
       return { id: d.id, hint };
     })
     .sort((a, b) => b.hint - a.hint)
@@ -712,16 +715,16 @@ function minimaxOurResponse(
   let alpha = -Infinity;
 
   for (const { id: dest } of candidates) {
-    const afterMyTurn = simulateTurnAtDest(state, playerId, dest);
+    const afterMyTurn = simulateTurnAtDest(state, playerId, dest, profile);
     let val: number;
 
     if (afterMyTurn.winner) {
-      val = evaluateState(afterMyTurn, playerId);
+      val = evaluateState(afterMyTurn, playerId, profile);
     } else if (depth + 1 < MAX_DEPTH) {
       // Llamar al MIN node (rival)
-      val = minimaxOppResponse(afterMyTurn, playerId, alpha, depth + 1);
+      val = minimaxOppResponse(afterMyTurn, playerId, alpha, depth + 1, profile);
     } else {
-      val = evaluateState(afterMyTurn, playerId);
+      val = evaluateState(afterMyTurn, playerId, profile);
     }
 
     if (val > maxVal) maxVal = val;
@@ -742,6 +745,7 @@ function minimaxOppResponse(
   originalPlayerId: PlayerId,
   alpha: number,
   depth: number = 0,
+  profile?: OpponentProfile,
 ): number {
   const opp = state.players[state.currentPlayerIndex];
   const oppPlugin = getPlugin(opp.villainId);
@@ -750,48 +754,61 @@ function minimaxOppResponse(
   const MAX_DEPTH = 2;  // Máximo 2 niveles adicionales (rival + nuestra respuesta)
   if (depth >= MAX_DEPTH) {
     // Llegamos al límite de profundidad - evaluar el estado actual
-    return evaluateState(state, originalPlayerId);
+    return evaluateState(state, originalPlayerId, profile);
   }
 
   if (opp.skipNextMove) {
     let s = skipMove(state, opp.id);
-    s = playOutActivate(s, opp.id);
+    s = playOutActivate(s, opp.id, undefined, false, profile);
     if (s.turnPhase === TurnPhase.ACTIVATE) s = endActivatePhase(s);
     if (s.turnPhase === TurnPhase.DRAW) s = drawCards(s, opp.id);
-    return evaluateState(s, originalPlayerId);
+    return evaluateState(s, originalPlayerId, profile);
   }
 
   const dests = oppPlugin.locations.filter(
     l => l.id !== opp.pawnLocationId && !opp.locationStates[l.id]?.isLocked,
   );
-  if (dests.length === 0) return evaluateState(state, originalPlayerId);
+  if (dests.length === 0) return evaluateState(state, originalPlayerId, profile);
 
   // Pre-ordenar ascendente (peor para nosotros primero) para alcanzar el beta-cutoff cuanto antes.
   const candidates = dests
     .map(d => {
-      const hint = evaluateState(playOutActivate(movePawn(state, opp.id, d.id), opp.id), originalPlayerId);
+      const hint = evaluateState(playOutActivate(movePawn(state, opp.id, d.id), opp.id, undefined, false, profile), originalPlayerId, profile);
       return { id: d.id, hint };
     })
     .sort((a, b) => a.hint - b.hint);
 
   // FASE 2: Limitar breadth del rival a top-3 opciones (ascendente: peor para nosotros primero)
-  const oppCandidates = candidates.slice(0, 3);
+  let oppCandidates = candidates.slice(0, 3);
+
+  // Modelo del rival: si el humano tiene un destino claramente favorito con este villano
+  // y no entró en el top-3 "peor para nosotros", lo añadimos igualmente — el minimax no
+  // puede ignorar lo que el rival REALMENTE tiende a hacer solo porque no es, según nuestra
+  // heurística, su jugada teóricamente óptima. Amplía la búsqueda, nunca la sustituye
+  // (así seguimos preparados también para el peor caso adversarial).
+  if (!opp.isAI) {
+    const favored = pickFavoredDestination(profile, opp.villainId, dests.map(d => d.id));
+    if (favored && !oppCandidates.some(c => c.id === favored)) {
+      const hint = candidates.find(c => c.id === favored)?.hint ?? 0;
+      oppCandidates = [...oppCandidates, { id: favored, hint }];
+    }
+  }
 
   let minVal = Infinity;
   let beta = Infinity;
 
   for (const { id: dest } of oppCandidates) {
-    const afterOppTurn = simulateTurnAtDest(state, opp.id, dest);
+    const afterOppTurn = simulateTurnAtDest(state, opp.id, dest, profile);
 
     // FASE 2: Si el rival ganó, evaluar. Sino, simular nuestra respuesta recursivamente.
     let val: number;
     if (afterOppTurn.winner) {
-      val = evaluateState(afterOppTurn, originalPlayerId);
+      val = evaluateState(afterOppTurn, originalPlayerId, profile);
     } else if (depth + 1 < MAX_DEPTH) {
       // Llamar recursivamente para que la IA (originalPlayerId) responda en profundidad
-      val = minimaxOurResponse(afterOppTurn, originalPlayerId, beta, depth + 1);
+      val = minimaxOurResponse(afterOppTurn, originalPlayerId, beta, depth + 1, profile);
     } else {
-      val = evaluateState(afterOppTurn, originalPlayerId);
+      val = evaluateState(afterOppTurn, originalPlayerId, profile);
     }
 
     if (val < minVal) minVal = val;
