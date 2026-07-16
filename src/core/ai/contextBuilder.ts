@@ -3,7 +3,7 @@ import type { GameState, CardInstId, LocationId, PlayerId, PlayCardCtx } from '.
 import { getPlugin, getEffectDef } from '../villains/registry';
 import { EffectId, CardDefId, CardDefPrefix } from '../villains/effectIds';
 import { HookLocationId } from '../villains/hook/cards';
-import { getPlayer } from '../engine/stateHelpers';
+import { getPlayer, getEffectiveStrength } from '../engine/stateHelpers';
 
 /**
  * Si `cardInstId` necesita adjuntarse a un Aliado/Héroe (`requiresTargetCard`), devuelve el
@@ -29,6 +29,10 @@ export function getAttachCandidates(
   // Espada de la Verdad: solo Héroes sin Objeto adjunto todavía.
   if (card.effectIds.includes(EffectId.ESPADA_ON_PLAY)) {
     candidates = candidates.filter(id => (state.allCards[id]?.attachedItemInstIds.length ?? 0) === 0);
+  }
+  // Forma de Dragón: solo Héroes de Fuerza ≤3 (los únicos que puede derrotar).
+  if (card.effectIds.includes(EffectId.FORMA_DRAGON)) {
+    candidates = candidates.filter(id => getEffectiveStrength(state, id) <= 3);
   }
   return { reqTarget, candidates };
 }
@@ -79,6 +83,18 @@ export function buildPlayCtx(
       const heroId = ls.heroCardInstIds.find(
         id => state.allCards[id]?.attachedItemInstIds.length === 0,
       );
+      if (heroId) { ctx.targetCardInstId = heroId; break; }
+    }
+  }
+
+  // Forma de Dragón: el bloque genérico de arriba (línea ~70) cogería el primer Héroe de la
+  // ubicación de juego sin mirar su Fuerza — hay que buscar en TODO el reino un Héroe de
+  // Fuerza ≤3 (el único objetivo válido), igual que hace el propio efecto si no recibe target.
+  if (card.effectIds.includes(EffectId.FORMA_DRAGON)) {
+    const player = getPlayer(state, playerId);
+    ctx.targetCardInstId = undefined;
+    for (const ls of Object.values(player.locationStates)) {
+      const heroId = ls.heroCardInstIds.find(id => getEffectiveStrength(state, id) <= 3);
       if (heroId) { ctx.targetCardInstId = heroId; break; }
     }
   }

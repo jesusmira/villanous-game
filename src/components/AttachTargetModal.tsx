@@ -21,7 +21,7 @@ export function AttachTargetModal({ state, cardName, reqTarget, candidates, onSe
           <div>
             <h2 className="font-serif text-base text-on-surface">{cardName}</h2>
             <p className="text-[11px] text-on-surface-variant/70 mt-1 leading-snug">
-              Elige a {label} para unir esta carta.
+              Elige {label} objetivo.
             </p>
           </div>
           <button onClick={onCancel} className="text-on-surface-variant/40 hover:text-on-surface transition-colors text-lg leading-none">×</button>

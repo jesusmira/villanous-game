@@ -258,9 +258,13 @@ export const effects: EffectDef[] = [
   {
     id: 'mal_forma_dragon',
     trigger: EffectTrigger.ON_PLAY,
+    requiresTargetCard: 'HERO',
     description: 'Derrota a un Héroe de Fuerza 3 o inferior; si eres objetivo de Destino antes de tu próximo turno, ganas 3 Poder',
     execute: (state, ctx) => {
       const player = getPlayer(state, ctx.actingPlayerId);
+      // ctx.targetCardInstId lo elige el jugador (o, si solo hay un candidato válido, se
+      // rellena automáticamente vía getAttachCandidates/buildPlayCtx) — antes se autoseleccionaba
+      // siempre el primer Héroe de Fuerza ≤3 que se encontrara, sin dejar elegir.
       let heroId = ctx.targetCardInstId;
       if (!heroId) {
         for (const locState of Object.values(player.locationStates)) {

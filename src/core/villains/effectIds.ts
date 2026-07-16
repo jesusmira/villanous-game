@@ -5,6 +5,7 @@ export const EffectId = {
   // Maleficent
   RAVEN_ACTIVATE:       'mal_raven_activate',
   ESPADA_ON_PLAY:       'mal_espada_on_play',
+  FORMA_DRAGON:         'mal_forma_dragon',
   // Hook
   BURLA_ATTACH:         'hook_burla_attach',
   PELOTON_ADJ_VANQUISH: 'hook_peloton_adj_vanquish',
