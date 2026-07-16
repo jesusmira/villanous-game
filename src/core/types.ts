@@ -151,6 +151,8 @@ export interface EffectDef {
   canVanquishFromAdjacent?: boolean;
   blocksHeroPlay?: boolean;
   blocksCursePlay?: boolean;
+  /** Mientras el Héroe portador esté vivo en el reino, no se pueden jugar cartas EFFECT (Rey Ricardo). */
+  blocksEffectPlay?: boolean;
   heroMinStrengthRequired?: number;
   /** El Héroe portador no puede jugarse ni moverse a esta ubicación (p. ej. Lady Kluck → La Prisión). */
   cannotEnterLocationId?: LocationId;

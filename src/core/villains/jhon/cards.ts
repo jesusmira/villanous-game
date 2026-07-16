@@ -61,7 +61,7 @@ export const locations: LocationDef[] = [
 
 // ── Fate (hero) cards ───────────────────────────────────────────────────────────
 export const fateCardDefs = [
-  { id: 'jhon_f_rey',      name: 'Rey Ricardo',   type: CardType.HERO,   deck: CardDeck.FATE, villainId: 'jhon' as const, cost: 0, strength: 5, effectIds: [] as string[], description: 'El Príncipe Juan no puede jugar Efectos.',                                              imageFile: 'heroe/rey' },
+  { id: 'jhon_f_rey',      name: 'Rey Ricardo',   type: CardType.HERO,   deck: CardDeck.FATE, villainId: 'jhon' as const, cost: 0, strength: 5, effectIds: ['jhon_rey_ricardo_block_effect'] as string[], description: 'El Príncipe Juan no puede jugar Efectos.',                                              imageFile: 'heroe/rey' },
   { id: CardDefId.JHON_ALAN_A_DALE, name: 'Alan-a-Dale', type: CardType.HERO, deck: CardDeck.FATE, villainId: 'jhon' as const, cost: 0, strength: 2, effectIds: [] as string[], description: 'Todos los demás Héroes en el Reino reciben +1 Fuerza.',                            imageFile: 'heroe/alan' },
   { id: 'jhon_f_kluck',    name: 'Lady Kluck',    type: CardType.HERO,   deck: CardDeck.FATE, villainId: 'jhon' as const, cost: 0, strength: 6, effectIds: [EffectId.JHON_KLUCK_NO_PRISON] as string[], description: 'Lady Kluck no puede ser jugada ni movida a La Prisión.',                              imageFile: 'heroe/kluck' },
   { id: 'jhon_f_littlejohn', name: 'Little John', type: CardType.HERO,   deck: CardDeck.FATE, villainId: 'jhon' as const, cost: 0, strength: 5, effectIds: [EffectId.JHON_LITTLE_JOHN] as string[], description: 'Coge hasta 4 Monedas al Príncipe Juan y ponlas sobre Little John.',                   imageFile: 'heroe/littleJohn' },

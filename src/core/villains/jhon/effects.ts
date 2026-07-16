@@ -27,6 +27,15 @@ export const effects: EffectDef[] = [
     },
   },
 
+  // Rey Ricardo — mientras esté vivo en el reino, el Príncipe Juan no puede jugar Efectos.
+  {
+    id: 'jhon_rey_ricardo_block_effect',
+    trigger: EffectTrigger.ON_PLAY,
+    description: 'El Príncipe Juan no puede jugar Efectos mientras Rey Ricardo esté en el Reino.',
+    execute: (s) => s,
+    blocksEffectPlay: true,
+  },
+
   // Alan-a-Dale receiver — placed on all OTHER heroes: +1 str if Alan in kingdom
   {
     id: EffectId.JHON_ALAN_CHECK,

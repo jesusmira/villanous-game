@@ -105,6 +105,15 @@ export function canPlayCard(
     if (curseBlocked) return fail('No se puede jugar una Maldición aquí (Primavera).');
   }
 
+  // Rey Ricardo / blocksEffectPlay: sin ubicación específica en su texto (a diferencia de
+  // Primavera) — bloquea en TODO el reino mientras siga vivo, no solo donde está parado.
+  if (card.cardType === CardType.EFFECT) {
+    const effectBlocked = Object.values(player.locationStates).some(ls =>
+      ls.heroCardInstIds.some(id => state.allCards[id]?.effectIds.some(effId => getEffectDef(effId)?.blocksEffectPlay)),
+    );
+    if (effectBlocked) return fail('No se pueden jugar Efectos mientras Rey Ricardo esté en el Reino.');
+  }
+
   return ok;
 }
 
