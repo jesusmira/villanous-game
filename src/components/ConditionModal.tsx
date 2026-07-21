@@ -118,8 +118,8 @@ function TiraniaResolver({ state, reactingPlayer, condInstId }: {
 
 // ─── OBSESIÓN RESOLVER ────────────────────────────────────────────────────────
 
-function ObsesionResolver({ state, reactingPlayer, condInstId, opponentPlayer }: {
-  state: GameState; reactingPlayer: PlayerState; condInstId: CardInstId; opponentPlayer: PlayerState;
+function ObsesionResolver({ state, reactingPlayer, condInstId }: {
+  state: GameState; reactingPlayer: PlayerState; condInstId: CardInstId;
 }) {
   const doResolveCondition = useGameStore(s => s.doResolveCondition);
   const [play,  setPlay]  = useState<boolean | null>(null);
@@ -137,8 +137,10 @@ function ObsesionResolver({ state, reactingPlayer, condInstId, opponentPlayer }:
     return { nonHeroes, hero };
   }, [reactingPlayer.fateDeckInstIds, state.allCards]);
 
-  const opPlugin = getPlugin(opponentPlayer.villainId);
-  const opLocs   = opPlugin.locations.filter(l => !opponentPlayer.locationStates[l.id]?.isLocked);
+  // El Héroe sale del PROPIO mazo de Destino de reactingPlayer, así que solo puede jugarse en
+  // SU reino — no en el del rival (antes se ofrecía por error el reino del oponente).
+  const plugin = getPlugin(reactingPlayer.villainId);
+  const ownLocs = plugin.locations.filter(l => !reactingPlayer.locationStates[l.id]?.isLocked);
 
   return (
     <div className={PANEL}>
@@ -154,7 +156,7 @@ function ObsesionResolver({ state, reactingPlayer, condInstId, opponentPlayer }:
           </p>
           <div className="flex flex-wrap gap-1.5">
             <button className={play === true ? ACT : SEL} onClick={() => setPlay(true)}>
-              Jugar en el Reino de {opponentPlayer.name}
+              Jugar en tu Reino
             </button>
             <button className={play === false ? ACT : SEL}
               onClick={() => { setPlay(false); setLocId(null); }}>
@@ -163,9 +165,9 @@ function ObsesionResolver({ state, reactingPlayer, condInstId, opponentPlayer }:
           </div>
           {play === true && (
             <>
-              <p className="text-xs text-on-surface-variant">Elige ubicación en el Reino de {opponentPlayer.name}:</p>
+              <p className="text-xs text-on-surface-variant">Elige ubicación en tu Reino:</p>
               <div className="flex flex-wrap gap-1.5">
-                {opLocs.map(l => (
+                {ownLocs.map(l => (
                   <button key={l.id}
                     className={locId === l.id ? ACT : SEL}
                     onClick={() => setLocId(l.id)}>{l.name}</button>
@@ -320,7 +322,6 @@ export function ConditionModal({ state }: Props) {
   const { reactingPlayerId, eligibleCardInstIds } = pendingCondition;
   const reactingPlayer  = state.players.find(p => p.id === reactingPlayerId)!;
   if (reactingPlayer.isAI) return null;
-  const opponentPlayer  = state.players.find(p => p.id !== reactingPlayerId)!;
   const condCard        = selectedCondId ? state.allCards[selectedCondId] : null;
   const isType = (effectId: string) => condCard?.effectIds.includes(effectId) ?? false;
 
@@ -359,7 +360,7 @@ export function ConditionModal({ state }: Props) {
           <TiraniaResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
         )}
         {selectedCondId && isType(EffectId.OBSESION_COND) && (
-          <ObsesionResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} opponentPlayer={opponentPlayer} />
+          <ObsesionResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
         )}
         {selectedCondId && isType(EffectId.PERSPICAZ_COND) && (
           <PerspicazResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />

@@ -153,6 +153,13 @@ export interface EffectDef {
   blocksCursePlay?: boolean;
   /** Mientras el Héroe portador esté vivo en el reino, no se pueden jugar cartas EFFECT (Rey Ricardo). */
   blocksEffectPlay?: boolean;
+  /** El Héroe al que está adjunto este Objeto no puede ser Vencido (Buen Disfraz). */
+  preventsVanquish?: boolean;
+  /**
+   * El DUEÑO de la carta puede descartarla voluntariamente pagando este Poder, en su propio
+   * turno, sin consumir casilla de acción (p. ej. Buen Disfraz: 2 Monedas para quitárselo).
+   */
+  payToDiscardCost?: number;
   heroMinStrengthRequired?: number;
   /** El Héroe portador no puede jugarse ni moverse a esta ubicación (p. ej. Lady Kluck → La Prisión). */
   cannotEnterLocationId?: LocationId;

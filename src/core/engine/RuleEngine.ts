@@ -204,6 +204,13 @@ export function canVanquishFree(
     return fail('Peter Pan solo puede ser derrotado en el Jolly Roger.');
   }
 
+  // Buen Disfraz: el Héroe con este Objeto adjunto no puede ser Vencido hasta que su dueño
+  // pague para quitárselo (ver payToDiscardItem).
+  const disguised = hero.attachedItemInstIds.some(
+    itemId => state.allCards[itemId]?.effectIds.some(effId => getEffectDef(effId)?.preventsVanquish),
+  );
+  if (disguised) return fail('Este Héroe lleva puesto un Buen Disfraz: no puede ser Vencido.');
+
   return ok;
 }
 
@@ -344,5 +351,27 @@ export function canDiscard(
 
   const slot = getActionAtSlot(state, playerId, slotIndex);
   if (!slot || slot.type !== ActionType.DISCARD) return fail('Esa ranura no es Descartar.');
+  return ok;
+}
+
+// ─── PAY TO DISCARD (Buen Disfraz y similares) ────────────────────────────────
+// A diferencia del resto de acciones, NO consume casilla: se puede hacer en cualquier
+// momento del propio turno (cualquier fase), no solo durante ACTIVATE.
+
+export function canPayToDiscardItem(
+  state: GameState,
+  playerId: PlayerId,
+  cardInstId: CardInstId,
+): ValidationResult {
+  if (state.players[state.currentPlayerIndex].id !== playerId) return fail('No es tu turno.');
+
+  const player = getPlayer(state, playerId);
+  const card = state.allCards[cardInstId];
+  if (!card || card.ownerId !== playerId) return fail('Esa carta no es tuya.');
+
+  const cost = card.effectIds.map(id => getEffectDef(id)?.payToDiscardCost).find(Boolean);
+  if (!cost) return fail('Esta carta no se puede descartar pagando.');
+  if (player.power < cost) return fail(`Necesitas ${cost} de Poder.`);
+
   return ok;
 }

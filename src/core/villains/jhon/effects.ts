@@ -242,6 +242,31 @@ export const effects: EffectDef[] = [
     requiresTargetCard: 'ALLY',
   },
 
+  // Buen Disfraz — ON_PLAY: se une obligatoriamente a un Héroe YA presente en el reino del
+  // Príncipe Juan. Mientras esté puesto, ese Héroe no puede ser Vencido (ver RuleEngine.ts,
+  // preventsVanquish). El Príncipe Juan puede pagar 2 Monedas en su turno para quitárselo
+  // (ver payToDiscardItem en GameEngine — payToDiscardCost).
+  {
+    id: 'jhon_disfraz_attach',
+    trigger: EffectTrigger.ON_PLAY,
+    description: 'Se une a un Héroe ya presente en el Reino: no puede ser Vencido. El Príncipe Juan puede pagar 2 Monedas en su turno para descartarlo.',
+    preventsVanquish: true,
+    payToDiscardCost: 2,
+    execute: (state, ctx): GameState => {
+      const { cardInstId, targetCardInstId } = ctx;
+      // Sin Héroe al que unirse, el Objeto se descarta: ya se jugó y pagó su coste.
+      if (!targetCardInstId) return discardCardFromKingdom(state, cardInstId);
+      const hero = state.allCards[targetCardInstId];
+      if (!hero || hero.cardType !== CardType.HERO) return discardCardFromKingdom(state, cardInstId);
+      let s = updateCard(state, cardInstId, { attachedToInstId: targetCardInstId });
+      s = updateCard(s, targetCardInstId, {
+        attachedItemInstIds: [...hero.attachedItemInstIds, cardInstId],
+      });
+      return addLog(s, `Buen Disfraz oculta a ${hero.name}: no puede ser Vencido.`);
+    },
+    requiresTargetCard: 'HERO',
+  },
+
   // Flecha Dorada — ON_PLAY: attach to an ally; on vanquish with it, +2 power (see vanquish())
   {
     id: EffectId.JHON_FLECHA_ATTACH,

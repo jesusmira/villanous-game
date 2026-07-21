@@ -8,12 +8,12 @@ import { getPlayer, getEffectiveStrength, computeKingdomCostMod } from '../engin
 import { getAvailableSlotIndices, getActionAtSlot } from '../engine/slotHelpers';
 import {
   canPlayCard, canVanquish, canVanquishFree, canMoveItemAlly,
-  canMoveHero, canFate, canActivateCard, canDiscard,
+  canMoveHero, canFate, canActivateCard, canDiscard, canPayToDiscardItem,
 } from '../engine/RuleEngine';
 import {
   movePawn, skipMove, gainPower, playCard, vanquish, moveItemAlly,
   moveHero, startFate, resolveFate, activateCard, discardFromHand,
-  endActivatePhase, drawCards, activateRaven,
+  endActivatePhase, drawCards, activateRaven, payToDiscardItem,
 } from '../engine/GameEngine';
 import {
   resolveCuervo, resolveDemosles,
@@ -110,6 +110,21 @@ const ROLLOUT_DEPTH = 3;
  * Valor de `s` mirando hasta `depth` acciones hacia delante dentro del mismo turno.
  * Devuelve la mejor primera acción (o null si quedarse quieto es lo mejor) y su valor.
  */
+/**
+ * Cartas propias con `payToDiscardCost` (p. ej. Buen Disfraz) que se pueden descartar pagando
+ * su coste — no consumen casilla de acción, así que se prueban aparte de `available`. Sin esto
+ * la IA nunca aprovecha el combo "pagar para quitar el disfraz → Vencer al héroe" y se queda
+ * con héroes bloqueados para siempre (ver [[project-ai-gradient-trap]]).
+ */
+function tryPayToDiscardCandidates(s: GameState, playerId: PlayerId): GameState[] {
+  const player = getPlayer(s, playerId);
+  const payable = [...player.handInstIds, ...Object.values(player.locationStates).flatMap(ls => ls.villainCardInstIds)]
+    .filter(id => s.allCards[id]?.effectIds.some(eid => getEffectDef(eid)?.payToDiscardCost));
+  return payable
+    .filter(id => canPayToDiscardItem(s, playerId, id).valid)
+    .map(id => payToDiscardItem(s, playerId, id));
+}
+
 function bestActionByRollout(
   s: GameState, playerId: PlayerId, depth: number, profile?: OpponentProfile,
 ): { next: GameState | null; val: number } {
@@ -117,7 +132,8 @@ function bestActionByRollout(
   if (depth === 0 || s.turnPhase !== TurnPhase.ACTIVATE || s.winner) return { next: null, val: stopVal };
   const player = getPlayer(s, playerId);
   const available = getAvailableSlotIndices(s, playerId, player.pawnLocationId);
-  if (available.length === 0) return { next: null, val: stopVal };
+  const payCandidates = tryPayToDiscardCandidates(s, playerId);
+  if (available.length === 0 && payCandidates.length === 0) return { next: null, val: stopVal };
 
   let best: GameState | null = null;
   let bestVal = stopVal;
@@ -126,6 +142,10 @@ function bestActionByRollout(
     if (!slot) continue;
     const next = tryActionForSlot(s, playerId, slotIdx, slot);
     if (!next) continue;
+    const { val } = bestActionByRollout(next, playerId, depth - 1, profile);
+    if (val > bestVal + 1e-9) { bestVal = val; best = next; }
+  }
+  for (const next of payCandidates) {
     const { val } = bestActionByRollout(next, playerId, depth - 1, profile);
     if (val > bestVal + 1e-9) { bestVal = val; best = next; }
   }

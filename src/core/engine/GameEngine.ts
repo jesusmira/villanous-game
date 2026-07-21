@@ -1,5 +1,5 @@
 export { createInitialState } from './actions/init';
 export { movePawn, skipMove, drawCards, endActivatePhase, revertToActivate, endTurn, activateRaven, activateSherif } from './actions/turn';
-export { gainPower, playCard, vanquish, moveItemAlly, moveHero, activateCard, discardFromHand } from './actions/play';
+export { gainPower, playCard, vanquish, moveItemAlly, moveHero, activateCard, discardFromHand, payToDiscardItem } from './actions/play';
 export { startFate, resolveFate, resolveAuroraHero } from './actions/fate';
 export { checkWin } from './stateHelpers';

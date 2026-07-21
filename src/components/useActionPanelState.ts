@@ -25,6 +25,7 @@ export function useActionPanelState(state: GameState, playerId: string) {
     doRevertToActivate: s.doRevertToActivate,
     doActivateCard:     s.doActivateCard,
     doDiscardFromHand:  s.doDiscardFromHand,
+    doPayToDiscardItem: s.doPayToDiscardItem,
   })));
   const player = getPlayer(state, playerId);
   const plugin = getPlugin(player.villainId);

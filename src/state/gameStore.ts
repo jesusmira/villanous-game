@@ -4,7 +4,7 @@ import type { GameState, GameSetupOptions, LocationId, CardInstId } from '../cor
 import { createInitialState, movePawn, gainPower, playCard, vanquish,
   moveItemAlly, moveHero, startFate, resolveFate, activateCard,
   discardFromHand, endActivatePhase, drawCards, skipMove, resolveAuroraHero,
-  revertToActivate, activateRaven, activateSherif,
+  revertToActivate, activateRaven, activateSherif, payToDiscardItem,
 } from '../core/engine/GameEngine';
 import {
   resolveCondition, resolveCuervo, resolveDemosles, resolveJaqueca,
@@ -39,6 +39,7 @@ interface GameStore {
   doFateResolve: (chosenInstId: CardInstId, targetLocationId: LocationId, ctx?: { targetCardInstId?: CardInstId }) => void;
   doActivateCard: (cardInstId: CardInstId, slotIndex: number, ctx?: { targetLocationId?: LocationId; targetCardInstId?: CardInstId }) => void;
   doDiscardFromHand: (cardInstIds: CardInstId[], slotIndex: number) => void;
+  doPayToDiscardItem: (cardInstId: CardInstId) => void;
   doEndActivate: () => void;
   doDrawCards: () => void;
   doResolveCondition: (condInstId: string | null, ctx: Parameters<typeof resolveCondition>[2]) => void;
@@ -233,6 +234,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const playerId = state.players[state.currentPlayerIndex].id;
     const next = discardFromHand(state, playerId, cardInstIds, slotIndex);
     recordAction(state, next, playerId, 'DISCARD', { cardInstIds, slotIndex });
+    set({ state: next });
+  },
+
+  doPayToDiscardItem: (cardInstId) => {
+    const { state } = get();
+    if (!state) return;
+    const playerId = state.players[state.currentPlayerIndex].id;
+    const next = payToDiscardItem(state, playerId, cardInstId);
+    recordAction(state, next, playerId, 'PAY_TO_DISCARD_ITEM', { cardInstId });
     set({ state: next });
   },
 

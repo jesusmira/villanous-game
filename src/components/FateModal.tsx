@@ -29,7 +29,11 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onCardDetail,
   const chosenCard     = chosenId ? state.allCards[chosenId] : null;
 
   const reqTarget = chosenCard?.effectIds.map(id => getEffectDef(id)?.requiresTargetCard).find(Boolean) ?? null;
-  const isEffectCard = chosenCard?.cardType === CardType.EFFECT;
+  // OJO: antes se asumía que ninguna carta EFFECT necesita elegir Héroe/Aliado objetivo, así que
+  // se saltaba siempre el aviso de "toca una ubicación de X" — pero cartas como Robar a los Ricos
+  // SÍ lo necesitan (requiresTargetCard: 'HERO') aunque sean EFFECT, no ITEM. Lo correcto es
+  // mirar si la carta declara un target, no su cardType.
+  const needsCardTarget = reqTarget === 'ALLY' || reqTarget === 'HERO';
 
   const hasAnyTarget = (reqTarget && reqTarget !== 'CURSE')
     ? Object.values(state.allCards).some(c =>
@@ -167,8 +171,8 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onCardDetail,
     {/* Paso 2: carta elegida → barra fina; tocar ubicación del rival la coloca */}
     {chosenId && (
       <div className="lg:hidden fixed top-12 inset-x-0 z-50 bg-surface-container-highest/97 backdrop-blur-xl border-b border-error/30 shadow-xl px-4 py-2 flex items-center gap-3">
-        {isEffectCard || !hasAnyTarget ? (
-          /* EFFECT o sin objetivo: se puede confirmar tocando cualquier ubicación del rival */
+        {!needsCardTarget || !hasAnyTarget ? (
+          /* No requiere elegir Héroe/Aliado, o no hay ninguno disponible: cualquier ubicación vale */
           <span className="flex-1 min-w-0 font-stats text-[11px] uppercase tracking-wider text-on-surface-variant/80 truncate">
             {!hasAnyTarget
               ? `Sin ${reqTarget === 'ALLY' ? 'Aliados' : 'Héroes'} — toca cualquier ubicación`

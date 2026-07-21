@@ -1,5 +1,6 @@
 import { CardType, EffectTrigger } from '../../types';
 import type { EffectDef } from '../../types';
+import { CardDefPrefix } from '../effectIds';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
   discardCardFromKingdom, moveAttachedItems, addLog, getEffectiveStrength,
@@ -58,8 +59,11 @@ export const effects: EffectDef[] = [
       const player = getPlayer(state, card.ownerId);
       const locState = player.locationStates[ctx.targetLocationId];
       if (!locState) return state;
+      // Solo Sueño Sin Sueños, tal y como dice el texto de Fauna — no cualquier Maldición
+      // (antes descartaba la primera que encontrara, p. ej. Selva de Mortales Espinos).
       const curseId = locState.villainCardInstIds.find(
-        id => state.allCards[id]?.cardType === CardType.CURSE,
+        id => state.allCards[id]?.cardType === CardType.CURSE
+          && state.allCards[id]?.defId.startsWith(CardDefPrefix.MAL_SUENO),
       );
       if (!curseId) return state;
       return addLog(discardCardFromKingdom(state, curseId), 'Fauna descarta una Maldición.');

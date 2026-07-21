@@ -1,6 +1,6 @@
 import { CardType } from '../../types';
 import type { GameState, PlayerId, CardInstId, LocationId, PlayCardCtx, ActivateCardCtx } from '../../types';
-import { getPlugin } from '../../villains/registry';
+import { getPlugin, getEffectDef } from '../../villains/registry';
 import { EffectId } from '../../villains/effectIds';
 import { runEffects } from '../EffectEngine';
 import {
@@ -271,4 +271,24 @@ export function discardFromHand(
   });
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
   return addLog(s, `${player.name} descarta ${toDiscard.length} carta(s).`);
+}
+
+/**
+ * Descarte voluntario de una carta propia pagando su `payToDiscardCost` (p. ej. Buen Disfraz:
+ * 2 Monedas para quitárselo a un Héroe). NO consume casilla de acción — se puede hacer en
+ * cualquier momento del propio turno (ver canPayToDiscardItem en RuleEngine.ts).
+ */
+export function payToDiscardItem(
+  state: GameState,
+  playerId: PlayerId,
+  cardInstId: CardInstId,
+): GameState {
+  const player = getPlayer(state, playerId);
+  const card = state.allCards[cardInstId];
+  const cost = card?.effectIds.map(id => getEffectDef(id)?.payToDiscardCost).find(Boolean) ?? 0;
+  if (!card || card.ownerId !== playerId || cost <= 0 || player.power < cost) return state;
+
+  let s = applyPowerGain(state, playerId, -cost);
+  s = discardCardFromKingdom(s, cardInstId);
+  return addLog(s, `${player.name} paga ${cost} Poder para descartar ${card.name}.`);
 }

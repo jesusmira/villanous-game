@@ -11,7 +11,7 @@ import {
 import { getActionAtSlot } from '../slotHelpers';
 import { firePawnArrivalIfMoved } from './_helpers';
 
-function placeHeroInKingdom(
+export function placeHeroInKingdom(
   state: GameState,
   heroInstId: CardInstId,
   targetPlayerId: PlayerId,

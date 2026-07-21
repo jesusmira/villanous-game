@@ -23,7 +23,7 @@ import { CardComponent } from './CardComponent';
 import { TestPage } from './TestPage';
 import { useGameStore } from '../state/gameStore';
 import { useActionPanelState } from './useActionPanelState';
-import { canMovePawn, canPlayCard, canMoveItemAlly, canMoveHero } from '../core/engine/RuleEngine';
+import { canMovePawn, canPlayCard, canMoveItemAlly, canMoveHero, canPayToDiscardItem } from '../core/engine/RuleEngine';
 import { computeKingdomCostMod } from '../core/engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../core/engine/slotHelpers';
 import { buildPlayCtx, getAttachCandidates } from '../core/ai/contextBuilder';
@@ -486,22 +486,30 @@ export function GameBoard({ state }: Props) {
     const targetPlayer = state.players[state.pendingFate.targetPlayerIndex];
     const ctx: { targetCardInstId?: string } = {};
 
-    if (card.cardType === CardType.ITEM) {
-      const heroesAtLoc = targetPlayer.locationStates[locId]?.heroCardInstIds ?? [];
-      // Si hay múltiples héroes, permitir elegir a cuál adjuntar (igual que cartas de mano)
-      if (heroesAtLoc.length > 1) {
-        setPendingAttachTarget({
-          cardId: fateDragCardId,
-          locId,
-          reqTarget: 'HERO',
-          candidates: heroesAtLoc,
-        });
+    const reqTarget = card.effectIds.map(id => getEffectDef(id)?.requiresTargetCard).find(Boolean);
+    if (reqTarget === 'HERO' || reqTarget === 'ALLY') {
+      // Los OBJETOS (Espada, Burla, Polvo…) se adjuntan físicamente al Héroe/Aliado de la
+      // ubicación donde se colocan — su objetivo está limitado a esa ubicación. Las cartas
+      // EFFECT (p. ej. Robar a los Ricos) no se quedan en el tablero: su objetivo puede ser
+      // cualquier Héroe/Aliado del reino, no solo el de la ubicación donde se "juega" la carta
+      // (antes esto se ignoraba por completo y siempre se autoseleccionaba el primero que veía).
+      const scopeLocations = card.cardType === CardType.ITEM
+        ? [targetPlayer.locationStates[locId]].filter(Boolean)
+        : Object.values(targetPlayer.locationStates);
+      const candidates = scopeLocations.flatMap(ls =>
+        reqTarget === 'HERO'
+          ? ls!.heroCardInstIds
+          : ls!.villainCardInstIds.filter(id => state.allCards[id]?.cardType === CardType.ALLY),
+      );
+      // Si hay múltiples candidatos, dejar elegir (igual que cartas de mano)
+      if (candidates.length > 1) {
+        setPendingAttachTarget({ cardId: fateDragCardId, locId, reqTarget, candidates });
         setFateDragCardId(null);
         return;
       }
-      // Si hay un único héroe, adjuntarlo automáticamente
-      if (heroesAtLoc.length === 1) {
-        ctx.targetCardInstId = heroesAtLoc[0];
+      // Si hay un único candidato, seleccionarlo automáticamente
+      if (candidates.length === 1) {
+        ctx.targetCardInstId = candidates[0];
       }
     }
 
@@ -1012,15 +1020,29 @@ export function GameBoard({ state }: Props) {
       {/* ── Card preview (click en tablero) ─────────────────── */}
       {detailCard && (() => {
         const dc = detailCard;
+        // Objetos "pay to discard" (p. ej. Buen Disfraz): el dueño puede pagar su coste para
+        // descartarlo en cualquier momento de su propio turno, sin gastar casilla de acción.
+        const payCost = dc.effectIds.map(id => getEffectDef(id)?.payToDiscardCost).find(Boolean);
+        const canPay = payCost ? canPayToDiscardItem(state, dc.ownerId, dc.instId) : null;
         return (
           <>
             <div className="fixed inset-0 z-70 bg-black/40" onClick={() => setDetailCard(null)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-71 pointer-events-none flex flex-col items-center gap-3">
-              <div className="villainous-card-preview-lg-wrap">
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-71 flex flex-col items-center gap-3">
+              <div className="villainous-card-preview-lg-wrap pointer-events-none">
                 <div className="villainous-card-preview-lg">
                   <CardComponent card={dc} state={state} />
                 </div>
               </div>
+              {payCost !== undefined && (
+                <button
+                  disabled={!canPay?.valid}
+                  onClick={() => { ap.store.doPayToDiscardItem(dc.instId); setDetailCard(null); }}
+                  title={canPay?.valid ? undefined : canPay?.reason}
+                  className="pointer-events-auto px-4 py-2 rounded-xl border border-tertiary/50 bg-tertiary/10 text-tertiary font-stats text-xs uppercase tracking-wider hover:bg-tertiary/20 transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
+                >
+                  Pagar {payCost} Poder y descartar
+                </button>
+              )}
             </div>
           </>
         );

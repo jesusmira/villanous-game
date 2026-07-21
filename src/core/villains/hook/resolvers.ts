@@ -2,6 +2,7 @@ import type { GameState, CardInstId, PlayerId, ConditionCtx } from '../../types'
 import { CardType } from '../../types';
 import { getPlayer, updatePlayer, updateLocationState, updateCard, addLog } from '../../engine/stateHelpers';
 import { runEffects } from '../../engine/EffectEngine';
+import { placeHeroInKingdom } from '../../engine/actions/fate';
 
 export function resolveDemosles(
   state: GameState,
@@ -55,6 +56,45 @@ function handlePerspicaz(s: GameState, reactingPlayerId: PlayerId, ctx: Conditio
   return s;
 }
 
+/**
+ * Obsesión: revela el propio mazo de Destino de Garfio hasta un Héroe, descartando lo demás.
+ * El Héroe se juega (si se elige) EN EL PROPIO REINO de Garfio — sale de SU mazo de Destino, así
+ * que solo tiene sentido ahí (antes la UI ofrecía el reino del rival por error, ver ConditionModal.tsx).
+ */
+function handleObsesion(s: GameState, reactingPlayerId: PlayerId, ctx: ConditionCtx): GameState {
+  const player = getPlayer(s, reactingPlayerId);
+  const nonHeroes: CardInstId[] = [];
+  let heroId: CardInstId | null = null;
+  for (const id of player.fateDeckInstIds) {
+    const c = s.allCards[id];
+    if (!c) continue;
+    if (c.cardType === CardType.HERO) { heroId = id; break; }
+    nonHeroes.push(id);
+  }
+  const revealed = heroId ? [...nonHeroes, heroId] : nonHeroes;
+  s = updatePlayer(s, reactingPlayerId, {
+    fateDeckInstIds: player.fateDeckInstIds.filter(id => !revealed.includes(id)),
+  });
+  if (nonHeroes.length > 0) {
+    s = updatePlayer(s, reactingPlayerId, {
+      fateDiscardInstIds: [...getPlayer(s, reactingPlayerId).fateDiscardInstIds, ...nonHeroes],
+    });
+  }
+  if (!heroId) return addLog(s, 'Obsesión: no había Héroes en el mazo de Destino.');
+
+  const hero = s.allCards[heroId];
+  if (ctx.playHero && ctx.targetLocationId) {
+    s = placeHeroInKingdom(s, heroId, reactingPlayerId, ctx.targetLocationId, reactingPlayerId);
+    s = runEffects(s, heroId, 'ON_PLAY', { actingPlayerId: reactingPlayerId, cardInstId: heroId, targetLocationId: ctx.targetLocationId });
+    return addLog(s, `Obsesión: ${hero?.name} jugado en el Reino de ${player.name}.`);
+  }
+  s = updatePlayer(s, reactingPlayerId, {
+    fateDiscardInstIds: [...getPlayer(s, reactingPlayerId).fateDiscardInstIds, heroId],
+  });
+  return addLog(s, `Obsesión: ${hero?.name} descartado.`);
+}
+
 export const conditionHandlers: Record<string, (s: GameState, reactingPlayerId: PlayerId, ctx: ConditionCtx) => GameState> = {
   hook_perspicaz_cond: handlePerspicaz,
+  hook_obsesion_cond: handleObsesion,
 };
