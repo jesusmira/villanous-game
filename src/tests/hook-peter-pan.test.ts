@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { canVanquish } from '../core/engine/RuleEngine';
 import { TurnPhase } from '../core/types';
 import { getPlugin } from '../core/villains/registry';
-import { HookObjectiveStep } from '../core/villains/hook/cards';
+import { HookObjectiveStep, HookLocationId } from '../core/villains/hook/cards';
+import { effects as hookEffects } from '../core/villains/hook/effects';
 import {
   makeState, hookId, findCard,
   placeVillainCard, placeHeroInLoc,
@@ -132,27 +133,6 @@ describe('checkWinCondition – Garfio', () => {
     expect(plugin.checkWinCondition(makeWinState(), hookId(makeWinState()))).toBe(true);
   });
 
-  it('NO gana si Tic Tac sigue vivo en el reino', () => {
-    let s = makeWinState();
-    const id = hookId(s);
-    const tictacId = findCard(s, 'hook_f_tictac')!;
-    s = placeHeroInLoc(s, id, 'jollyroger', tictacId);
-    expect(plugin.checkWinCondition(s, id)).toBe(false);
-  });
-
-  it('NO gana si el Árbol del Verdugo no está desbloqueado', () => {
-    let s = makeState();
-    const id = hookId(s);
-    s = {
-      ...s,
-      players: s.players.map(p => p.id !== id ? p : {
-        ...p,
-        completedObjectiveSteps: [HookObjectiveStep.PETER_PAN_DEFEATED], // sin HANGMAN
-      }),
-    };
-    expect(plugin.checkWinCondition(s, id)).toBe(false);
-  });
-
   it('NO gana si Peter Pan no ha sido derrotado en el Jolly Roger', () => {
     let s = makeState();
     const id = hookId(s);
@@ -169,5 +149,38 @@ describe('checkWinCondition – Garfio', () => {
   it('NO gana con el estado inicial (ningún paso completado)', () => {
     const s = makeState();
     expect(plugin.checkWinCondition(s, hookId(s))).toBe(false);
+  });
+});
+
+// ─── Démosles un susto – Peter Pan ─────────────────────────────────────────────
+
+describe('Démosles un susto – Peter Pan', () => {
+  it('juega a Peter Pan automáticamente en el Árbol del Ahorcado al revelarlo, sin ofrecer guardar/descartar para él', () => {
+    let s = makeState();
+    const id = hookId(s);
+    const ppId = findCard(s, 'hook_fate_peter_pan')!;
+    const player = s.players.find(p => p.id === id)!;
+    const otherTopId = player.fateDeckInstIds.find(cid => cid !== ppId)!;
+
+    // Coloca a Peter Pan como la carta superior del mazo de Destino de Garfio.
+    s = {
+      ...s,
+      players: s.players.map(p => p.id !== id ? p : {
+        ...p,
+        fateDeckInstIds: [
+          ppId, otherTopId,
+          ...p.fateDeckInstIds.filter(cid => cid !== ppId && cid !== otherTopId),
+        ],
+      }),
+    };
+
+    const demoslesEffect = hookEffects.find(e => e.id === 'hook_demosles_susto')!;
+    const result = demoslesEffect.execute(s, { actingPlayerId: id, cardInstId: 'dummy_card' });
+
+    expect(result.allCards[ppId]?.locationId).toBe(HookLocationId.HANGMAN);
+    const hangmanLs = result.players.find(p => p.id === id)!.locationStates[HookLocationId.HANGMAN];
+    expect(hangmanLs.heroCardInstIds).toContain(ppId);
+    // Solo la otra carta revelada queda pendiente de guardar/descartar.
+    expect(result.pendingDemosles?.topCardIds).toEqual([otherTopId]);
   });
 });

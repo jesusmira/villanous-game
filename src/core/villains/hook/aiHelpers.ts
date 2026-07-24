@@ -5,23 +5,15 @@ import { CardDefId, EffectId } from '../effectIds';
 import { HookLocationId } from './cards';
 
 /**
- * Resolución de "Démosles un susto" para la IA. Estrategia de búsqueda de Peter Pan:
- * - Si PP está entre las cartas reveladas → devolverlo a la CIMA del mazo (el próximo
- *   Rival Digno lo encontrará de inmediato) y descartar la otra.
- * - Si no → descartar ambas: cava el mazo 2 posiciones hacia PP.
- * Antes el worker descartaba siempre las dos a ciegas — podía tirar a PP al descarte.
+ * Resolución de "Démosles un susto" para la IA: descarta ambas cartas reveladas para cavar
+ * el mazo 2 posiciones hacia Peter Pan. Si Peter Pan estaba entre las reveladas, el propio
+ * efecto (ON_FATE_REVEAL) ya lo jugó de inmediato en el Árbol del Ahorcado antes de llegar
+ * aquí — nunca aparece en `topCardIds`, así que no hace falta contemplarlo en esta resolución.
  */
 export function chooseDemoslesResolution(
-  state: GameState,
+  _state: GameState,
   pending: { playerId: PlayerId; topCardIds: CardInstId[] },
 ): { discardIds: CardInstId[]; orderedKeepIds: CardInstId[] } {
-  const ppId = pending.topCardIds.find(id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN);
-  if (ppId) {
-    return {
-      discardIds: pending.topCardIds.filter(id => id !== ppId),
-      orderedKeepIds: [ppId],
-    };
-  }
   return { discardIds: pending.topCardIds, orderedKeepIds: [] };
 }
 

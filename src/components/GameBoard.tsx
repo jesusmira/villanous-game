@@ -102,6 +102,13 @@ export function GameBoard({ state }: Props) {
   // ── AI replay ────────────────────────────────────────────────────────────
   const [replayIndex, setReplayIndex]       = useState(-1);
   const replayRef = useRef(aiReplayQueue);
+  // Mientras el modal "Turno de..." sigue abierto, el índice ya apunta al primer paso (para
+  // que el modal siga mostrando al jugador correcto — `state` ya refleja el turno de la IA
+  // COMPLETO en cuanto responde el worker, así que sin esto `displayedState` saltaba directo
+  // al estado post-turno y el modal mostraba al rival equivocado). Lo que se retiene es solo
+  // el AVANCE automático cada 750ms: no arranca hasta cerrar el modal (ver
+  // handleCloseTurnIndicator), para que el turno de la IA visiblemente empiece tras Aceptar.
+  const [replayHeld, setReplayHeld]         = useState(false);
 
   // Reinicia el índice de replay cuando llega una nueva cola de jugadas de la IA. Se ajusta
   // durante el render (en vez de en un useEffect) para evitar un commit intermedio con el
@@ -109,6 +116,7 @@ export function GameBoard({ state }: Props) {
   const [prevAiReplayQueue, setPrevAiReplayQueue] = useState(aiReplayQueue);
   if (prevAiReplayQueue !== aiReplayQueue) {
     setPrevAiReplayQueue(aiReplayQueue);
+    setReplayHeld(aiReplayQueue.length > 0 && showTurnIndicator);
     setReplayIndex(aiReplayQueue.length === 0 ? -1 : 0);
   }
 
@@ -122,9 +130,16 @@ export function GameBoard({ state }: Props) {
 
   useEffect(() => {
     if (replayIndex < 0 || replayIndex >= replayRef.current.length) return;
+    if (replayHeld) return; // esperando a que se cierre el modal de turno
     const id = setTimeout(() => setReplayIndex(i => i + 1), 750);
     return () => clearTimeout(id);
-  }, [replayIndex]);
+  }, [replayIndex, replayHeld]);
+
+  // Cierra el modal "Turno de..." y libera el avance automático si estaba retenido.
+  const handleCloseTurnIndicator = () => {
+    setShowTurnIndicator(false);
+    setReplayHeld(false);
+  };
 
   // Muestra el modal de turno cuando cambia el turno actual (solo en modo 2 jugadores)
   useLayoutEffect(() => {
@@ -649,7 +664,7 @@ export function GameBoard({ state }: Props) {
       <TurnIndicatorModal
         player={displayedState.players[displayedState.currentPlayerIndex]}
         isOpen={showTurnIndicator}
-        onClose={() => setShowTurnIndicator(false)}
+        onClose={handleCloseTurnIndicator}
       />
 
       {/* ── Main scrollable content ─────────────────────────── */}

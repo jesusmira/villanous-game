@@ -29,8 +29,28 @@ const WEIGHTS = {
   // ahí para siempre aunque hubiera un héroe esperando cerca sin vencer.
   // OJO: READY debe ser MENOR que quitar HERO_OUTSIDE_PRISON/HERO_STRONG_BLOCKING al vencer de
   // verdad, o la IA se queda "a punto" sin rematar (ver [[project-ai-gradient-trap]]).
-  HERO_ALLY_MATCH: 1.0,
+  //
+  // FASE 2 (trap de gradiente en la inversión de Aliados): jugar el PRIMER Aliado contra un
+  // héroe que necesita 2+ Aliados para caer puntuaba negativo en solitario (paga su coste de
+  // Poder sin poder rematar el Vencer en la misma acción), así que ni siquiera con el rollout
+  // profundo de Fase 1 la IA daba ese primer paso — exactamente el mismo patrón que
+  // [[project_ai_gradient_trap]] pero en la inversión de Aliados en vez de en los bonos de
+  // "estar a punto". Con 1.0 el primer Aliado barato (coste 2, fuerza 2: Lelo/Sir Hiss/Arqueros
+  // Lobo) contra CUALQUIER héroe con fuerza > 2 quedaba en negativo (-4 coste -0.3 mano +1.6
+  // fuerza +2.0 match = -0.7). Con 1.5 el mismo cálculo da +0.05: ya no hace falta que el
+  // Aliado alcance para que jugarlo sea rentable.
+  HERO_ALLY_MATCH: 1.5,
   HERO_READY_TO_VANQUISH: 5,
+
+  // FASE 2: héroe que retiene Monedas robadas (Little John / Robar a los Ricos) — vencerlo
+  // las devuelve íntegras (ver onVanquish en resolvers.ts). El rival puede reutilizar el propio
+  // mazo de Destino del Príncipe Juan contra él para sangrarlo indefinidamente (Robar a los
+  // Ricos x3 copias); sin este término, la IA valoraba a ese héroe igual que a cualquier otro de
+  // su misma Fuerza y nunca priorizaba recuperar SU PROPIO Poder robado — quedándose atascada
+  // en bucles de "gana 2 → le roban 4" para siempre. Escala con el progreso de la inversión
+  // (0 sin Aliados, completo al alcanzar la Fuerza del héroe) para no romper el equilibrio de
+  // HERO_ALLY_MATCH de arriba, solo desempatar A FAVOR de recuperar Poder robado.
+  STORED_POWER_RECOVERY_URGENCY: 0.8,
 
   // FASE 3: Urgencia de victoria según proximidad a 20 poder
   POWER_ALMOST_WIN: 120,        // 18+ poder: victoria muy cercana — AUMENTADO
@@ -85,6 +105,15 @@ export function scoreState(state: GameState, player: PlayerState): number {
       .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
     v += Math.min(allyStr, heroStr) * WEIGHTS.HERO_ALLY_MATCH;
     if (allyStr >= heroStr) v += WEIGHTS.HERO_READY_TO_VANQUISH;
+
+    // Monedas robadas retenidas en héroes de esta ubicación: urgencia extra de recuperarlas,
+    // proporcional a cuánta inversión en Aliados ya se ha hecho aquí (0 al empezar, completa
+    // cuando ya alcanza para vencer).
+    const storedHere = ls.heroCardInstIds
+      .reduce((sum, id) => sum + (state.allCards[id]?.storedPower ?? 0), 0);
+    if (storedHere > 0 && heroStr > 0) {
+      v += Math.min(allyStr / heroStr, 1) * storedHere * WEIGHTS.STORED_POWER_RECOVERY_URGENCY;
+    }
 
     const strongHeroes = ls.heroCardInstIds.filter(id => getEffectiveStrength(state, id) >= 4);
     for (const heroId of strongHeroes) {

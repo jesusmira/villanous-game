@@ -3,7 +3,7 @@ import { CardType } from '../core/types';
 import type { GameState, CardInst, CardInstId, LocationId, PlayerState } from '../core/types';
 import { getPlugin } from '../core/villains/registry';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
-import { EffectId } from '../core/villains/effectIds';
+import { EffectId, CardDefId } from '../core/villains/effectIds';
 import { useGameStore } from '../state/gameStore';
 
 const OVL   = 'fixed inset-0 bg-black/75 flex items-center justify-center z-100 backdrop-blur-sm';
@@ -142,6 +142,11 @@ function ObsesionResolver({ state, reactingPlayer, condInstId }: {
   const plugin = getPlugin(reactingPlayer.villainId);
   const ownLocs = plugin.locations.filter(l => !reactingPlayer.locationStates[l.id]?.isLocked);
 
+  // Peter Pan no es una elección: su propia carta obliga a jugarlo de inmediato en el Árbol
+  // del Ahorcado en cuanto se revela (aunque esté bloqueado) — igual que con la acción Destino
+  // normal. No tiene sentido ofrecer "Descartar" ni elegir ubicación para él.
+  const isPeterPan = hero?.defId === CardDefId.HOOK_PETER_PAN;
+
   return (
     <div className={PANEL}>
       {nonHeroes.length > 0 && (
@@ -154,32 +159,45 @@ function ObsesionResolver({ state, reactingPlayer, condInstId }: {
           <p className="text-xs text-on-surface-variant">
             Héroe: <strong className="text-on-surface">{hero.name}</strong> (F:{hero.baseStrength ?? '?'})
           </p>
-          <div className="flex flex-wrap gap-1.5">
-            <button className={play === true ? ACT : SEL} onClick={() => setPlay(true)}>
-              Jugar en tu Reino
-            </button>
-            <button className={play === false ? ACT : SEL}
-              onClick={() => { setPlay(false); setLocId(null); }}>
-              Descartar
-            </button>
-          </div>
-          {play === true && (
+          {isPeterPan ? (
             <>
-              <p className="text-xs text-on-surface-variant">Elige ubicación en tu Reino:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {ownLocs.map(l => (
-                  <button key={l.id}
-                    className={locId === l.id ? ACT : SEL}
-                    onClick={() => setLocId(l.id)}>{l.name}</button>
-                ))}
-              </div>
+              <p className="text-xs text-tertiary/80">
+                Al ser revelado, se juega automáticamente en el Árbol del Ahorcado.
+              </p>
+              <button className={BTN} onClick={() => doResolveCondition(condInstId, { playHero: true })}>
+                Jugar Obsesión
+              </button>
             </>
-          )}
-          {(play === false || (play === true && locId)) && (
-            <button className={BTN}
-              onClick={() => doResolveCondition(condInstId, { playHero: play ?? false, targetLocationId: locId ?? undefined })}>
-              Jugar Obsesión
-            </button>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                <button className={play === true ? ACT : SEL} onClick={() => setPlay(true)}>
+                  Jugar en tu Reino
+                </button>
+                <button className={play === false ? ACT : SEL}
+                  onClick={() => { setPlay(false); setLocId(null); }}>
+                  Descartar
+                </button>
+              </div>
+              {play === true && (
+                <>
+                  <p className="text-xs text-on-surface-variant">Elige ubicación en tu Reino:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ownLocs.map(l => (
+                      <button key={l.id}
+                        className={locId === l.id ? ACT : SEL}
+                        onClick={() => setLocId(l.id)}>{l.name}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {(play === false || (play === true && locId)) && (
+                <button className={BTN}
+                  onClick={() => doResolveCondition(condInstId, { playHero: play ?? false, targetLocationId: locId ?? undefined })}>
+                  Jugar Obsesión
+                </button>
+              )}
+            </>
           )}
         </>
       ) : (

@@ -83,6 +83,14 @@ function handleObsesion(s: GameState, reactingPlayerId: PlayerId, ctx: Condition
   if (!heroId) return addLog(s, 'Obsesión: no había Héroes en el mazo de Destino.');
 
   const hero = s.allCards[heroId];
+
+  // Algunos Héroes (p. ej. Peter Pan) se juegan solos al ser revelados, sin dejar elegir
+  // ubicación — es el mismo efecto ON_FATE_REVEAL que dispara la acción Destino normal
+  // (ver hook_peter_pan_reveal). Si el efecto ya lo colocó (le puso locationId), Obsesión
+  // termina aquí: no hay decisión de jugar/descartar ni de ubicación que ofrecer.
+  s = runEffects(s, heroId, 'ON_FATE_REVEAL', { actingPlayerId: reactingPlayerId, cardInstId: heroId });
+  if (s.allCards[heroId]?.locationId) return s;
+
   if (ctx.playHero && ctx.targetLocationId) {
     s = placeHeroInKingdom(s, heroId, reactingPlayerId, ctx.targetLocationId, reactingPlayerId);
     s = runEffects(s, heroId, 'ON_PLAY', { actingPlayerId: reactingPlayerId, cardInstId: heroId, targetLocationId: ctx.targetLocationId });

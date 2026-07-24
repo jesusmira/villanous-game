@@ -51,7 +51,7 @@ export function runAITurn(state: GameState, profile?: OpponentProfile): GameStat
           const resolved = afterRaven.pendingCuervo
             ? (() => { const { action, params } = chooseCuervoAction(afterRaven); return resolveCuervo(afterRaven, action, params); })()
             : afterRaven;
-          const val = evaluateState(playOutActivate(movePawn(resolved, playerId, player0.pawnLocationId === loc.id ? openLocs.find(l => l.id !== player0.pawnLocationId)?.id ?? loc.id : player0.pawnLocationId), playerId, undefined, false, profile), playerId, profile);
+          const val = evaluateState(playOutActivate(movePawn(resolved, playerId, player0.pawnLocationId === loc.id ? openLocs.find(l => l.id !== player0.pawnLocationId)?.id ?? loc.id : player0.pawnLocationId), playerId, undefined, 1, profile), playerId, profile);
           if (val > bestRavenVal) { bestRavenVal = val; bestRavenDest = loc.id; }
         }
         if (bestRavenDest) {
@@ -91,7 +91,7 @@ export function runAITurn(state: GameState, profile?: OpponentProfile): GameStat
 
   // ACTIVATE phase (real) — con rollout profundo: ve combos de varias acciones
   // (p. ej. Vencer al bloqueante → jugar la Maldición en la ubicación liberada).
-  s = playOutActivate(s, playerId, steps, true, profile);
+  s = playOutActivate(s, playerId, steps, ROLLOUT_DEPTH, profile);
 
   // DRAW phase
   if (s.turnPhase === TurnPhase.ACTIVATE) s = endActivatePhase(s);
@@ -105,6 +105,17 @@ export function runAITurn(state: GameState, profile?: OpponentProfile): GameStat
 // inmediato — sin esto, un Vencer que "pierde" bonos de preparación pero habilita jugar
 // la Maldición ganadora en la siguiente acción se rechazaba siempre.
 const ROLLOUT_DEPTH = 3;
+
+// FASE 5: profundidad del rollout usada al EVALUAR CANDIDATOS DE DESTINO (dentro de
+// simulateTurnAtDest, llamado desde el minimax de movimiento). Antes se usaba profundidad 1
+// (deep=false) ahí, así que un combo de 2 acciones (jugar Aliado → Vencer al héroe) nunca se
+// veía al decidir A DÓNDE moverse: la primera acción del combo, jugar el Aliado, casi siempre
+// puntúa peor que no hacer nada si se mira aislada (paga su coste sin poder rematar el Vencer
+// en la misma acción), así que la ubicación con el héroe nunca ganaba la comparación de destino
+// aunque el turno real (con ROLLOUT_DEPTH=3) sí hubiera sabido resolver el combo una vez allí.
+// Se usa 2 en vez de ROLLOUT_DEPTH (3) para no multiplicar demasiado el coste: esta profundidad
+// se paga en CADA candidato de CADA nodo del minimax a 2 plies (varias veces por decisión).
+const DEST_ROLLOUT_DEPTH = 2;
 
 /**
  * Valor de `s` mirando hasta `depth` acciones hacia delante dentro del mismo turno.
@@ -154,16 +165,17 @@ function bestActionByRollout(
 
 // ─── ACTIVATE play-out: aplica la mejor acción hasta agotar ──────────────────────
 // Si `steps` se pasa, registra cada estado intermedio (para la animación de la IA).
-// `deep` activa el rollout multi-acción (solo en el turno REAL: dentro del minimax de
-// movimiento se usa el modo voraz 1-ply para no disparar el coste computacional).
+// `depth` controla cuántas acciones adelante ve bestActionByRollout en cada paso: 1 (voraz)
+// para los "hints" de pre-ordenación de destinos, DEST_ROLLOUT_DEPTH al evaluar candidatos de
+// destino de verdad (simulateTurnAtDest) y ROLLOUT_DEPTH en el turno REAL.
 function playOutActivate(
-  state: GameState, playerId: PlayerId, steps?: GameState[], deep = false, profile?: OpponentProfile,
+  state: GameState, playerId: PlayerId, steps?: GameState[], depth = 1, profile?: OpponentProfile,
 ): GameState {
   let s = state;
   const MAX_ITERATIONS = 20;
   let iterations = 0;
   while (s.turnPhase === TurnPhase.ACTIVATE && iterations++ < MAX_ITERATIONS) {
-    const { next } = bestActionByRollout(s, playerId, deep ? ROLLOUT_DEPTH : 1, profile);
+    const { next } = bestActionByRollout(s, playerId, depth, profile);
     // El rollout ya contempla "no hacer nada" como opción: si nada supera quedarse
     // quieto (con margen 1e-9), devuelve null y el turno de acciones termina.
     if (!next) break;
@@ -652,10 +664,16 @@ export function chooseCuervoAction(state: GameState): {
 // Cada nodo del árbol representa un turno completo (MOVE → ACTIVATE → DRAW).
 // Profundidad-2 = mi turno + respuesta del rival (~9-16 simulaciones por decisión).
 
-/** Simula un turno completo en `dest`: MOVE → ACTIVATE → DRAW. */
+/**
+ * Simula un turno completo en `dest`: MOVE → ACTIVATE → DRAW.
+ * FASE 5: usa DEST_ROLLOUT_DEPTH (no 1-ply) para que un destino con héroe puntúe bien cuando
+ * el combo "jugar Aliado → Vencer" es alcanzable en ese mismo turno — con 1-ply la primera
+ * acción del combo (jugar el Aliado) casi siempre parece peor que no hacer nada por sí sola,
+ * así que el destino nunca ganaba la comparación aunque el turno real sí resolviera el combo.
+ */
 function simulateTurnAtDest(state: GameState, playerId: PlayerId, dest: LocationId, profile?: OpponentProfile): GameState {
   let s = movePawn(state, playerId, dest);
-  s = playOutActivate(s, playerId, undefined, false, profile);
+  s = playOutActivate(s, playerId, undefined, DEST_ROLLOUT_DEPTH, profile);
   if (s.turnPhase === TurnPhase.ACTIVATE) s = endActivatePhase(s);
   if (s.turnPhase === TurnPhase.DRAW) s = drawCards(s, playerId);
   return s;
@@ -677,7 +695,7 @@ function minimaxBestDest(state: GameState, playerId: PlayerId, profile?: Opponen
   // FASE 2: Limitar breadth a top-4 candidatos para evitar exploración explosiva.
   const candidates = dests
     .map(d => {
-      const hint = evaluateState(playOutActivate(movePawn(state, playerId, d.id), playerId, undefined, false, profile), playerId, profile);
+      const hint = evaluateState(playOutActivate(movePawn(state, playerId, d.id), playerId, undefined, 1, profile), playerId, profile);
       return { id: d.id, hint };
     })
     .sort((a, b) => b.hint - a.hint)
@@ -725,7 +743,7 @@ function minimaxOurResponse(
   // FASE 2: Limitar breadth a top-3
   const candidates = dests
     .map(d => {
-      const hint = evaluateState(playOutActivate(movePawn(state, playerId, d.id), playerId, undefined, false, profile), playerId, profile);
+      const hint = evaluateState(playOutActivate(movePawn(state, playerId, d.id), playerId, undefined, 1, profile), playerId, profile);
       return { id: d.id, hint };
     })
     .sort((a, b) => b.hint - a.hint)
@@ -779,7 +797,7 @@ function minimaxOppResponse(
 
   if (opp.skipNextMove) {
     let s = skipMove(state, opp.id);
-    s = playOutActivate(s, opp.id, undefined, false, profile);
+    s = playOutActivate(s, opp.id, undefined, DEST_ROLLOUT_DEPTH, profile);
     if (s.turnPhase === TurnPhase.ACTIVATE) s = endActivatePhase(s);
     if (s.turnPhase === TurnPhase.DRAW) s = drawCards(s, opp.id);
     return evaluateState(s, originalPlayerId, profile);
@@ -793,7 +811,7 @@ function minimaxOppResponse(
   // Pre-ordenar ascendente (peor para nosotros primero) para alcanzar el beta-cutoff cuanto antes.
   const candidates = dests
     .map(d => {
-      const hint = evaluateState(playOutActivate(movePawn(state, opp.id, d.id), opp.id, undefined, false, profile), originalPlayerId, profile);
+      const hint = evaluateState(playOutActivate(movePawn(state, opp.id, d.id), opp.id, undefined, 1, profile), originalPlayerId, profile);
       return { id: d.id, hint };
     })
     .sort((a, b) => a.hint - b.hint);

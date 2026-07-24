@@ -4,6 +4,7 @@ import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
   discardCardFromKingdom, moveAttachedItems, addLog,
 } from '../../engine/stateHelpers';
+import { runEffects } from '../../engine/EffectEngine';
 import { shuffle } from '../../utils/shuffle';
 import { CardDefId } from '../effectIds';
 import { locations, HookLocationId, HookObjectiveStep } from './cards';
@@ -295,8 +296,21 @@ export const effects: EffectDef[] = [
       s = updatePlayer(s, ctx.actingPlayerId, {
         fateDeckInstIds: player.fateDeckInstIds.slice(top2.length),
       });
-      s = { ...s, pendingDemosles: { playerId: ctx.actingPlayerId, topCardIds: top2 } };
-      return addLog(s, `Démosles un susto: revelando ${top2.length} carta(s).`);
+
+      // Algunos Héroes (p. ej. Peter Pan) se juegan solos al ser revelados, sin dejar elegir
+      // guardar/descartar — el mismo efecto ON_FATE_REVEAL que dispara la acción Destino normal
+      // (ver hook_peter_pan_reveal). Se resuelve aquí, ANTES de ofrecer la elección al jugador,
+      // y se excluye de las cartas pendientes en cuanto queda colocado (le pone locationId).
+      for (const id of top2) {
+        s = runEffects(s, id, 'ON_FATE_REVEAL', { actingPlayerId: ctx.actingPlayerId, cardInstId: id });
+      }
+      const pendingIds = top2.filter(id => !s.allCards[id]?.locationId);
+      if (pendingIds.length === 0) {
+        return addLog(s, 'Démosles un susto: revelación resuelta automáticamente.');
+      }
+
+      s = { ...s, pendingDemosles: { playerId: ctx.actingPlayerId, topCardIds: pendingIds } };
+      return addLog(s, `Démosles un susto: revelando ${pendingIds.length} carta(s).`);
     },
   },
   {

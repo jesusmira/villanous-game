@@ -56,7 +56,7 @@ export const locations: LocationDef[] = [
   },
   {
     id: 'hangman',
-    name: 'Árbol del Verdugo',
+    name: 'Árbol del Ahorcado',
     actions: [
       { type: ActionType.FATE },
       { type: ActionType.GAIN_POWER, value: 2 },
