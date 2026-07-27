@@ -100,7 +100,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   flex-shrink: 0;
   transition: all 0.2s ease;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .villainous-card { width: 100px; height: 150px; }
 }
 
@@ -115,7 +115,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   transition: all 0.2s ease;
   overflow: hidden;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .villainous-card-large { width: 144px; height: 216px; border-radius: 14px; }
 }
 
@@ -128,7 +128,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   z-index: 10;
   border-radius: 3px;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .card-inner-frame { inset: 4px; border-width: 1.5px; }
 }
 
@@ -149,27 +149,30 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   overflow: visible;
 }
 
-/* Detail modal — más grande */
-.villainous-card-preview-lg {
-  display: inline-block;
-  transform: scale(2.2);
-  transform-origin: top center;
-}
+/* Detail modal — más grande, pero SIEMPRE encaja en la pantalla (usa svh, no
+   un transform:scale fijo que puede desbordar en móvil apaisado bajo). */
 .villainous-card-preview-lg-wrap {
-  height: 220px;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  overflow: visible;
+  align-items: center;
+}
+.card-size-detail {
+  width: auto !important;
+  height: clamp(160px, 62svh, 340px) !important;
+  aspect-ratio: 2 / 3;
 }
 
-@media (min-width: 768px) {
-  .villainous-card-preview-lg {
-    transform: scale(2.5);
-  }
-  .villainous-card-preview-lg-wrap {
-    height: 270px;
-  }
+/* Mano / Destino en overlay móvil a pantalla completa — tamaño ligado a la
+   altura visible real (svh), nunca al ancho, para aprovechar toda la
+   pantalla sin desbordar en landscape corto. Independiente del tamaño de
+   las cartas en el tablero (que no debe variar). */
+.card-size-hand {
+  width: auto !important;
+  height: clamp(110px, 54svh, 260px) !important;
+  aspect-ratio: 2 / 3;
+}
+.card-size-hand--selected {
+  height: clamp(120px, 60svh, 280px) !important;
 }
 
 /* Aurora modal — más pequeño */
@@ -227,7 +230,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   flex-direction: column;
   gap: 1px;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .card-info-box { padding: 4px 4px 3px; min-height: 38%; }
 }
 .hero-card .card-info-box { border-top-color: rgba(255,180,171,0.3); }
@@ -242,7 +245,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
-@media (min-width: 768px) { .card-name-label { font-size: 8.5px; } }
+@media (min-width: 1024px) { .card-name-label { font-size: 8.5px; } }
 .hero-card .card-name-label { color: #ffb4ab; }
 
 /* Card type label */
@@ -254,7 +257,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-@media (min-width: 768px) { .card-type-label { font-size: 6.5px; } }
+@media (min-width: 1024px) { .card-type-label { font-size: 6.5px; } }
 
 /* Card ability text */
 .card-ability-text {
@@ -264,7 +267,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   line-height: 1.25;
   margin-top: 1px;
 }
-@media (min-width: 768px) { .card-ability-text { font-size: 7px; margin-top: 2px; } }
+@media (min-width: 1024px) { .card-ability-text { font-size: 7px; margin-top: 2px; } }
 
 /* Cost bubble */
 .card-cost-bubble {
@@ -284,7 +287,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   color: #d3bcf9;
   box-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .card-cost-bubble { top: 3px; left: 3px; width: 18px; height: 18px; font-size: 9px; }
 }
 .hero-card .card-cost-bubble { background: #93000a; border-color: #ffb4ab; color: #ffb4ab; }
@@ -306,7 +309,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-size: 7px;
   color: #ffb4ab;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .card-strength-badge { width: 17px; height: 17px; font-size: 9px; }
 }
 
@@ -327,7 +330,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-size: 7px;
   color: #e8c84a;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .card-stored-power-badge { width: 17px; height: 17px; font-size: 9px; }
 }
 

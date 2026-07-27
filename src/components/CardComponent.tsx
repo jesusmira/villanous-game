@@ -13,6 +13,8 @@ interface Props {
   draggable?: boolean;
   onDragStart?: () => void;
   onDragEnd?: () => void;
+  /** Clases extra que sobreescriben el tamaño por defecto (mano móvil, vista de detalle). */
+  sizeClassName?: string;
 }
 
 const CARD_GRADIENTS: Record<string, string> = {
@@ -25,7 +27,7 @@ const CARD_GRADIENTS: Record<string, string> = {
 };
 
 
-export function CardComponent({ card, state, selected, onClick, draggable: isDraggable, onDragStart, onDragEnd }: Props) {
+export function CardComponent({ card, state, selected, onClick, draggable: isDraggable, onDragStart, onDragEnd, sizeClassName }: Props) {
   const { onPointerDown } = useDragSource({ disabled: !isDraggable, onStart: onDragStart, onEnd: onDragEnd });
   const effectiveStr = card.baseStrength !== undefined ? getEffectiveStrength(state, card.instId) : undefined;
   const baseStr      = card.baseStrength ?? 0;
@@ -38,7 +40,7 @@ export function CardComponent({ card, state, selected, onClick, draggable: isDra
 
   return (
     <div
-      className={`villainous-card ${isHero ? 'hero-card' : ''} ${onClick ? 'cursor-pointer hover:scale-110 hover:-translate-y-1' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
+      className={`villainous-card ${sizeClassName ?? ''} ${isHero ? 'hero-card' : ''} ${onClick ? 'cursor-pointer hover:scale-110 hover:-translate-y-1' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
       style={{
         outline: selected ? '2px solid #e9c349' : undefined,
         outlineOffset: selected ? '2px' : undefined,

@@ -807,7 +807,7 @@ export function GameBoard({ state }: Props) {
           {/* Cajón deslizante */}
           <div
             {...handDrawerSwipe}
-            className={`fixed bottom-0 lg:top-12 lg:bottom-12 lg:right-0 left-0 lg:left-auto right-0 z-50 w-full lg:w-64 max-h-[60vh] lg:max-h-none bg-surface-container-highest/98 backdrop-blur-xl border-t lg:border-t-0 lg:border-l border-outline-variant/40 shadow-2xl flex flex-col transition-transform duration-300 ${
+            className={`fixed top-12 bottom-0 left-0 right-0 lg:bottom-12 lg:right-0 lg:left-auto z-50 w-full lg:w-64 bg-surface-container-highest/98 backdrop-blur-xl border-t lg:border-t-0 lg:border-l border-outline-variant/40 shadow-2xl flex flex-col transition-transform duration-300 ${
               handOpen ? 'translate-y-0 lg:translate-x-0' : 'translate-y-full lg:translate-y-0 lg:translate-x-full'
             }`}
           >
@@ -829,11 +829,11 @@ export function GameBoard({ state }: Props) {
             </div>
 
             {/* ── MÓVIL/TABLET: fila de cartas reales, centradas ── */}
-            <div className="lg:hidden flex-1 overflow-x-auto overflow-y-hidden">
+            <div className="lg:hidden flex-1 flex items-center overflow-x-auto overflow-y-hidden">
               {handCards.length === 0 && (
-                <p className="text-[11px] text-on-surface-variant/40 italic px-6 pt-4">Mano vacía — roba en la fase siguiente</p>
+                <p className="text-[11px] text-on-surface-variant/40 italic px-6 w-full text-center">Mano vacía — roba en la fase siguiente</p>
               )}
-              <div className="flex items-center gap-7 w-max max-w-full mx-auto px-6 py-4 h-full">
+              <div className="flex items-center gap-5 w-max max-w-full mx-auto px-6 py-4">
                 {handCards.map(card => {
                   const isDiscardMode   = ap.pendingAction === ActionType.DISCARD;
                   const isMarkedDiscard = discardIds.includes(card.instId);
@@ -842,13 +842,14 @@ export function GameBoard({ state }: Props) {
                   return (
                     <div
                       key={card.instId}
-                      className={`relative shrink-0 transition-transform ${isMarkedDiscard ? 'opacity-50' : ''}`}
-                      style={{ transform: isSelected ? 'scale(1.45) translateY(-6px)' : 'scale(1.35)', transformOrigin: 'center', zIndex: isSelected ? 20 : 0 }}
+                      className={`relative shrink-0 transition-transform ${isMarkedDiscard ? 'opacity-50' : ''} ${isSelected ? '-translate-y-1.5' : ''}`}
+                      style={{ zIndex: isSelected ? 20 : 0 }}
                     >
                       <CardComponent
                         card={card}
                         state={state}
                         selected={isSelected || isMarkedDiscard}
+                        sizeClassName={isSelected ? 'card-size-hand card-size-hand--selected' : 'card-size-hand'}
                         onClick={() => {
                           if (isDiscardMode) {
                             setDiscardIds(prev =>
@@ -868,14 +869,6 @@ export function GameBoard({ state }: Props) {
                         }`}>
                           {isMarkedDiscard ? '✕' : ''}
                         </div>
-                      )}
-
-                      {/* Botón detalle */}
-                      {!isDiscardMode && (
-                        <button
-                          className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-surface-container-highest border border-white/25 text-white/70 text-[10px] font-bold flex items-center justify-center shadow-md active:scale-90 transition-transform"
-                          onClick={e => { e.stopPropagation(); setDetailCard(card); }}
-                        >i</button>
                       )}
                     </div>
                   );
@@ -1044,9 +1037,7 @@ export function GameBoard({ state }: Props) {
             <div className="fixed inset-0 z-70 bg-black/40" onClick={() => setDetailCard(null)} />
             <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-71 flex flex-col items-center gap-3">
               <div className="villainous-card-preview-lg-wrap pointer-events-none">
-                <div className="villainous-card-preview-lg">
-                  <CardComponent card={dc} state={state} />
-                </div>
+                <CardComponent card={dc} state={state} sizeClassName="card-size-detail" />
               </div>
               {payCost !== undefined && (
                 <button
@@ -1117,7 +1108,6 @@ export function GameBoard({ state }: Props) {
           state={state}
           onFateDragStart={setFateDragCardId}
           onFateDragEnd={() => setFateDragCardId(null)}
-          onCardDetail={setDetailCard}
           onFateSelect={setFateDragCardId}
         />
       )}

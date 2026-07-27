@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CardType } from '../core/types';
-import type { GameState, LocationId, CardInstId, CardInst } from '../core/types';
+import type { GameState, LocationId, CardInstId } from '../core/types';
 import { getEffectDef } from '../core/villains/registry';
 import { useGameStore as _useGameStore } from '../state/gameStore';
 import { CardComponent } from './CardComponent';
@@ -9,12 +9,11 @@ interface Props {
   state: GameState;
   onFateDragStart?: (cardId: string) => void;
   onFateDragEnd?: () => void;
-  onCardDetail?: (card: CardInst) => void;
   /** Móvil: notifica la carta elegida (o null al cancelar) para activar el tap-en-ubicación */
   onFateSelect?: (cardId: string | null) => void;
 }
 
-export function FateModal({ state, onFateDragStart, onFateDragEnd, onCardDetail, onFateSelect }: Props) {
+export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect }: Props) {
   const { pendingFate } = state;
   const [chosenId,      setChosenId]     = useState<string | null>(null);
   const [_targetLocId,   setTargetLocId]  = useState<LocationId | null>(null);
@@ -127,8 +126,8 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onCardDetail,
     {/* ════════ MÓVIL/TABLET (<lg) — flujo tipo mano ════════ */}
     {/* Paso 1: elegir carta (panel arriba con cartas centradas/escaladas) */}
     {!chosenId && (
-      <div className="lg:hidden fixed top-12 inset-x-0 z-50 bg-surface-container-highest/97 backdrop-blur-xl border-b border-error/30 shadow-2xl animate-slide-down">
-        <div className="px-4 py-2">
+      <div className="lg:hidden fixed top-12 inset-x-0 bottom-0 z-50 bg-surface-container-highest/97 backdrop-blur-xl border-b border-error/30 shadow-2xl animate-slide-down flex flex-col">
+        <div className="px-4 py-2 shrink-0">
           <div className="flex items-baseline gap-2">
             <span className="font-serif text-sm font-bold text-error">Acción Destino</span>
             <span className="text-on-surface-variant/60 text-[11px]">
@@ -136,15 +135,11 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onCardDetail,
             </span>
           </div>
         </div>
-        <div className="overflow-x-auto overflow-y-hidden">
-          <div className="flex items-center gap-7 w-max max-w-full mx-auto px-6 py-4">
+        <div className="flex-1 flex items-center overflow-x-auto overflow-y-hidden">
+          <div className="flex items-center gap-5 w-max max-w-full mx-auto px-6 py-4">
             {autoPlayedCards.map(card => (
-              <div
-                key={card.instId}
-                className="opacity-40 pointer-events-none shrink-0"
-                style={{ transform: 'scale(1.35)', transformOrigin: 'center' }}
-              >
-                <CardComponent card={card} state={state} />
+              <div key={card.instId} className="opacity-40 pointer-events-none shrink-0">
+                <CardComponent card={card} state={state} sizeClassName="card-size-hand" />
               </div>
             ))}
             {revealedCards.map(card => (
@@ -152,15 +147,8 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onCardDetail,
                 key={card.instId}
                 onClick={() => { setChosenId(card.instId); setTargetLocId(null); setTargetCardId(null); onFateSelect?.(card.instId); }}
                 className="relative shrink-0 cursor-pointer select-none transition-transform active:scale-95"
-                style={{ transform: 'scale(1.35)', transformOrigin: 'center' }}
               >
-                <CardComponent card={card} state={state} />
-                {onCardDetail && (
-                  <button
-                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-surface-container-highest border border-white/25 text-white/70 text-[10px] font-bold flex items-center justify-center shadow-md active:scale-90 transition-transform"
-                    onClick={e => { e.stopPropagation(); onCardDetail(card); }}
-                  >i</button>
-                )}
+                <CardComponent card={card} state={state} sizeClassName="card-size-hand" />
               </div>
             ))}
           </div>

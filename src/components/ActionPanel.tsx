@@ -258,7 +258,57 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, detailCardOpe
   return (
     <div className="bg-surface-container-low/95 backdrop-blur-md border-t border-secondary-container/30 px-4 sm:px-4 py-3 sm:py-3 flex flex-col gap-3 sm:gap-2">
 
-      {/* Indicador de carta seleccionada */}
+      {/* Header — texto + mano + extras + poder + botón terminar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 text-on-surface-variant/60 text-xs sm:text-[10px]">
+          <MousePointerClick className="w-3.5 h-3.5 shrink-0" />
+          <p className="font-stats uppercase tracking-wider">
+            Elige una acción · {ap.locDef.name}
+          </p>
+        </div>
+        <div className="ml-0 sm:ml-auto flex items-center gap-2 w-full sm:w-auto">
+          {/* Acciones extra (p. ej. El Estuche de Garfio) — a la izquierda de la mano */}
+          {ap.extraSlots.length > 0 && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              {ap.extraSlots.map(({ slotIndex, slot, itemName }) => {
+                const available = !state.usedActionSlotIndices.includes(slotIndex);
+                const img = ACTION_IMG[slot.type];
+                return (
+                  <button
+                    key={slotIndex}
+                    disabled={!available}
+                    onClick={() => ap.handleSlotClick(slotIndex, slot)}
+                    title={`${ACTION_LABELS[slot.type] ?? slot.type} — ${itemName}`}
+                    className={`relative w-9 h-9 rounded-full border-2 overflow-hidden transition-all shrink-0 active:scale-95 ${
+                      available
+                        ? 'border-primary/60 hover:scale-110 hover:border-primary cursor-pointer shadow-md'
+                        : 'border-outline-variant/20 opacity-35 cursor-not-allowed'
+                    }`}
+                  >
+                    {img
+                      ? <img src={img} alt={slot.type} className="w-full h-full object-cover" />
+                      : <span className="font-stats text-[8px] text-on-surface-variant">{slot.type.slice(0, 3)}</span>
+                    }
+                    {!available && (
+                      <div className="absolute inset-0 bg-background/50" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <HandButton count={handCount} revealed={handRevealed} onToggle={onToggleHand} />
+          <div className="flex items-center gap-1.5 bg-secondary-container/10 border border-secondary-container/30 px-2.5 py-1 sm:py-1 rounded-full">
+            <Zap className="w-3 h-3 text-secondary-container shrink-0" fill="currentColor" />
+            <span className="font-stats text-sm sm:text-sm font-bold text-secondary-container">{ap.player.power}</span>
+          </div>
+          <button className={`${BTN_SECONDARY} flex-1 sm:flex-none`} onClick={() => ap.store.doEndActivate()}>
+            {ap.availableSlots.length === 0 ? 'Terminar → Robar' : 'Terminar'}
+          </button>
+        </div>
+      </div>
+
+      {/* Indicador de carta seleccionada — ocupa el sitio que antes tenían los extras, más visión del tablero */}
       {selectedCardId && selectedCard && !detailCardOpen && (
         <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 lg:hidden">
           <div className="w-6 h-6 rounded bg-primary/20 border border-primary/40 flex items-center justify-center text-xs font-bold text-primary">
@@ -271,26 +321,6 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, detailCardOpe
         </div>
       )}
 
-      {/* Header — texto + poder + botón terminar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
-        <div className="flex items-center gap-2 text-on-surface-variant/60 text-xs sm:text-[10px]">
-          <MousePointerClick className="w-3.5 h-3.5 shrink-0" />
-          <p className="font-stats uppercase tracking-wider">
-            Elige una acción · {ap.locDef.name}
-          </p>
-        </div>
-        <div className="ml-0 sm:ml-auto flex items-center gap-2 w-full sm:w-auto">
-          <HandButton count={handCount} revealed={handRevealed} onToggle={onToggleHand} />
-          <div className="flex items-center gap-1.5 bg-secondary-container/10 border border-secondary-container/30 px-2.5 py-1 sm:py-1 rounded-full">
-            <Zap className="w-3 h-3 text-secondary-container shrink-0" fill="currentColor" />
-            <span className="font-stats text-sm sm:text-sm font-bold text-secondary-container">{ap.player.power}</span>
-          </div>
-          <button className={`${BTN_SECONDARY} flex-1 sm:flex-none`} onClick={() => ap.store.doEndActivate()}>
-            {ap.availableSlots.length === 0 ? 'Terminar → Robar' : 'Terminar'}
-          </button>
-        </div>
-      </div>
-
       {/* Activar carta (El Cuervo, etc.) */}
       {ap.pendingAction === ActionType.ACTIVATE_CARD && (
         <ActivateCardFlow ap={ap} state={state} />
@@ -299,41 +329,6 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, detailCardOpe
       {/* Vencer héroe */}
       {ap.pendingAction === ActionType.VANQUISH && (
         <VanquishFlow ap={ap} state={state} />
-      )}
-
-
-      {/* Extra item slots — shown as action tokens */}
-      {ap.extraSlots.length > 0 && (
-        <div className="flex items-center gap-3 border-t border-outline-variant/15 pt-2">
-          <span className="font-stats text-[9px] uppercase tracking-wider text-on-surface-variant/40 shrink-0">Extras:</span>
-          <div className="flex gap-2 flex-wrap">
-            {ap.extraSlots.map(({ slotIndex, slot, itemName }) => {
-              const available = !state.usedActionSlotIndices.includes(slotIndex);
-              const img = ACTION_IMG[slot.type];
-              return (
-                <button
-                  key={slotIndex}
-                  disabled={!available}
-                  onClick={() => ap.handleSlotClick(slotIndex, slot)}
-                  title={`${ACTION_LABELS[slot.type] ?? slot.type} — ${itemName}`}
-                  className={`relative w-14 h-14 sm:w-11 sm:h-11 rounded-full border-2 overflow-hidden transition-all shrink-0 active:scale-95 ${
-                    available
-                      ? 'border-primary/60 hover:scale-110 hover:border-primary cursor-pointer shadow-md'
-                      : 'border-outline-variant/20 opacity-35 cursor-not-allowed'
-                  }`}
-                >
-                  {img
-                    ? <img src={img} alt={slot.type} className="w-full h-full object-cover" />
-                    : <span className="font-stats text-[8px] text-on-surface-variant">{slot.type.slice(0, 3)}</span>
-                  }
-                  {!available && (
-                    <div className="absolute inset-0 bg-background/50" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
       )}
     </div>
   );
