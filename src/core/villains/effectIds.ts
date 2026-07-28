@@ -46,6 +46,7 @@ export const CardDefId = {
   MAL_FLORA:           'mal_f_flora',
   // Príncipe Juan
   JHON_ROBIN_HOOD:     'jhon_f_robin',
+  JHON_REY_RICARDO:    'jhon_f_rey',
   JHON_LADY_MARIAN:    'jhon_f_marian',
   JHON_TOBY:           'jhon_f_toby',
   JHON_ALAN_A_DALE:    'jhon_f_alan',
@@ -53,6 +54,7 @@ export const CardDefId = {
   JHON_TIRO_LISTO:     'jhon_v_tiro',
   JHON_ORDEN:          'jhon_v_orden',
   JHON_ARQUEROS:       'jhon_v_arqueros',
+  JHON_CORONA:         'jhon_v_corona',
 } as const;
 
 // Prefijos de defId para "familias" de cartas (varias copias _1/_2/_3, o variantes sin un

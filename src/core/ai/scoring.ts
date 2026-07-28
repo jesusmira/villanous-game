@@ -3,6 +3,7 @@ import type { GameState, PlayerState, LocationState, CardInstId, LocationId } fr
 import { getPlugin, getEffectDef } from '../villains/registry';
 import { CardDefId, CardDefPrefix, EffectId } from '../villains/effectIds';
 import { HookLocationId } from '../villains/hook/cards';
+import { JhonLocationId } from '../villains/jhon/cards';
 import { heroHasBurla, findPeterPan, isPeterPanAtJollyRoger } from '../villains/hook/aiHelpers';
 import { getEffectiveStrength } from '../engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../engine/slotHelpers';
@@ -279,6 +280,45 @@ export function pickBestPlayTarget(
         candidates.sort((a, b) => b.score - a.score);
         return candidates[0].locId;
       }
+    } else if (player.villainId === 'jhon') {
+      // FASE 6: Príncipe Juan — antes caía en la rama de Garfio de abajo (Burla/Tic Tac/Jolly
+      // Roger, conceptos que no existen en su tablero): esas bonificaciones nunca se disparaban,
+      // así que en la práctica jugaba Aliados casi a ciegas. Prioridades propias:
+      // 1) Recuperar Monedas robadas (Little John / Robar a los Ricos): vencer ahí no solo quita
+      //    al héroe, también devuelve Poder real de inmediato (ver onVanquish en resolvers.ts).
+      // 2) Rematar un héroe donde ya hay Aliados invertidos, antes que empezar uno nuevo.
+      // 3) Si el peón YA está en esta ubicación y hay una casilla de Vencer libre este turno,
+      //    jugar aquí permite rematar en la MISMA acción (combo en un solo turno).
+      const candidates = plugin.locations
+        .filter(loc => !player.locationStates[loc.id]?.isLocked)
+        .map(loc => {
+          const ls = player.locationStates[loc.id];
+          let score = 0;
+
+          const heroStr = ls.heroCardInstIds.reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
+          const allyStr = ls.villainCardInstIds
+            .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+            .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
+          const storedHere = ls.heroCardInstIds.reduce((sum, id) => sum + (state.allCards[id]?.storedPower ?? 0), 0);
+
+          if (heroStr > 0 && allyStr < heroStr) {
+            score += 10 + storedHere * 3 + Math.min(allyStr, heroStr);
+          }
+
+          if (loc.id === player.pawnLocationId && heroStr > 0) {
+            const hasVanquishSlot = getAvailableSlotIndices(state, player.id, loc.id)
+              .some(idx => getActionAtSlot(state, player.id, idx)?.type === ActionType.VANQUISH);
+            if (hasVanquishSlot) score += 6;
+          }
+
+          score -= ls.villainCardInstIds.filter(id => state.allCards[id]?.cardType === CardType.ALLY).length;
+          score += rng() * 1.2 - 0.6;
+          return { locId: loc.id, score };
+        });
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => b.score - a.score);
+        return candidates[0].locId;
+      }
     } else {
       // Garfio: routing de aliados según bloqueantes. Burla primero (prerrequisito), luego Tic Tac, luego JR.
       const burlaHeroLocs = plugin.locations
@@ -392,6 +432,16 @@ export function pickBestPlayTarget(
       candidates.sort((a, b) => b.sc - a.sc);
       if (candidates.length > 0) return candidates[0].locId;
     }
+  }
+
+  // FASE 7: Corona del Rey Ricardo — su descuento de coste solo se aplica cuando el peón está
+  // FÍSICAMENTE en su ubicación (ver JHON_CORONA_COST en jhon/effects.ts). Sin esto caía en el
+  // fallback genérico ("donde esté el peón ahora"), que puede ser una ubicación que la IA no
+  // vuelva a visitar en mucho tiempo. La Prisión es la más visitada de forma fiable (heroesNever
+  // CoverSlots: siempre da Poder limpio, ver Fase 1), así que el descuento se aprovecha más.
+  if (player.villainId === 'jhon' && card.defId === CardDefId.JHON_CORONA
+    && !player.locationStates[JhonLocationId.PRISON]?.isLocked) {
+    return JhonLocationId.PRISON;
   }
 
   const pawnLoc = player.locationStates[player.pawnLocationId];

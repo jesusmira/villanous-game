@@ -4,6 +4,7 @@
 import { runAITurn, chooseCuervoAction, resolveTrampaForAI, bestTrampaVanquish } from './AIPlayer';
 import { resolveCondition, resolveCuervo, resolveDemosles, resolveJaqueca } from '../engine/PendingStateResolver';
 import { chooseDemoslesResolution } from '../villains/hook/aiHelpers';
+import { chooseConditionResolution } from './conditionAI';
 import { CardDefPrefix } from '../villains/effectIds';
 import type { GameState, PlayerId } from '../types';
 import type { OpponentProfile } from './opponentModel';
@@ -31,7 +32,10 @@ function maybeAutoResolveCondition(state: GameState): GameState {
   return maybeAutoResolve(
     state, state.pendingCondition,
     pending => pending.reactingPlayerId,
-    s => resolveCondition(s, null),
+    (s, pending) => {
+      const { condInstId, ctx } = chooseConditionResolution(s, pending);
+      return resolveCondition(s, condInstId, ctx);
+    },
   );
 }
 

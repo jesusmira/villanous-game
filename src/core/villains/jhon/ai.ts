@@ -12,12 +12,28 @@ function locHasCurse(state: GameState, ls: LocationState): boolean {
   return ls.villainCardInstIds.some(id => state.allCards[id]?.cardType === CardType.CURSE);
 }
 
+/** True si hay un héroe con ese defId en cualquier ubicación del reino de `player`. */
+function hasHeroInKingdom(state: GameState, player: PlayerState, defId: string): boolean {
+  const plugin = getPlugin(player.villainId);
+  return plugin.locations.some(l =>
+    player.locationStates[l.id].heroCardInstIds.some(id => state.allCards[id]?.defId === defId),
+  );
+}
+
 // Pesos de la heurística: el Príncipe Juan acumula Poder SIN tope (su condición de
 // victoria son 20 Monedas), así que aquí no hay rendimientos decrecientes.
 const WEIGHTS = {
   POWER: 2.0,                   // cada moneda vale mucho: es el objetivo de victoria — AUMENTADO
   HAND_CARD: 0.3,              // opciones en mano — AUMENTADO
   ROBIN_HOOD_IN_KINGDOM: -35,   // Robin Hood reduce las ganancias de Poder: muy perjudicial — AUMENTADO (MÁS URGENTE ELIMINARLO)
+  // FASE 3: Rey Ricardo bloquea TODAS las cartas de tipo Efecto en TODO el reino mientras
+  // viva (Trampa, Intimidación, Encarcelamiento, Apreciados Impuestos — 9 cartas del mazo),
+  // no solo en su ubicación (ver blocksEffectPlay en RuleEngine.ts). Antes no tenía peso propio
+  // y solo recibía las penalizaciones genéricas de héroe F4+ (-8 -15 = -23), MENOS que Robin
+  // Hood (-35) pese a ser igual o más perjudicial — con partidas simuladas se veía vivo 40-50
+  // rondas sin que la IA priorizara vencerlo. Ligeramente por encima de Robin Hood porque
+  // apagar 9 cartas de golpe es peor que restar 1 Moneda por ganancia.
+  REY_RICARDO_IN_KINGDOM: -40,
   HERO_OUTSIDE_PRISON: -8,      // por cada héroe que bloquea ranuras fuera de La Prisión — AUMENTADO
   HERO_STRONG_BLOCKING: -15,    // NUEVO: penalización por héroe F4+ sin vencer
 
@@ -77,12 +93,10 @@ export function scoreState(state: GameState, player: PlayerState): number {
   }
 
   // Robin Hood en el reino es muy perjudicial: penalizar
-  const robinInKingdom = plugin.locations.some(l =>
-    player.locationStates[l.id].heroCardInstIds.some(id =>
-      state.allCards[id]?.defId === CardDefId.JHON_ROBIN_HOOD,
-    ),
-  );
-  if (robinInKingdom) v += WEIGHTS.ROBIN_HOOD_IN_KINGDOM;
+  if (hasHeroInKingdom(state, player, CardDefId.JHON_ROBIN_HOOD)) v += WEIGHTS.ROBIN_HOOD_IN_KINGDOM;
+
+  // Rey Ricardo en el reino bloquea todas las cartas de Efecto: penalizar (ver WEIGHTS arriba)
+  if (hasHeroInKingdom(state, player, CardDefId.JHON_REY_RICARDO)) v += WEIGHTS.REY_RICARDO_IN_KINGDOM;
 
   // Héroes en la Prisión no bloquean ranuras: menos urgente vencerlos
   const heroesOutsidePrison = plugin.locations
@@ -135,15 +149,20 @@ export function scoreState(state: GameState, player: PlayerState): number {
  * cartas que ahora mismo no aportan y que el rebarajado devolverá al mazo:
  * - Condiciones duplicadas: con una copia en mano basta; la segunda solo atasca.
  * - Avaricia con el rival muy lejos de 6 Monedas: jugarla no haría nada.
+ * - FASE 7: cualquier carta de Efecto mientras Rey Ricardo viva en el reino — quedan
+ *   injugables por completo (ver blocksEffectPlay en RuleEngine.ts), así que ciclarlas es
+ *   mejor que dejarlas atascadas en mano sin poder usarse hasta que se le venza.
  */
 export function deadHandCards(state: GameState, p: PlayerState): CardInstId[] {
   const out: CardInstId[] = [];
   const opp = state.players.find(pl => pl.id !== p.id);
+  const reyPresent = hasHeroInKingdom(state, p, CardDefId.JHON_REY_RICARDO);
 
   const seenCondNames = new Set<string>();
   for (const id of p.handInstIds) {
     const c = state.allCards[id];
     if (!c) continue;
+    if (reyPresent && c.cardType === CardType.EFFECT) { out.push(id); continue; }
     // Condición duplicada (misma carta, p. ej. 2ª Avaricia o 2ª Cobardía) → ciclar la extra.
     if (c.cardType === CardType.CONDITION) {
       if (seenCondNames.has(c.name)) { out.push(id); continue; }

@@ -13,7 +13,7 @@ import {
 import {
   movePawn, skipMove, gainPower, playCard, vanquish, moveItemAlly,
   moveHero, startFate, resolveFate, activateCard, discardFromHand,
-  endActivatePhase, drawCards, activateRaven, payToDiscardItem,
+  endActivatePhase, drawCards, activateRaven, activateSherif, payToDiscardItem,
 } from '../engine/GameEngine';
 import {
   resolveCuervo, resolveDemosles,
@@ -60,6 +60,36 @@ export function runAITurn(state: GameState, profile?: OpponentProfile): GameStat
             const { action, params } = chooseCuervoAction(s);
             s = resolveCuervo(s, action, params);
           }
+          steps.push(s);
+        }
+      }
+    }
+  }
+
+  // FASE 5: SHERIFF DE NOTTINGHAM — el Príncipe Juan puede moverlo a cualquier ubicación ANTES
+  // de mover el peón (una vez por turno); si hay Héroes en el destino, gana 1 Moneda de Poder
+  // de inmediato. A diferencia de El Cuervo no deja ningún pendiente que resolver (activateSherif
+  // ya resuelve todo su efecto), así que basta con simular cada destino candidato y comparar el
+  // estado resultante directamente. Antes esta habilidad no tenía NINGUNA lógica de IA (a
+  // diferencia de El Cuervo, que sí) y nunca se activaba — confirmado con partidas simuladas:
+  // 0 activaciones pese a estar en juego en un tercio de los turnos observados.
+  if (s.turnPhase === TurnPhase.MOVE) {
+    const playerSherif = getPlayer(s, playerId);
+    if (!playerSherif.sherifUsedThisTurn) {
+      const sherifId = Object.values(s.allCards).find(
+        c => c.ownerId === playerId && c.effectIds.includes(EffectId.JHON_SHERIF) && c.locationId,
+      )?.instId;
+      if (sherifId) {
+        const pluginSherif = getPlugin(playerSherif.villainId);
+        const openLocsSherif = pluginSherif.locations.filter(l => !playerSherif.locationStates[l.id]?.isLocked);
+        let bestSherifDest: LocationId | undefined;
+        let bestSherifVal = evaluateState(s, playerId, profile); // solo mover si mejora
+        for (const loc of openLocsSherif) {
+          const val = evaluateState(activateSherif(s, playerId, sherifId, loc.id), playerId, profile);
+          if (val > bestSherifVal) { bestSherifVal = val; bestSherifDest = loc.id; }
+        }
+        if (bestSherifDest) {
+          s = activateSherif(s, playerId, sherifId, bestSherifDest);
           steps.push(s);
         }
       }
