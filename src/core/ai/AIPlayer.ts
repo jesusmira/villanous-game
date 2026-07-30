@@ -66,13 +66,19 @@ export function runAITurn(state: GameState, profile?: OpponentProfile): GameStat
     }
   }
 
-  // FASE 5: SHERIFF DE NOTTINGHAM — el Príncipe Juan puede moverlo a cualquier ubicación ANTES
-  // de mover el peón (una vez por turno); si hay Héroes en el destino, gana 1 Moneda de Poder
-  // de inmediato. A diferencia de El Cuervo no deja ningún pendiente que resolver (activateSherif
-  // ya resuelve todo su efecto), así que basta con simular cada destino candidato y comparar el
-  // estado resultante directamente. Antes esta habilidad no tenía NINGUNA lógica de IA (a
-  // diferencia de El Cuervo, que sí) y nunca se activaba — confirmado con partidas simuladas:
-  // 0 activaciones pese a estar en juego en un tercio de los turnos observados.
+  // FASE 5/10: SHERIFF DE NOTTINGHAM — el Príncipe Juan puede moverlo a cualquier ubicación
+  // ANTES de mover el peón (una vez por turno); si hay Héroes en el destino, gana 1 Moneda de
+  // Poder de inmediato — una ganancia real, determinista y gratuita (Rey Ricardo/Robin Hood no
+  // le afectan: no es una carta de Efecto ni pasa por playCard). A diferencia de El Cuervo no
+  // deja ningún pendiente que resolver (activateSherif ya resuelve todo su efecto).
+  //
+  // FASE 10: antes se decidía comparando el evaluateState COMPLETO antes/después, y esa +1
+  // Moneda garantizada se diluía entre el ruido de otros términos que cambian a la vez
+  // (penalizaciones de Rey Ricardo/Robin Hood, HERO_ALLY_MATCH al alejarse de un héroe, etc.)
+  // — confirmado en una partida real: el Sheriff solo se activó UNA vez en más de 20 rondas
+  // pese a haber Héroes en el reino casi todo el rato. Ahora se prioriza de forma determinista
+  // cualquier ubicación con Héroes (la ganancia de +1 Poder no depende de nada más), y solo se
+  // recurre a comparar evaluateState como respaldo si ninguna ubicación tiene Héroes ahora mismo.
   if (s.turnPhase === TurnPhase.MOVE) {
     const playerSherif = getPlayer(s, playerId);
     if (!playerSherif.sherifUsedThisTurn) {
@@ -81,13 +87,32 @@ export function runAITurn(state: GameState, profile?: OpponentProfile): GameStat
       )?.instId;
       if (sherifId) {
         const pluginSherif = getPlugin(playerSherif.villainId);
-        const openLocsSherif = pluginSherif.locations.filter(l => !playerSherif.locationStates[l.id]?.isLocked);
+        const curSherifLoc = s.allCards[sherifId]?.locationId;
+        const openLocsSherif = pluginSherif.locations.filter(
+          l => !playerSherif.locationStates[l.id]?.isLocked && l.id !== curSherifLoc,
+        );
+        const heroLocsSherif = openLocsSherif.filter(
+          l => (playerSherif.locationStates[l.id]?.heroCardInstIds.length ?? 0) > 0,
+        );
+
         let bestSherifDest: LocationId | undefined;
-        let bestSherifVal = evaluateState(s, playerId, profile); // solo mover si mejora
-        for (const loc of openLocsSherif) {
-          const val = evaluateState(activateSherif(s, playerId, sherifId, loc.id), playerId, profile);
-          if (val > bestSherifVal) { bestSherifVal = val; bestSherifDest = loc.id; }
+        if (heroLocsSherif.length > 0) {
+          // Cualquiera de estas da +1 Poder garantizado; si hay varias, la que además
+          // puntúe mejor (p. ej. por posicionamiento hacia un futuro Vencer).
+          let bestVal = -Infinity;
+          for (const loc of heroLocsSherif) {
+            const val = evaluateState(activateSherif(s, playerId, sherifId, loc.id), playerId, profile);
+            if (val > bestVal) { bestVal = val; bestSherifDest = loc.id; }
+          }
+        } else {
+          // Sin Héroes en ninguna ubicación alcanzable: respaldo — solo mover si mejora.
+          let bestSherifVal = evaluateState(s, playerId, profile);
+          for (const loc of openLocsSherif) {
+            const val = evaluateState(activateSherif(s, playerId, sherifId, loc.id), playerId, profile);
+            if (val > bestSherifVal) { bestSherifVal = val; bestSherifDest = loc.id; }
+          }
         }
+
         if (bestSherifDest) {
           s = activateSherif(s, playerId, sherifId, bestSherifDest);
           steps.push(s);

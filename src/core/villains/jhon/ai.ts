@@ -58,6 +58,36 @@ const WEIGHTS = {
   HERO_ALLY_MATCH: 1.5,
   HERO_READY_TO_VANQUISH: 5,
 
+  // FASE 8c: trofeo permanente por cada héroe vencido — mismo patrón ya validado en Garfio
+  // (HERO_TROPHY), replicado aquí porque a Jhon le faltaba. Comprobado con
+  // ai-vanquish-scoring.test.ts que HERO_ALLY_MATCH+HERO_READY_TO_VANQUISH, al perderse junto
+  // con los Aliados gastados, dejaban a Fraile Tuck (F3), Little John (F5) y Lady Kluck (F6)
+  // en negativo neto (vencerlos puntuaba peor que no vencerlos) pese a que HERO_STRONG_BLOCKING
+  // ya no aporta nada en ese momento (solo penaliza mientras el héroe sigue SIN cubrir).
+  // Se cuenta desde fateDiscardInstIds — igual que en Garfio — así que NO es una bandera fija:
+  // si el héroe reaparece en el reino (redibujado por Destino, Rival Digno...), sale del
+  // descarte y el trofeo desaparece solo, sin ceguera ante la amenaza que vuelve (comprobado
+  // con los tests de reaparición). Toby es la única excepción: su habilidad lo devuelve
+  // directamente al mazo de Destino en vez de quedarse en el descarte, así que nunca genera
+  // trofeo — no hace falta: con un solo Aliado barato ya es rentable vencerlo (ver tests).
+  HERO_TROPHY: 8,
+
+  // FASE 10: colchón defensivo — antes, jugar un Aliado SIN ningún héroe presente puntuaba
+  // siempre negativo (paga el coste sin ningún HERO_ALLY_MATCH/READY que lo compense, ya que
+  // esos solo aplican con heroStr>0), así que la IA nunca construía ejército por adelantado:
+  // solo reaccionaba DESPUÉS de que ya hubiera un héroe — y para entonces, bajo asedio de
+  // Robin Hood/Rey Ricardo, la economía ya podía estar ahogada (ver partida real). Premia
+  // Fuerza de Aliados en ubicaciones SIN héroe, con techo GLOBAL (no por ubicación, para que
+  // no compense repartir Aliados en varios sitios solo para cobrar el tope varias veces) y sin
+  // marginal más allá de él, para no invitar a acaparar Aliados sin límite a costa del Poder
+  // (que es la condición de victoria real).
+  // Es mutuamente excluyente con HERO_ALLY_MATCH: en cuanto aparece un héroe en una ubicación,
+  // esa Fuerza deja de contar aquí y pasa a contar en el bucle de HERO_ALLY_MATCH de abajo —
+  // así que no hay un bono que se pierda de golpe al aparecer o al vencer al héroe (comprobado
+  // con ai-vanquish-scoring.test.ts).
+  STANDING_ARMY_CAP: 6,
+  STANDING_ARMY_PER_POINT: 1.5,
+
   // FASE 2: héroe que retiene Monedas robadas (Little John / Robar a los Ricos) — vencerlo
   // las devuelve íntegras (ver onVanquish en resolvers.ts). El rival puede reutilizar el propio
   // mazo de Destino del Príncipe Juan contra él para sangrarlo indefinidamente (Robar a los
@@ -137,6 +167,20 @@ export function scoreState(state: GameState, player: PlayerState): number {
     }
   }
 
+  // FASE 10: colchón defensivo en ubicaciones SIN héroe (ver WEIGHTS.STANDING_ARMY_*).
+  const standingArmyStr = plugin.locations
+    .filter(l => player.locationStates[l.id].heroCardInstIds.length === 0)
+    .reduce((sum, l) => sum + player.locationStates[l.id].villainCardInstIds
+      .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+      .reduce((s2, id) => s2 + getEffectiveStrength(state, id), 0), 0);
+  v += Math.min(standingArmyStr, WEIGHTS.STANDING_ARMY_CAP) * WEIGHTS.STANDING_ARMY_PER_POINT;
+
+  // FASE 8c: trofeo permanente por cada héroe vencido — ver comentario en WEIGHTS.HERO_TROPHY.
+  const trophies = player.fateDiscardInstIds.filter(
+    id => state.allCards[id]?.cardType === CardType.HERO,
+  ).length;
+  v += trophies * WEIGHTS.HERO_TROPHY;
+
   v += scoreOppAwareness(state, player);
 
   return v;
@@ -152,16 +196,33 @@ export function scoreState(state: GameState, player: PlayerState): number {
  * - FASE 7: cualquier carta de Efecto mientras Rey Ricardo viva en el reino — quedan
  *   injugables por completo (ver blocksEffectPlay en RuleEngine.ts), así que ciclarlas es
  *   mejor que dejarlas atascadas en mano sin poder usarse hasta que se le venza.
+ * - FASE 10: TODA la mano, si Robin Hood o Rey Ricardo están ahogando la economía Y ninguna
+ *   carta en mano es asequible con el Poder actual. Confirmado en partida real: con esos dos
+ *   héroes presentes el Poder se queda en 0 varias rondas seguidas mientras la mano se llena
+ *   de Aliados de coste 3 que nunca se pueden pagar — como ninguno está "formalmente muerto"
+ *   (no son Efectos, no son condiciones duplicadas), antes no se descartaban jamás. Se limita
+ *   a estos dos disparadores concretos (en vez de "cualquier turno con Poder bajo") para no
+ *   descartar la mano inicial del turno 1 solo por empezar en 0 de Poder, que es normal.
  */
 export function deadHandCards(state: GameState, p: PlayerState): CardInstId[] {
   const out: CardInstId[] = [];
   const opp = state.players.find(pl => pl.id !== p.id);
   const reyPresent = hasHeroInKingdom(state, p, CardDefId.JHON_REY_RICARDO);
+  const robinPresent = hasHeroInKingdom(state, p, CardDefId.JHON_ROBIN_HOOD);
+
+  const noneAffordable = (reyPresent || robinPresent) && p.handInstIds.length > 0
+    && p.handInstIds.every(id => {
+      const c = state.allCards[id];
+      if (!c) return true;
+      const cost = Math.max(0, c.baseCost + c.costModifier);
+      return cost > p.power;
+    });
 
   const seenCondNames = new Set<string>();
   for (const id of p.handInstIds) {
     const c = state.allCards[id];
     if (!c) continue;
+    if (noneAffordable) { out.push(id); continue; }
     if (reyPresent && c.cardType === CardType.EFFECT) { out.push(id); continue; }
     // Condición duplicada (misma carta, p. ej. 2ª Avaricia o 2ª Cobardía) → ciclar la extra.
     if (c.cardType === CardType.CONDITION) {
