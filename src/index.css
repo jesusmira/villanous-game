@@ -149,19 +149,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   overflow: visible;
 }
 
-/* Detail modal — más grande, pero SIEMPRE encaja en la pantalla (usa svh, no
-   un transform:scale fijo que puede desbordar en móvil apaisado bajo). */
-.villainous-card-preview-lg-wrap {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.card-size-detail {
-  width: auto !important;
-  height: clamp(160px, 62svh, 340px) !important;
-  aspect-ratio: 2 / 3;
-}
-
 /* Mano / Destino en overlay móvil a pantalla completa — tamaño ligado a la
    altura visible real (svh), nunca al ancho, para aprovechar toda la
    pantalla sin desbordar en landscape corto. Independiente del tamaño de

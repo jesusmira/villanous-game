@@ -1036,8 +1036,13 @@ export function GameBoard({ state }: Props) {
           <>
             <div className="fixed inset-0 z-70 bg-black/40" onClick={() => setDetailCard(null)} />
             <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-71 flex flex-col items-center gap-3">
-              <div className="villainous-card-preview-lg-wrap pointer-events-none">
-                <CardComponent card={dc} state={state} sizeClassName="card-size-detail" />
+              {/* Mismo tamaño y proporciones que la vista previa al pasar el ratón sobre la
+                  mano (villainous-card-preview): antes usaba su propio tamaño (card-size-detail,
+                  con clamp + aspect-ratio propios) y no coincidía con el resto de vistas previas. */}
+              <div className="villainous-card-preview-wrap pointer-events-none">
+                <div className="villainous-card-preview">
+                  <CardComponent card={dc} state={state} />
+                </div>
               </div>
               {payCost !== undefined && (
                 <button
