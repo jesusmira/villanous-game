@@ -2,7 +2,7 @@
 // Sin dependencias de React ni de IndexedDB — solo modelan los datos que se
 // registran durante una partida para poder persistirlos y, más adelante,
 // construir un perfil del jugador humano (ver evaluate.ts / AIPlayer.ts).
-import type { PlayerId, VillainId, LocationId } from '../types';
+import type { PlayerId, VillainId, LocationId, CardInstId, CardDefId } from '../types';
 
 /** Tipo de acción registrada. Refleja 1:1 los `do*` de `useGameStore` + el turno de IA. */
 export const ActionKind = {
@@ -36,6 +36,25 @@ export const ActionKind = {
 } as const;
 export type ActionKind = (typeof ActionKind)[keyof typeof ActionKind];
 
+/**
+ * Ficha mínima de una carta concreta — para poder leer EN el historial qué carta es cada
+ * `CardInstId`, sin tener que cargar el `GameState` completo (que ya no existe una vez jugada
+ * la partida: el historial solo persiste `ActionRecord`, no el estado bruto).
+ */
+export interface CardSummary {
+  instId: CardInstId;
+  defId: CardDefId;
+  name: string;
+  cardType: string;
+  strength?: number;
+}
+
+/** Cartas en mano y en cada ubicación del reino de un jugador, en un instante dado. */
+export interface PlayerCardSnapshot {
+  hand: CardSummary[];
+  locations: Partial<Record<LocationId, { allies: CardSummary[]; items: CardSummary[]; heroes: CardSummary[] }>>;
+}
+
 /** Foto del estado de UN jugador en un instante — usada como "antes"/"después" de cada acción. */
 export interface PlayerSnapshot {
   power: number;
@@ -68,6 +87,15 @@ export interface ActionRecord {
    */
   opponent: PlayerSnapshot;
   timestamp: number;
+  /**
+   * Cartas completas (mano + tablero) de ambos jugadores DESPUÉS de esta acción — a diferencia
+   * de PlayerSnapshot (solo números, pensado para agregarse en miles de partidas del modelo de
+   * rival), esto identifica cada carta por nombre. Opcional/añadido después: los registros
+   * antiguos guardados antes de este campo no lo tienen.
+   */
+  cards?: { self: PlayerCardSnapshot; opponent: PlayerCardSnapshot };
+  /** Líneas de state.log generadas durante esta acción (mensajes reales del motor, no inferidos). */
+  logMessages?: string[];
 }
 
 export interface GameRecordPlayer {

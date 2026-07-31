@@ -75,14 +75,19 @@ export function recordAction(
 }
 
 /**
- * Registra un turno de IA como un único bloque (no se desglosan sus acciones internas).
- * `steps` son los estados intermedios que ya devuelve runAIStep (para la animación);
- * el último es el estado final del turno.
+ * Registra un turno de IA desglosado: `steps` (los mismos estados intermedios que runAIStep ya
+ * devuelve para la animación) se recorre par a par, un ActionRecord por cada transición interna
+ * (mover el peón, cada acción de la fase ACTIVATE, robar cartas...), en vez de un único bloque
+ * "AI_TURN" que solo mostraba el antes/después del turno completo. Sin esto era imposible ver,
+ * a partir del historial, QUÉ hizo la IA en cada paso — solo el resultado final agregado.
  */
 export function recordAITurn(before: GameState, steps: GameState[], aiPlayerId: PlayerId): void {
   if (!session || steps.length === 0) return;
-  const after = steps[steps.length - 1];
-  recordAction(before, after, aiPlayerId, 'AI_TURN');
+  let prev = before;
+  for (const step of steps) {
+    recordAction(prev, step, aiPlayerId, 'AI_TURN');
+    prev = step;
+  }
 }
 
 /** Cierra la sesión sin ganador (partida abandonada/reiniciada a medias) y la persiste igualmente. */

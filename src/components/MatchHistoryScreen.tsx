@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Trash2, Swords, Compass } from 'lucide-react';
+import { ArrowLeft, Trash2, Swords, Compass, Download } from 'lucide-react';
 import { useMatchHistory } from '../state/history/useMatchHistory';
+import { exportGameRecord, exportAllGameRecords } from '../state/history/exportHistory';
 import { buildOpponentProfile } from '../core/ai/opponentModel';
 import type { VillainMoveProfile } from '../core/ai/opponentModel';
 import { getPlugin, getAllPlugins } from '../core/villains/registry';
@@ -108,30 +109,39 @@ export function MatchHistoryScreen({ onBack }: Props) {
                 <h2 className="font-serif text-sm text-on-surface flex items-center gap-1.5">
                   <Swords className="w-3.5 h-3.5 text-primary" /> Partidas ({records.length})
                 </h2>
-                {confirmClear ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-on-surface-variant/70">¿Borrar todo?</span>
-                    <button
-                      onClick={() => { void clear(); setConfirmClear(false); }}
-                      className="text-[10px] font-stats uppercase tracking-wider text-error hover:underline"
-                    >
-                      Sí
-                    </button>
-                    <button
-                      onClick={() => setConfirmClear(false)}
-                      className="text-[10px] font-stats uppercase tracking-wider text-on-surface-variant hover:underline"
-                    >
-                      No
-                    </button>
-                  </div>
-                ) : (
+                <div className="flex items-center gap-3">
                   <button
-                    onClick={() => setConfirmClear(true)}
-                    className="text-[10px] font-stats uppercase tracking-wider text-on-surface-variant/60 hover:text-error transition-colors"
+                    onClick={() => exportAllGameRecords(records)}
+                    className="text-[10px] font-stats uppercase tracking-wider text-on-surface-variant/60 hover:text-primary transition-colors flex items-center gap-1"
+                    title="Descargar todas las partidas (JSON), con cartas y log detallado de cada acción"
                   >
-                    Borrar historial
+                    <Download className="w-3 h-3" /> Exportar todo
                   </button>
-                )}
+                  {confirmClear ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-on-surface-variant/70">¿Borrar todo?</span>
+                      <button
+                        onClick={() => { void clear(); setConfirmClear(false); }}
+                        className="text-[10px] font-stats uppercase tracking-wider text-error hover:underline"
+                      >
+                        Sí
+                      </button>
+                      <button
+                        onClick={() => setConfirmClear(false)}
+                        className="text-[10px] font-stats uppercase tracking-wider text-on-surface-variant hover:underline"
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmClear(true)}
+                      className="text-[10px] font-stats uppercase tracking-wider text-on-surface-variant/60 hover:text-error transition-colors"
+                    >
+                      Borrar historial
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 {records.map(r => {
@@ -152,13 +162,22 @@ export function MatchHistoryScreen({ onBack }: Props) {
                             : <span className="text-on-surface-variant/60">Abandonada</span>}
                         </span>
                       </div>
-                      <button
-                        onClick={() => void remove(r.id)}
-                        className="shrink-0 text-on-surface-variant/40 hover:text-error transition-colors p-1"
-                        title="Eliminar partida"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="shrink-0 flex items-center gap-1">
+                        <button
+                          onClick={() => exportGameRecord(r)}
+                          className="text-on-surface-variant/40 hover:text-primary transition-colors p-1"
+                          title="Descargar esta partida (JSON), con cartas y log detallado de cada acción"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => void remove(r.id)}
+                          className="text-on-surface-variant/40 hover:text-error transition-colors p-1"
+                          title="Eliminar partida"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
