@@ -1,3 +1,5 @@
+import type { OpponentProfile } from './ai/opponentModel';
+
 export type PlayerId = string;
 export type VillainId = 'maleficent' | 'hook' | 'jhon';
 export type LocationId = string;
@@ -260,7 +262,7 @@ export interface VillainPlugin {
      * victoria lo requiere (p. ej. el Príncipe Juan, que necesita acumular poder sin tope),
      * ignorarlo y devolver un valor propio por completo.
      */
-    scoreState?: (state: GameState, player: PlayerState, genericPowerScore: number) => number;
+    scoreState?: (state: GameState, player: PlayerState, genericPowerScore: number, profile?: OpponentProfile) => number;
     /**
      * Cuán urgente es para el RIVAL desbaratar a `self` (este villano), en función de su avance
      * hacia la victoria. Se invoca sobre el plugin del oponente. Por defecto 1.0 (neutral).

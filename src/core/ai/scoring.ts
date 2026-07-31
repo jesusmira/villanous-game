@@ -303,6 +303,16 @@ export function pickBestPlayTarget(
 
           if (heroStr > 0 && allyStr < heroStr) {
             score += 10 + storedHere * 3 + Math.min(allyStr, heroStr);
+            // FASE 11: Robin Hood/Rey Ricardo cargan su propia penalización grande en scoreState
+            // (-35/-40, ver jhon/ai.ts) por encima de cualquier otro héroe de su misma Fuerza —
+            // sin este desempate, un Aliado nuevo podía ir a un héroe cualquiera con inversión ya
+            // empezada mientras ellos seguían sin ningún Aliado cerca (visto en partida real: Rey
+            // Ricardo aguantaba muchas rondas sin que ningún Aliado se le acercara).
+            const hasPriorityThreat = ls.heroCardInstIds.some(id => {
+              const defId = state.allCards[id]?.defId;
+              return defId === CardDefId.JHON_ROBIN_HOOD || defId === CardDefId.JHON_REY_RICARDO;
+            });
+            if (hasPriorityThreat) score += 15;
           }
 
           if (loc.id === player.pawnLocationId && heroStr > 0) {

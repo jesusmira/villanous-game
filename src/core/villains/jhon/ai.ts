@@ -3,13 +3,63 @@
 // IGNORA el score de poder genérico: acumular Monedas sin tope ES su condición de victoria,
 // así que el "rendimiento decreciente" del genérico no aplica.
 import { CardType } from '../../types';
-import type { GameState, PlayerState, LocationState, CardInstId } from '../../types';
+import type { GameState, PlayerState, LocationState, CardInstId, LocationId, LocationDef } from '../../types';
 import { getPlugin } from '../registry';
 import { CardDefId, EffectId } from '../effectIds';
 import { getEffectiveStrength } from '../../engine/stateHelpers';
+import type { OpponentProfile } from '../../ai/opponentModel';
 
 function locHasCurse(state: GameState, ls: LocationState): boolean {
   return ls.villainCardInstIds.some(id => state.allCards[id]?.cardType === CardType.CURSE);
+}
+
+/** Distancia (en saltos) desde `fromId` a cada ubicación alcanzable, vía adjacentIds. */
+function bfsDistances(locations: LocationDef[], fromId: LocationId): Map<LocationId, number> {
+  const dist = new Map<LocationId, number>([[fromId, 0]]);
+  const queue: LocationId[] = [fromId];
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    const curDef = locations.find(l => l.id === cur);
+    if (!curDef) continue;
+    const curDist = dist.get(cur)!;
+    for (const adjId of curDef.adjacentIds) {
+      if (!dist.has(adjId)) {
+        dist.set(adjId, curDist + 1);
+        queue.push(adjId);
+      }
+    }
+  }
+  return dist;
+}
+
+/**
+ * FASE 12: ubicación del héroe sin vencer más urgente (para tirar de los Aliados "libres" hacia
+ * él, ver PRIORITY_THREAT_PROXIMITY más abajo). Prioridad 3 para Robin Hood/Rey Ricardo (misma
+ * jerarquía que sus penalizaciones fijas), prioridad 1 para cualquier otro héroe F4+ sin cubrir.
+ * Un héroe ya con Aliados suficientes (allyStr >= heroStr) no necesita tirar de más refuerzos.
+ */
+function findPriorityTargetLoc(state: GameState, player: PlayerState, plugin: ReturnType<typeof getPlugin>): LocationId | null {
+  let bestLoc: LocationId | null = null;
+  let bestPriority = 0;
+  for (const l of plugin.locations) {
+    const ls = player.locationStates[l.id];
+    if (ls.heroCardInstIds.length === 0) continue;
+    const heroStr = ls.heroCardInstIds.reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
+    const allyStr = ls.villainCardInstIds
+      .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+      .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
+    if (allyStr >= heroStr) continue;
+    const isPriorityHero = ls.heroCardInstIds.some(id => {
+      const defId = state.allCards[id]?.defId;
+      return defId === CardDefId.JHON_ROBIN_HOOD || defId === CardDefId.JHON_REY_RICARDO;
+    });
+    const priority = isPriorityHero ? 3 : (heroStr >= 4 ? 1 : 0);
+    if (priority > bestPriority) {
+      bestPriority = priority;
+      bestLoc = l.id;
+    }
+  }
+  return bestLoc;
 }
 
 /** True si hay un héroe con ese defId en cualquier ubicación del reino de `player`. */
@@ -87,6 +137,21 @@ const WEIGHTS = {
   // con ai-vanquish-scoring.test.ts).
   STANDING_ARMY_CAP: 6,
   STANDING_ARMY_PER_POINT: 1.5,
+  // FASE 13: el tope de arriba era fijo sin importar qué tan agresivo sea el rival EN ESTA
+  // PARTIDA. OpponentProfile (histórico de partidas, ver opponentModel.ts) sabe cuántas veces
+  // de media el humano ha lanzado Destino contra la IA jugando su villano actual — un rival que
+  // dispara Destino muy seguido merece más reserva de Aliados lista de antemano. Tope adicional
+  // de hasta +6 (total 12), solo con datos suficientes (2+ partidas); sin perfil, no cambia nada.
+  STANDING_ARMY_CAP_EXTRA_MAX: 6,
+
+  // FASE 12: tryMoveItemAlly (mover un Aliado ya jugado) solo compara saltos adyacentes por su
+  // valor inmediato en evaluateState; si la amenaza prioritaria está a 2+ saltos, el primer salto
+  // intermedio no puntuaba mejor por sí solo (STANDING_ARMY_* es una suma global, no cambia entre
+  // ubicaciones sin héroe) y el Aliado se quedaba parado ahí — visto en partida real con Rey
+  // Ricardo aguantando muchas rondas sin ningún Aliado acercándose. Premia Fuerza de Aliado
+  // "libre" (en ubicación sin héroe) según cercanía a la amenaza más urgente, decreciente con la
+  // distancia, para que cada salto hacia ella puntúe mejor que quedarse quieto.
+  PRIORITY_THREAT_PROXIMITY: 0.6,
 
   // FASE 2: héroe que retiene Monedas robadas (Little John / Robar a los Ricos) — vencerlo
   // las devuelve íntegras (ver onVanquish en resolvers.ts). El rival puede reutilizar el propio
@@ -108,7 +173,9 @@ const WEIGHTS = {
   MALEFICENT_CURSE_FINAL: -50,   // NUEVO: 3+ maldiciones = casi derrota
 };
 
-export function scoreState(state: GameState, player: PlayerState): number {
+export function scoreState(
+  state: GameState, player: PlayerState, _genericPowerScore?: number, profile?: OpponentProfile,
+): number {
   const plugin = getPlugin(player.villainId);
   let v = player.power * WEIGHTS.POWER;
   v += player.handInstIds.length * WEIGHTS.HAND_CARD;
@@ -168,12 +235,36 @@ export function scoreState(state: GameState, player: PlayerState): number {
   }
 
   // FASE 10: colchón defensivo en ubicaciones SIN héroe (ver WEIGHTS.STANDING_ARMY_*).
+  // FASE 13: tope ampliado según la agresividad histórica del rival (ver WEIGHTS.STANDING_ARMY_
+  // CAP_EXTRA_MAX). fateCount/gamesPlayed = Destinos lanzados de media por partida.
   const standingArmyStr = plugin.locations
     .filter(l => player.locationStates[l.id].heroCardInstIds.length === 0)
     .reduce((sum, l) => sum + player.locationStates[l.id].villainCardInstIds
       .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
       .reduce((s2, id) => s2 + getEffectiveStrength(state, id), 0), 0);
-  v += Math.min(standingArmyStr, WEIGHTS.STANDING_ARMY_CAP) * WEIGHTS.STANDING_ARMY_PER_POINT;
+  const oppForProfile = state.players.find(pl => pl.id !== player.id);
+  const villainProfile = oppForProfile ? profile?.byVillain[oppForProfile.villainId] : undefined;
+  const extraCap = villainProfile && villainProfile.gamesPlayed >= 2
+    ? Math.min(villainProfile.fateCount / villainProfile.gamesPlayed, WEIGHTS.STANDING_ARMY_CAP_EXTRA_MAX)
+    : 0;
+  v += Math.min(standingArmyStr, WEIGHTS.STANDING_ARMY_CAP + extraCap) * WEIGHTS.STANDING_ARMY_PER_POINT;
+
+  // FASE 12: tirar de los Aliados libres hacia la amenaza sin vencer más urgente (ver
+  // WEIGHTS.PRIORITY_THREAT_PROXIMITY y findPriorityTargetLoc arriba).
+  const priorityTargetLoc = findPriorityTargetLoc(state, player, plugin);
+  if (priorityTargetLoc) {
+    const distances = bfsDistances(plugin.locations, priorityTargetLoc);
+    for (const l of plugin.locations) {
+      const ls = player.locationStates[l.id];
+      if (ls.heroCardInstIds.length > 0) continue; // ya cuenta en HERO_ALLY_MATCH arriba
+      const allyStrHere = ls.villainCardInstIds
+        .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+        .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
+      if (allyStrHere === 0) continue;
+      const dist = distances.get(l.id) ?? 99;
+      v += (allyStrHere * WEIGHTS.PRIORITY_THREAT_PROXIMITY) / (1 + dist);
+    }
+  }
 
   // FASE 8c: trofeo permanente por cada héroe vencido — ver comentario en WEIGHTS.HERO_TROPHY.
   const trophies = player.fateDiscardInstIds.filter(
@@ -203,6 +294,12 @@ export function scoreState(state: GameState, player: PlayerState): number {
  *   (no son Efectos, no son condiciones duplicadas), antes no se descartaban jamás. Se limita
  *   a estos dos disparadores concretos (en vez de "cualquier turno con Poder bajo") para no
  *   descartar la mano inicial del turno 1 solo por empezar en 0 de Poder, que es normal.
+ * - FASE 14: un Aliado en mano "dominado" por otro Aliado en la MISMA mano (coste igual o menor
+ *   Y Fuerza igual o mayor, estrictamente peor en al menos uno de los dos) — antes solo se
+ *   ciclaba cuando NADA en mano era asequible; una mano con opciones mediocres pero técnicamente
+ *   jugables nunca se refrescaba. Comparar solo dentro de la misma mano (no contra Aliados ya en
+ *   juego) evita ciclar la única copia disponible de algo. Dos copias idénticas no se dominan
+ *   entre sí (ninguna es estrictamente mejor), así que ambas se conservan.
  */
 export function deadHandCards(state: GameState, p: PlayerState): CardInstId[] {
   const out: CardInstId[] = [];
@@ -233,6 +330,22 @@ export function deadHandCards(state: GameState, p: PlayerState): CardInstId[] {
     // dispara — mejor ciclarla y recuperarla del rebarajado cuando el rival acumule.
     if (opp && opp.power < 3 && c.effectIds.includes(EffectId.JHON_AVARICIA)) {
       out.push(id);
+      continue;
+    }
+    // FASE 14: Aliado dominado por otro Aliado de la misma mano (ver comentario arriba).
+    if (c.cardType === CardType.ALLY) {
+      const cost = Math.max(0, c.baseCost + c.costModifier);
+      const strength = c.baseStrength ?? 0;
+      const isDominated = p.handInstIds.some(otherId => {
+        if (otherId === id) return false;
+        const other = state.allCards[otherId];
+        if (other?.cardType !== CardType.ALLY) return false;
+        const otherCost = Math.max(0, other.baseCost + other.costModifier);
+        const otherStrength = other.baseStrength ?? 0;
+        return otherCost <= cost && otherStrength >= strength
+          && (otherCost < cost || otherStrength > strength);
+      });
+      if (isDominated) out.push(id);
     }
   }
   return out;

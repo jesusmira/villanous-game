@@ -372,13 +372,30 @@ function tryVanquish(s: GameState, playerId: PlayerId, slotIdx: number): GameSta
     !heroHasBurla(s, id)
     && (s.allCards[id]?.effectIds ?? []).some(eid => getEffectDef(eid)?.blocksCursePlay),
   );
+  // FASE 16: Príncipe Juan — Robin Hood/Rey Ricardo cargan su propia penalización grande en
+  // scoreState (-35/-40, ver jhon/ai.ts) muy por encima de cualquier otro héroe de su misma
+  // Fuerza, pero sin este bloque caían en el "others" genérico de abajo, ordenado por daño a
+  // ranuras/Fuerza sin distinguir CUÁL penalización concreta resuelve cada uno — un héroe más
+  // barato de vencer pero irrelevante podía intentarse antes que la amenaza real. Rey Ricardo
+  // primero entre los dos (su penalización es mayor: apaga 9 cartas de Efecto del mazo entero).
+  const jhonPriorityHeroIds = player.villainId === 'jhon'
+    ? heroEntries.filter(id => {
+        const defId = s.allCards[id]?.defId;
+        return defId === CardDefId.JHON_ROBIN_HOOD || defId === CardDefId.JHON_REY_RICARDO;
+      }).sort((a, b) => {
+        const aIsRey = s.allCards[a]?.defId === CardDefId.JHON_REY_RICARDO ? -1 : 0;
+        const bIsRey = s.allCards[b]?.defId === CardDefId.JHON_REY_RICARDO ? -1 : 0;
+        return aIsRey - bIsRey;
+      })
+    : [];
   // Wendy first among others (removing her strips the +1 aura from all other heroes).
   // Peter Pan se excluye SIEMPRE que no esté en el Jolly Roger: vencerlo en otra ubicación
   // no cuenta para el objetivo de Garfio y lo devuelve al descarte de Destino (desastre).
   const others = heroEntries.filter(
     id => !heroHasBurla(s, id)
       && s.allCards[id]?.defId !== CardDefId.HOOK_PETER_PAN
-      && !curseBlockerIds.includes(id),
+      && !curseBlockerIds.includes(id)
+      && !jhonPriorityHeroIds.includes(id),
   );
   const feasible = (heroId: CardInstId) => {
     const heroLoc = s.allCards[heroId]?.locationId;
@@ -425,6 +442,7 @@ function tryVanquish(s: GameState, playerId: PlayerId, slotIdx: number): GameSta
     ...burlaHeroes,
     ...(ppAtJollyId ? [ppAtJollyId] : []),
     ...curseBlockerIds,
+    ...jhonPriorityHeroIds,
     ...others,
   ];
 

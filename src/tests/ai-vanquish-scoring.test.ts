@@ -21,9 +21,11 @@ import { getAvailableSlotIndices, getActionAtSlot } from '../core/engine/slotHel
 import { ActionType, TurnPhase } from '../core/types';
 import type { GameState, PlayerId, CardInstId, LocationId } from '../core/types';
 import { CardDefId } from '../core/villains/effectIds';
+import { scoreState as jhonScoreState, deadHandCards as jhonDeadHandCards } from '../core/villains/jhon/ai';
+import type { OpponentProfile } from '../core/ai/opponentModel';
 import {
   makeState, hookId, malId, makeJhonState, jhonId,
-  placeVillainCard, placeHeroInLoc, setPhase, setPawn, setCurrentPlayer,
+  placeVillainCard, placeHeroInLoc, setPhase, setPawn, setCurrentPlayer, putInHand,
 } from './helpers/factories';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -308,6 +310,113 @@ describe('Vencer nunca debe puntuar peor que no vencer — Garfio (control)', ()
 
     expect(valReappeared, 'la IA no está viendo al héroe reaparecido como amenaza')
       .toBeLessThan(valAfterVanquish);
+  });
+});
+
+// ─── FASE 12: proximidad de Aliados libres hacia la amenaza prioritaria (Príncipe Juan) ────────
+// Guarda de regresión para PRIORITY_THREAT_PROXIMITY (jhon/ai.ts): un Aliado sin héroe en su
+// ubicación debe puntuar mejor cuanto más cerca (en saltos) esté de un héroe prioritario (Robin
+// Hood/Rey Ricardo) sin vencer — si no, tryMoveItemAlly no tiene ninguna razón para acercarlo.
+// Tablero de Jhon es lineal: Bosque(3) — Iglesia(2) — Nottingham(1, hero aquí) — Prisión.
+
+describe('FASE 12: proximidad de Aliados libres hacia la amenaza prioritaria — Príncipe Juan', () => {
+  it('un Aliado a 1 salto de Rey Ricardo puntúa mejor que el mismo Aliado a 2 saltos', () => {
+    // Un único estado base (una sola baraja/mano inicial) para que la única diferencia entre
+    // "near" y "far" sea la ubicación del Aliado — dos llamadas a makeJhonState() barajan por
+    // separado (Math.random) y la mano inicial resultante contamina la comparación con ruido
+    // ajeno a la señal de proximidad que se quiere medir aquí.
+    const s0 = makeJhonState();
+    const id = jhonId(s0);
+    const heroId = findAll(s0, CardDefId.JHON_REY_RICARDO, 1)[0];
+    const allyId = findAll(s0, CardDefId.JHON_LELO, 1)[0];
+    const base = placeHeroInLoc(s0, id, 'jhon_nottingham', heroId);
+
+    const near = placeVillainCard(base, id, 'jhon_iglesia', allyId); // 1 salto de Nottingham
+    const far = placeVillainCard(base, id, 'jhon_bosque', allyId);   // 2 saltos de Nottingham
+
+    const scoreNear = evaluateState(near, id);
+    const scoreFar = evaluateState(far, id);
+    expect(scoreNear, 'el Aliado más cerca de Rey Ricardo debería puntuar mejor')
+      .toBeGreaterThan(scoreFar);
+  });
+});
+
+// ─── FASE 13: tope del colchón defensivo escala con la agresividad histórica del rival ─────────
+// Guarda de regresión para STANDING_ARMY_CAP_EXTRA_MAX (jhon/ai.ts): con un OpponentProfile que
+// muestra que el humano lanza Destino muy seguido jugando su villano actual, mantener MÁS
+// Fuerza de Aliados de reserva (por encima del tope base de Fase 10) debe puntuar mejor que sin
+// ese perfil — si no, tryMoveItemAlly/pickBestPlayTarget no tienen ninguna razón para acumular
+// más reserva de la mínima ante un rival que sabemos que ataca mucho.
+
+describe('FASE 13: el tope del colchón defensivo escala con la agresividad del rival — Príncipe Juan', () => {
+  it('con un rival históricamente agresivo (Destino frecuente), más reserva de Aliados puntúa mejor', () => {
+    const s0 = makeJhonState();
+    const id = jhonId(s0);
+    const rinoIds = Object.keys(s0.allCards).filter(cid => s0.allCards[cid]?.defId?.startsWith('jhon_v_rino_')).slice(0, 3);
+    expect(rinoIds.length).toBe(3); // 3x F4 = 12 de Fuerza total, muy por encima de cualquier tope
+
+    let s = placeVillainCard(s0, id, 'jhon_bosque', rinoIds[0]);
+    s = placeVillainCard(s, id, 'jhon_iglesia', rinoIds[1]);
+    s = placeVillainCard(s, id, 'jhon_prison', rinoIds[2]);
+    const player = s.players.find(p => p.id === id)!;
+
+    const aggressiveProfile: OpponentProfile = {
+      gamesAnalyzed: 5,
+      byVillain: { hook: { gamesPlayed: 5, moveFrequency: {}, fateCount: 20, avgFateTriggerOppProgress: null, discardRate: 0 } },
+    };
+
+    const scoreWithoutProfile = jhonScoreState(s, player);
+    const scoreWithAggressiveProfile = jhonScoreState(s, player, undefined, aggressiveProfile);
+    expect(scoreWithAggressiveProfile, 'más reserva debería valer más contra un rival históricamente agresivo')
+      .toBeGreaterThan(scoreWithoutProfile);
+  });
+});
+
+// ─── FASE 14: Aliado dominado por otro Aliado de la misma mano se cicla proactivamente ─────────
+// Guarda de regresión: antes solo se ciclaba TODA la mano cuando NADA era asequible; una mano
+// con opciones mediocres pero técnicamente jugables nunca se refrescaba.
+
+// makeJhonState() reparte una mano inicial ALEATORIA (4 cartas). Sin vaciarla antes de insertar
+// las cartas de prueba, una carta cualquiera del reparto podía dominar (o dejar de ser dominada)
+// por pura suerte del barajado — test no determinista. clearHand() aísla la mano de prueba.
+function clearHand(state: GameState, playerId: PlayerId): GameState {
+  return { ...state, players: state.players.map(p => p.id === playerId ? { ...p, handInstIds: [] } : p) };
+}
+
+describe('FASE 14: Aliado dominado en mano — Príncipe Juan', () => {
+  it('Sir Hiss (coste 2, F2) se marca muerto si Tiro Listo (coste 2, F4) también está en mano', () => {
+    const s0 = makeJhonState();
+    const id = jhonId(s0);
+    const hissId = Object.keys(s0.allCards).find(cid => s0.allCards[cid]?.defId === 'jhon_v_hiss')!;
+    const tiroId = Object.keys(s0.allCards).find(cid => s0.allCards[cid]?.defId === CardDefId.JHON_TIRO_LISTO)!;
+    expect(hissId).toBeTruthy();
+    expect(tiroId).toBeTruthy();
+
+    let s = clearHand(s0, id);
+    s = putInHand(s, id, hissId);
+    s = putInHand(s, id, tiroId);
+    const player = s.players.find(p => p.id === id)!;
+
+    const dead = jhonDeadHandCards(s, player);
+    expect(dead).toContain(hissId);
+    expect(dead).not.toContain(tiroId);
+  });
+
+  it('dos copias idénticas del mismo Aliado no se dominan entre sí', () => {
+    const s0 = makeJhonState();
+    const id = jhonId(s0);
+    const arqueroIds = Object.keys(s0.allCards)
+      .filter(cid => s0.allCards[cid]?.defId?.startsWith(CardDefId.JHON_ARQUEROS)).slice(0, 2);
+    expect(arqueroIds.length).toBe(2);
+
+    let s = clearHand(s0, id);
+    s = putInHand(s, id, arqueroIds[0]);
+    s = putInHand(s, id, arqueroIds[1]);
+    const player = s.players.find(p => p.id === id)!;
+
+    const dead = jhonDeadHandCards(s, player);
+    expect(dead).not.toContain(arqueroIds[0]);
+    expect(dead).not.toContain(arqueroIds[1]);
   });
 });
 

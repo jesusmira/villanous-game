@@ -165,7 +165,7 @@ export function evaluateState(state: GameState, playerId: PlayerId, profile?: Op
     - Math.max(0, p.power - WEIGHTS.POWER_CAP) * WEIGHTS.POWER_HOARD_PENALTY
     + p.handInstIds.length * WEIGHTS.HAND_CARD;
   let v = plugin.aiHeuristics?.scoreState
-    ? plugin.aiHeuristics.scoreState(state, p, genericPowerScore)
+    ? plugin.aiHeuristics.scoreState(state, p, genericPowerScore, profile)
     : genericPowerScore;
 
   // FASE 2: cartas muertas en mano (las del plugin + duplicados de condición genéricos).
@@ -218,10 +218,14 @@ export function evaluateState(state: GameState, playerId: PlayerId, profile?: Op
 
   // ── Héroes en TU reino estorban (tapan ranuras): retirarlos (Vencer) sube la nota.
   // El premio por vencer = quitar esta penalización; usar aliados mínimos lo hace rentable.
-  const ownHeroStr = plugin.locations.reduce((sum, l) => {
-    const ls = p.locationStates[l.id];
-    return sum + ls.heroCardInstIds.reduce((t, id) => t + getEffectiveStrength(state, id), 0);
-  }, 0);
+  // Ubicaciones con heroesNeverCoverSlots (p. ej. La Prisión) se excluyen: un héroe ahí
+  // nunca bloquea ranuras, así que no hay nada que "quitar" venciéndolo.
+  const ownHeroStr = plugin.locations
+    .filter(l => !l.heroesNeverCoverSlots)
+    .reduce((sum, l) => {
+      const ls = p.locationStates[l.id];
+      return sum + ls.heroCardInstIds.reduce((t, id) => t + getEffectiveStrength(state, id), 0);
+    }, 0);
   v -= ownHeroStr * WEIGHTS.OWN_HERO_STRENGTH_PENALTY;
 
   // Solo el primero de cada tipo de slot extra por ubicación aporta valor: duplicados no añaden
@@ -260,11 +264,14 @@ export function evaluateState(state: GameState, playerId: PlayerId, profile?: Op
   // ── Disrupción al rival (leve): héroes que le estorban y su poder ──
   if (opp) {
     const oppPlugin = getPlugin(opp.villainId);
-    const oppHeroes = oppPlugin.locations.reduce(
+    // Ubicaciones con heroesNeverCoverSlots (p. ej. La Prisión de Jhon) se excluyen: colocar
+    // un héroe ahí no le estorba nada al rival, así que no cuenta como disrupción.
+    const oppBlockableLocs = oppPlugin.locations.filter(l => !l.heroesNeverCoverSlots);
+    const oppHeroes = oppBlockableLocs.reduce(
       (n, l) => n + (opp.locationStates[l.id]?.heroCardInstIds.length ?? 0), 0,
     );
     // Cubrir una ubicación nueva bloquea ranuras — vale más cuanto más cerca esté el rival de ganar.
-    const oppLocsCovered = oppPlugin.locations.filter(
+    const oppLocsCovered = oppBlockableLocs.filter(
       l => (opp.locationStates[l.id]?.heroCardInstIds.length ?? 0) > 0,
     ).length;
     // Urgencia escalada: cada villano define cuánto crece su propia amenaza al acercarse a la victoria.
