@@ -209,7 +209,15 @@ function bestActionByRollout(
     const next = tryActionForSlot(s, playerId, slotIdx, slot);
     if (!next) continue;
     const { val } = bestActionByRollout(next, playerId, depth - 1, profile);
-    if (val > bestVal + 1e-9) { bestVal = val; best = next; }
+    // Destino nunca cuesta Poder ni puede salir peor que no hacer nada (como mucho, las 2
+    // cartas reveladas son no-ops). Un jugador real se compromete a usarlo ANTES de ver qué
+    // sale, así que la IA no debe decidir "si merece la pena" mirando el resultado — eso sería
+    // jugar con información que un jugador real no tiene en ese momento. Por eso aceptamos
+    // empates solo para FATE: se activa siempre que esté disponible y no haya algo mejor.
+    const beatsThreshold = slot.type === ActionType.FATE
+      ? val > bestVal - 1e-9
+      : val > bestVal + 1e-9;
+    if (beatsThreshold) { bestVal = val; best = next; }
   }
   for (const next of payCandidates) {
     const { val } = bestActionByRollout(next, playerId, depth - 1, profile);
