@@ -126,7 +126,18 @@ export function runAITurn(state: GameState, profile?: OpponentProfile): GameStat
   if (s.turnPhase === TurnPhase.MOVE) {
     const player = getPlayer(s, playerId);
     if (player.skipNextMove) {
-      s = skipMove(s, playerId);
+      // "Desaparecer": el texto dice que Maléfica NO NECESITA moverse — es opcional, no una
+      // obligación de quedarse (el jugador humano ve "Permanecer aquí" como UNA opción más,
+      // junto a la posibilidad normal de moverse; ver ActionPanel.tsx). Antes la IA se quedaba
+      // siempre sin comparar si moverse seguía siendo mejor, lo que podía atraparla en una
+      // ubicación que dejó de ser buena (p. ej. si llegó un Héroe mientras tanto).
+      const stayVal = evaluateState(
+        playOutActivate(skipMove(s, playerId), playerId, undefined, DEST_ROLLOUT_DEPTH, profile),
+        playerId, profile,
+      );
+      const dest = minimaxBestDest(s, playerId, profile);
+      const moveVal = evaluateState(simulateTurnAtDest(s, playerId, dest, profile), playerId, profile);
+      s = moveVal > stayVal ? movePawn(s, playerId, dest) : skipMove(s, playerId);
     } else {
       const plugin = getPlugin(player.villainId);
       const dests = plugin.locations
