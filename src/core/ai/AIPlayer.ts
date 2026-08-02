@@ -784,14 +784,38 @@ function minimaxBestDest(state: GameState, playerId: PlayerId, profile?: Opponen
 
   let bestDest = candidates[0].id;
   let alpha = -Infinity;
+  let bestDidSomething = false;
+  // Además del valor minimax (incluye la respuesta simulada del rival — con ruido real:
+  // confirmado con el simulador que puede variar decenas de puntos entre destinos sin
+  // relación con lo que nosotros logramos ahí), registramos si NUESTRO turno en `dest` usó
+  // alguna ranura de verdad (usedActionSlotIndices no vacío tras simulateTurnAtDest).
+  const evaluated: { dest: LocationId; val: number; didSomething: boolean }[] = [];
 
   for (const { id: dest } of candidates) {
     const afterMyTurn = simulateTurnAtDest(state, playerId, dest, profile);
+    const didSomething = afterMyTurn.usedActionSlotIndices.length > 0;
     const val = afterMyTurn.winner
       ? evaluateState(afterMyTurn, playerId, profile)
       : minimaxOppResponse(afterMyTurn, playerId, alpha, 1, profile);  // FASE 2: Pasar profundidad
 
-    if (val > alpha) { alpha = val; bestDest = dest; }
+    evaluated.push({ dest, val, didSomething });
+    if (val > alpha) { alpha = val; bestDest = dest; bestDidSomething = didSomething; }
+  }
+
+  // El destino ganador no logra NADA este turno (mano/poder intactos): antes de aceptarlo,
+  // comprobar si hay una alternativa que sí logre algo y cuya diferencia de valor solo pueda
+  // explicarse por el ruido del rollout del rival — muy por debajo de la escala real de
+  // WINNING/LOSING (±50000) o de una partida ya perdida (±1.000.000). Sin esto la IA puede
+  // preferir un destino bloqueado por Héroes (turno vacío: sin Poder, sin cartas, sin Destino)
+  // frente a uno abierto con ingreso libre, solo porque la respuesta simulada del rival salió
+  // unos puntos mejor en esa rama — confirmado con el simulador (21 turnos vacíos en 15
+  // partidas Maléfica-vs-Jhon antes de este fix).
+  if (!bestDidSomething) {
+    const NOOP_OVERRIDE_MARGIN = 500;
+    const better = evaluated
+      .filter(e => e.didSomething && e.val > alpha - NOOP_OVERRIDE_MARGIN)
+      .sort((a, b) => b.val - a.val)[0];
+    if (better) bestDest = better.dest;
   }
   return bestDest;
 }
