@@ -11,6 +11,7 @@ import { runEffects } from '../../engine/EffectEngine';
 import { getPlugin } from '../registry';
 import { EffectId } from '../effectIds';
 import { shuffle } from '../../utils/shuffle';
+import { getCoveredSlotIndices } from '../../engine/slotHelpers';
 
 // ─── CONDITION HANDLERS ───────────────────────────────────────────────────────
 
@@ -167,6 +168,21 @@ export function resolveCuervo(
 
   const plugin = getPlugin(getPlayer(s, playerId).villainId);
   const locDef = plugin.locations.find(l => l.id === locationId);
+
+  // El Cuervo lleva a cabo UNA de las acciones ya disponibles en su ubicación de destino — los
+  // Héroes que cubren ranuras ahí (mismas 2 primeras que para cualquier jugador, ver
+  // getCoveredSlotIndices) también le bloquean a él. Antes se ejecutaba cualquier acción sin
+  // comprobar cobertura, así que el Cuervo podía Ganar Poder/Jugar Carta/etc. en una ubicación
+  // totalmente tapada por Héroes. `amountOverride: 0` es el botón "Omitir acción" (no ejecuta
+  // nada de verdad) y no debe bloquearse nunca.
+  const isSkip = action === ActionType.GAIN_POWER && params.amountOverride === 0;
+  if (!isSkip) {
+    const covered = getCoveredSlotIndices(s, playerId, locationId);
+    const isAvailable = (locDef?.actions ?? []).some((a, idx) => a.type === action && !covered.includes(idx));
+    if (!isAvailable) {
+      return addLog(s, `El Cuervo: esa acción está bloqueada por Héroes en ${locDef?.name ?? locationId}.`);
+    }
+  }
 
   switch (action) {
     case ActionType.GAIN_POWER: {

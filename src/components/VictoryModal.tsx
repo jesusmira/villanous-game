@@ -95,10 +95,10 @@ export function VictoryModal({ state, onPlayAgain }: Props) {
     .filter(line => line.trim().length > 0);
 
   return (
-    <div className={modalStyles.overlay}>
+    <div className={`${modalStyles.overlay} pointer-events-none`}>
 
       {/* Modal */}
-      <div className="bg-surface-container-highest/98 border-2 border-tertiary/50 rounded-3xl shadow-2xl flex flex-col gap-4 sm:gap-6 p-5 sm:p-8 w-10/12 max-w-xs sm:w-full sm:max-w-md pointer-events-auto backdrop-blur-sm">
+      <div className="bg-surface-container-highest/98 border-2 border-tertiary/50 rounded-3xl shadow-2xl flex flex-col gap-4 sm:gap-6 p-5 sm:p-8 w-10/12 max-w-xs sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto pointer-events-auto backdrop-blur-sm">
         {/* Villain Portrait */}
         <div className="flex justify-center">
           <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-tertiary/60 shadow-lg animate-bounce">

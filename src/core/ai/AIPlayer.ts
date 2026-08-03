@@ -5,7 +5,7 @@ import { EffectId, CardDefId } from '../villains/effectIds';
 import { HookLocationId } from '../villains/hook/cards';
 import { heroHasBurla, chooseDemoslesResolution } from '../villains/hook/aiHelpers';
 import { getPlayer, getEffectiveStrength, computeKingdomCostMod } from '../engine/stateHelpers';
-import { getAvailableSlotIndices, getActionAtSlot } from '../engine/slotHelpers';
+import { getAvailableSlotIndices, getActionAtSlot, getCoveredSlotIndices } from '../engine/slotHelpers';
 import {
   canPlayCard, canVanquish, canVanquishFree, canMoveItemAlly,
   canMoveHero, canFate, canActivateCard, canDiscard, canPayToDiscardItem,
@@ -730,7 +730,13 @@ export function chooseCuervoAction(state: GameState): {
   const player = getPlayer(state, pc.playerId);
   const ls = player.locationStates[pc.locationId];
   const locDef = getPlugin(player.villainId).locations.find(l => l.id === pc.locationId);
-  const hasPlayCardAction = locDef?.actions.some(a => a.type === ActionType.PLAY_CARD) ?? false;
+  // Los Héroes en la ubicación de destino tapan sus 2 primeras ranuras (igual que a cualquier
+  // jugador) — resolveCuervo ya rechaza una acción tapada, así que si GAIN_POWER está bloqueado
+  // hay que caer a otra ranura libre en vez de intentarlo a ciegas y desperdiciar el turno del Cuervo.
+  const coveredSlots = getCoveredSlotIndices(state, pc.playerId, pc.locationId);
+  const isSlotAvailable = (type: ActionType) =>
+    (locDef?.actions ?? []).some((a, idx) => a.type === type && !coveredSlots.includes(idx));
+  const hasPlayCardAction = isSlotAvailable(ActionType.PLAY_CARD);
 
   if (player.villainId === 'maleficent' && ls && hasPlayCardAction && !locHasCurse(state, ls)) {
     const blockedByHero = ls.heroCardInstIds.some(hid =>
@@ -749,7 +755,19 @@ export function chooseCuervoAction(state: GameState): {
     }
   }
 
-  return { action: ActionType.GAIN_POWER, params: {} };
+  if (isSlotAvailable(ActionType.GAIN_POWER)) return { action: ActionType.GAIN_POWER, params: {} };
+
+  // GAIN_POWER (la ranura por defecto) está tapada: caer a la primera ranura libre real que
+  // quede, en vez de intentar GAIN_POWER a ciegas y que resolveCuervo la rechace sin más.
+  const firstAvailable = (locDef?.actions ?? []).find((a, idx) =>
+    a.type !== ActionType.FATE && a.type !== ActionType.ACTIVATE_CARD && !coveredSlots.includes(idx),
+  );
+  if (firstAvailable?.type === ActionType.DISCARD && player.handInstIds.length > 0) {
+    return { action: ActionType.DISCARD, params: { cardInstIds: [player.handInstIds[0]] } };
+  }
+  // Sin ninguna ranura libre útil que sepamos resolver automáticamente aquí (Vencer/Mover
+  // requieren elegir objetivo, ver CuervoModal): omitir la acción del Cuervo sin más.
+  return { action: ActionType.GAIN_POWER, params: { amountOverride: 0 } };
 }
 
 // ─── MINIMAX profundidad-2 + poda alpha-beta ─────────────────────────────────

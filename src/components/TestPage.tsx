@@ -316,8 +316,24 @@ export function TestPage() {
     }
   };
 
+  const closePreview = () => {
+    setTestState(MOCK_STATE);
+    setSelectedDetail(null);
+  };
+
   return (
     <div className="min-h-screen bg-surface p-8">
+      {/* Botón fijo siempre por encima de cualquier modal en pantalla (fixed inset-0, z-100+):
+          sin esto, un modal a pantalla completa en un viewport bajo/estrecho deja sin forma de
+          cerrar la prueba, porque tapa la rejilla de botones de más abajo. */}
+      {selectedDetail && (
+        <button
+          onClick={closePreview}
+          className="fixed top-3 right-3 z-200 px-3 py-2 rounded-lg bg-error text-white font-stats text-xs uppercase tracking-wider shadow-lg hover:bg-error/80 active:scale-95 transition-all"
+        >
+          ✕ Cerrar prueba
+        </button>
+      )}
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">

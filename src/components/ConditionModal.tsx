@@ -5,8 +5,11 @@ import { getPlugin } from '../core/villains/registry';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { EffectId, CardDefId } from '../core/villains/effectIds';
 import { useGameStore } from '../state/gameStore';
+import { CardPickButton } from './CardPickButton';
 
-const OVL   = 'fixed inset-0 bg-black/75 flex items-center justify-center z-100 backdrop-blur-sm';
+// Sin fondo oscuro y con pointer-events-none: el tablero queda visible y clicable detrás
+// (la ficha de contenido de abajo recupera los eventos con pointer-events-auto).
+const OVL   = 'fixed inset-0 flex items-center justify-center z-100 p-4 pointer-events-none';
 const SEL   = 'px-2.5 py-1.5 rounded border border-outline-variant/40 text-xs font-stats text-on-surface-variant bg-surface-container hover:border-primary hover:text-primary transition-all';
 const ACT   = 'px-2.5 py-1.5 rounded border border-tertiary bg-tertiary/10 text-tertiary text-xs font-stats font-bold';
 const BTN   = 'px-3 py-1.5 rounded border border-primary/50 bg-primary-container text-primary text-xs font-stats font-bold uppercase tracking-wide hover:bg-primary/20 transition-all disabled:opacity-40';
@@ -39,13 +42,13 @@ function MaliciaResolver({ state, reactingPlayer, condInstId }: {
       {heroes.length === 0
         ? <p className="text-xs text-error/70">No hay Héroes de Fuerza ≤4. Puedes jugar igualmente (sin efecto).</p>
         : (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-3 justify-center">
             {heroes.map(c => c && (
-              <button key={c.instId}
-                className={selectedHeroId === c.instId ? ACT : `${SEL} border-error/40 text-error hover:border-error`}
-                onClick={() => setSelectedHeroId(c.instId)}>
-                {c.name} (F:{getEffectiveStrength(state, c.instId)}) — {c.locationId}
-              </button>
+              <CardPickButton key={c.instId} card={c} state={state}
+                selected={selectedHeroId === c.instId}
+                caption={`F:${getEffectiveStrength(state, c.instId)} · @${c.locationId}`}
+                onClick={() => setSelectedHeroId(c.instId)}
+              />
             ))}
           </div>
         )}
@@ -86,23 +89,22 @@ function TiraniaResolver({ state, reactingPlayer, condInstId }: {
           Cartas que robarás: <span className="text-primary">{willDraw.map(c => c?.name).join(', ')}</span>
         </p>
       )}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-3 justify-center">
         {handCards.map(id => {
           const c = state.allCards[id];
           return c && (
-            <button key={id}
-              className={selectedDiscardIds.includes(id) ? ACT : SEL}
-              onClick={() => toggle(id)}>
-              {c.name}
-            </button>
+            <CardPickButton key={id} card={c} state={state}
+              selected={selectedDiscardIds.includes(id)}
+              onClick={() => toggle(id)}
+            />
           );
         })}
         {willDraw.map(c => c && (
-          <button key={c.instId + '_new'}
-            className={`${selectedDiscardIds.includes(c.instId) ? ACT : SEL} border-dashed`}
-            onClick={() => toggle(c.instId)}>
-            {c.name} <span className="ml-1 text-[9px] text-tertiary/70">(nueva)</span>
-          </button>
+          <CardPickButton key={c.instId + '_new'} card={c} state={state}
+            selected={selectedDiscardIds.includes(c.instId)}
+            caption="nueva"
+            onClick={() => toggle(c.instId)}
+          />
         ))}
       </div>
       <p className="text-[11px] text-on-surface-variant">{selectedDiscardIds.length} / 3 seleccionadas</p>
@@ -240,11 +242,11 @@ function PerspicazResolver({ state, reactingPlayer, condInstId }: {
         : (
           <div className="flex flex-wrap gap-1.5">
             {allies.map(c => c && (
-              <button key={c.instId}
-                className={allyId === c.instId ? ACT : SEL}
-                onClick={() => { setAllyId(c.instId); setLocId(null); }}>
-                {c.name} (F:{c.baseStrength ?? '?'})
-              </button>
+              <CardPickButton key={c.instId} card={c} state={state}
+                selected={allyId === c.instId}
+                caption={`F:${c.baseStrength ?? '?'}`}
+                onClick={() => { setAllyId(c.instId); setLocId(null); }}
+              />
             ))}
           </div>
         )}
@@ -297,11 +299,11 @@ function CobardiaResolver({ state, reactingPlayer, condInstId }: {
         : (
           <div className="flex flex-wrap gap-1.5">
             {allies.map(c => c && (
-              <button key={c.instId}
-                className={allyId === c.instId ? ACT : SEL}
-                onClick={() => { setAllyId(c.instId); setLocId(null); }}>
-                {c.name} (F:{c.baseStrength ?? '?'})
-              </button>
+              <CardPickButton key={c.instId} card={c} state={state}
+                selected={allyId === c.instId}
+                caption={`F:${c.baseStrength ?? '?'}`}
+                onClick={() => { setAllyId(c.instId); setLocId(null); }}
+              />
             ))}
           </div>
         )}
@@ -345,7 +347,7 @@ export function ConditionModal({ state }: Props) {
 
   return (
     <div className={OVL}>
-      <div className="bg-surface-container border border-tertiary/50 rounded-xl p-5 w-105 max-w-[94vw] max-h-[90vh] overflow-y-auto flex flex-col gap-4 shadow-[0_0_40px_rgba(233,195,73,0.25)]">
+      <div className="bg-surface-container border border-tertiary/50 rounded-xl p-5 w-105 max-w-[94vw] max-h-[90vh] overflow-y-auto flex flex-col gap-4 shadow-[0_0_40px_rgba(233,195,73,0.25)] pointer-events-auto">
 
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -359,14 +361,16 @@ export function ConditionModal({ state }: Props) {
         {/* Eligible cards */}
         <div className="flex flex-col gap-1.5">
           <p className="text-xs text-on-surface-variant">Puedes responder con:</p>
-          <div className="flex flex-wrap gap-1.5">
-            {eligibleCardInstIds.map(id => (
-              <button key={id}
-                className={selectedCondId === id ? ACT : `${SEL} border-tertiary/30 hover:border-tertiary hover:text-tertiary`}
-                onClick={() => setSelectedCondId(id)}>
-                {state.allCards[id]?.name}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-3 justify-center">
+            {eligibleCardInstIds.map(id => {
+              const c = state.allCards[id];
+              return c && (
+                <CardPickButton key={id} card={c} state={state}
+                  selected={selectedCondId === id}
+                  onClick={() => setSelectedCondId(id)}
+                />
+              );
+            })}
           </div>
         </div>
 

@@ -14,8 +14,8 @@ export function JaquecaModal({ state }: Props) {
   const items = itemInstIds.map(id => state.allCards[id]).filter(Boolean);
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-surface-container-highest/95 border border-error/30 rounded-2xl shadow-2xl flex flex-col gap-5 p-6 w-full max-w-xl">
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 pointer-events-none">
+      <div className="bg-surface-container-highest/95 border border-error/30 rounded-2xl shadow-2xl flex flex-col gap-5 p-6 w-full max-w-xl pointer-events-auto">
         <div>
           <h2 className="font-serif text-base text-on-surface">Gran Jaqueca</h2>
           <p className="text-[11px] text-on-surface-variant/70 mt-1 leading-snug">

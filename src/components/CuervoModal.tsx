@@ -3,13 +3,14 @@ import { ActionType, CardType } from '../core/types';
 import type { GameState, CardInstId, LocationId } from '../core/types';
 import { getPlugin } from '../core/villains/registry';
 import { getPlayer, getEffectiveStrength } from '../core/engine/stateHelpers';
+import { getCoveredSlotIndices } from '../core/engine/slotHelpers';
 import { useGameStore } from '../state/gameStore';
 import { modalStyles } from '../styles/modalStyles';
 import { ACTION_IMG } from './shared/actionImages';
+import { CardPickButton } from './CardPickButton';
 
 const OVL  = modalStyles.overlay;
 const SEL  = modalStyles.buttonSelect;
-const ACT  = modalStyles.buttonActive;
 const BTN  = modalStyles.buttonPrimary;
 const PANEL = modalStyles.panel;
 
@@ -40,8 +41,11 @@ export function CuervoModal({ state }: Props) {
   const plugin = getPlugin(player.villainId);
   const locDef = plugin.locations.find(l => l.id === locationId)!;
 
+  // Los Héroes en la ubicación de destino tapan sus 2 primeras ranuras igual que a cualquier
+  // jugador — El Cuervo solo puede elegir entre las que queden libres (y nunca Destino).
+  const coveredSlots = getCoveredSlotIndices(state, playerId, locationId);
   const availableActions = locDef.actions
-    .filter(a => a.type !== ActionType.FATE && a.type !== ActionType.ACTIVATE_CARD)
+    .filter((a, idx) => a.type !== ActionType.FATE && a.type !== ActionType.ACTIVATE_CARD && !coveredSlots.includes(idx))
     .reduce<typeof locDef.actions>((acc, a) => {
       if (!acc.some(x => x.type === a.type)) acc.push(a);
       return acc;
@@ -75,7 +79,7 @@ export function CuervoModal({ state }: Props) {
   const gainPowerValue = locDef.actions.find(a => a.type === ActionType.GAIN_POWER)?.value ?? 2;
 
   return (
-    <div className={OVL}>
+    <div className={`${OVL} pointer-events-none`}>
       <div className={modalStyles.container}>
         <h2 className={`${modalStyles.title} text-primary`}>El Cuervo</h2>
         <p className={`${modalStyles.description} text-on-surface-variant`}>
@@ -117,18 +121,18 @@ export function CuervoModal({ state }: Props) {
         {selectedAction === ActionType.PLAY_CARD && (
           <div className={PANEL}>
             <p className="text-xs text-on-surface-variant">Selecciona una carta de tu mano:</p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-3 justify-center">
               {player.handInstIds.map(id => {
                 const c = state.allCards[id];
                 if (!c) return null;
                 const cost = Math.max(0, c.baseCost + c.costModifier);
                 return (
-                  <button key={id}
-                    className={selectedCardId === id ? ACT : player.power < cost ? `${SEL} opacity-35` : SEL}
+                  <CardPickButton key={id} card={c} state={state}
+                    selected={selectedCardId === id}
                     disabled={player.power < cost}
-                    onClick={() => { setSelectedCardId(id); }}>
-                    {c.name} <span className="text-tertiary">({cost}⚡)</span>
-                  </button>
+                    caption={`${cost}⚡`}
+                    onClick={() => setSelectedCardId(id)}
+                  />
                 );
               })}
             </div>
@@ -154,13 +158,12 @@ export function CuervoModal({ state }: Props) {
             {!selectedCardId ? (
               <>
                 <p className="text-xs text-on-surface-variant">Selecciona el Héroe a derrotar:</p>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-3 justify-center">
                   {heroesInKingdom.map(c => (
-                    <button key={c.instId}
-                      className={`${SEL} border-error/40 text-error hover:border-error`}
-                      onClick={() => { setSelectedCardId(c.instId); setSelectedAllyIds([]); }}>
-                      {c.name} <span className="text-on-surface-variant/60 text-[10px]">(F:{getEffectiveStrength(state, c.instId)}) @{c.locationId}</span>
-                    </button>
+                    <CardPickButton key={c.instId} card={c} state={state}
+                      caption={`F:${getEffectiveStrength(state, c.instId)} · @${c.locationId}`}
+                      onClick={() => { setSelectedCardId(c.instId); setSelectedAllyIds([]); }}
+                    />
                   ))}
                 </div>
               </>
@@ -181,22 +184,22 @@ export function CuervoModal({ state }: Props) {
                   </span>
                 </div>
                 <p className="text-xs text-on-surface-variant">Selecciona Aliados:</p>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-3 justify-center">
                   {alliesInKingdom
                     .filter(c => c.locationId === state.allCards[selectedCardId]?.locationId)
                     .map(c => {
                       const isSelected = selectedAllyIds.includes(c.instId);
                       return (
-                        <button key={c.instId}
-                          className={isSelected ? ACT : SEL}
+                        <CardPickButton key={c.instId} card={c} state={state}
+                          selected={isSelected}
+                          caption={`F:${getEffectiveStrength(state, c.instId)}`}
                           onClick={() => {
                             const next = isSelected
                               ? selectedAllyIds.filter(id => id !== c.instId)
                               : [...selectedAllyIds, c.instId];
                             setSelectedAllyIds(next);
-                          }}>
-                          {c.name} <span className="text-tertiary">(F:{getEffectiveStrength(state, c.instId)})</span>
-                        </button>
+                          }}
+                        />
                       );
                     })}
                 </div>
@@ -220,13 +223,12 @@ export function CuervoModal({ state }: Props) {
                 <p className="text-xs text-on-surface-variant">
                   Selecciona {selectedAction === ActionType.MOVE_HERO ? 'el Héroe' : 'Objeto, Aliado o Maldición'} a mover:
                 </p>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-3 justify-center">
                   {(selectedAction === ActionType.MOVE_HERO ? heroesInKingdom : movableCards).map(c => (
-                    <button key={c.instId} className={SEL}
-                      onClick={() => setSelectedCardId(c.instId)}>
-                      {c.name} {selectedAction === ActionType.MOVE_ITEM_ALLY ? `[${c.cardType}] ` : ''}
-                      <span className="text-on-surface-variant/60 text-[10px]">@{c.locationId}</span>
-                    </button>
+                    <CardPickButton key={c.instId} card={c} state={state}
+                      caption={`@${c.locationId}`}
+                      onClick={() => setSelectedCardId(c.instId)}
+                    />
                   ))}
                 </div>
               </>
@@ -257,18 +259,17 @@ export function CuervoModal({ state }: Props) {
         {selectedAction === ActionType.DISCARD && (
           <div className={PANEL}>
             <p className="text-xs text-on-surface-variant">Selecciona cartas a descartar de la mano:</p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-3 justify-center">
               {player.handInstIds.map(id => {
                 const c = state.allCards[id];
                 if (!c) return null;
                 return (
-                  <button key={id}
-                    className={selectedDiscardIds.includes(id) ? ACT : SEL}
+                  <CardPickButton key={id} card={c} state={state}
+                    selected={selectedDiscardIds.includes(id)}
                     onClick={() => setSelectedDiscardIds(prev =>
                       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-                    )}>
-                    {c.name}
-                  </button>
+                    )}
+                  />
                 );
               })}
             </div>

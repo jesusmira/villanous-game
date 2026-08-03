@@ -18,6 +18,7 @@ import { JaquecaModal } from './JaquecaModal';
 import { VanquishModal } from './VanquishModal';
 import { FloraRevealModal } from './FloraRevealModal';
 import { VictoryModal } from './VictoryModal';
+import { ConfirmLeaveModal } from './ConfirmLeaveModal';
 import { AttachTargetModal } from './AttachTargetModal';
 import { CardComponent } from './CardComponent';
 import { TestPage } from './TestPage';
@@ -60,6 +61,7 @@ export function GameBoard({ state }: Props) {
   const [handOpen, setHandOpen]             = useState(false);
   const [historyOpen, setHistoryOpen]       = useState(false);
   const [floraOpen, setFloraOpen]           = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showTests, setShowTests]           = useState(false);
   const [showHookDeck, setShowHookDeck]     = useState(false);
   const [showTurnIndicator, setShowTurnIndicator] = useState(false);
@@ -629,7 +631,11 @@ export function GameBoard({ state }: Props) {
               </button>
             </>
           )}
-          <button onClick={resetGame} title="Nueva partida" className="text-on-surface-variant hover:text-primary transition-colors">
+          <button
+            onClick={() => (state.winner ? resetGame() : setShowLeaveConfirm(true))}
+            title="Nueva partida"
+            className="text-on-surface-variant hover:text-primary transition-colors"
+          >
             <RotateCcw className="w-4 h-4" />
           </button>
         </div>
@@ -658,6 +664,14 @@ export function GameBoard({ state }: Props) {
           paso a paso; el modal (con el resumen de la jugada final) llega al terminar. */}
       {displayedState.winner && !isReplaying && (
         <VictoryModal state={displayedState} onPlayAgain={resetGame} />
+      )}
+
+      {/* ── Confirmación de abandonar partida ──────────────────── */}
+      {showLeaveConfirm && (
+        <ConfirmLeaveModal
+          onConfirm={() => { setShowLeaveConfirm(false); resetGame(); }}
+          onCancel={() => setShowLeaveConfirm(false)}
+        />
       )}
 
       {/* ── Turn indicator modal (2 players only) ────────────── */}
@@ -850,6 +864,13 @@ export function GameBoard({ state }: Props) {
                         state={state}
                         selected={isSelected || isMarkedDiscard}
                         sizeClassName={isSelected ? 'card-size-hand card-size-hand--selected' : 'card-size-hand'}
+                        draggable={!isDiscardMode}
+                        onDragStart={() => {
+                          setDragCardId(card.instId);
+                          setSelectedCardId(card.instId);
+                          setHandOpen(false);
+                        }}
+                        onDragEnd={() => setDragCardId(null)}
                         onClick={() => {
                           if (isDiscardMode) {
                             setDiscardIds(prev =>
@@ -1074,8 +1095,8 @@ export function GameBoard({ state }: Props) {
 
       {/* ── Mapa de Nunca Jamás choice ─────────────────────────── */}
       {pendingItemDrop && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-110 backdrop-blur-sm">
-          <div className="bg-surface-container-highest border border-tertiary/30 rounded-2xl shadow-2xl flex flex-col gap-4 p-5 w-full max-w-xs mx-4">
+        <div className="fixed inset-0 flex items-center justify-center z-110 p-4 pointer-events-none">
+          <div className="bg-surface-container-highest border border-tertiary/30 rounded-2xl shadow-2xl flex flex-col gap-4 p-5 w-full max-w-xs mx-4 pointer-events-auto">
             <div>
               <h2 className="font-serif text-base text-on-surface">Mapa de Nunca Jamás</h2>
               <p className="text-[11px] text-on-surface-variant/70 mt-1 leading-snug">

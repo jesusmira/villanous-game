@@ -15,8 +15,11 @@ export function AttachTargetModal({ state, cardName, reqTarget, candidates, onSe
   const label = reqTarget === 'ALLY' ? 'un Aliado' : 'un Héroe';
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-110 backdrop-blur-sm">
-      <div className="bg-surface-container-highest border border-tertiary/30 rounded-2xl shadow-2xl flex flex-col gap-4 p-5 w-full max-w-md mx-4">
+    <div className="fixed inset-0 flex items-center justify-center z-110 p-4" onClick={onCancel}>
+      <div
+        className="bg-surface-container-highest border border-tertiary/30 rounded-2xl shadow-2xl flex flex-col gap-4 p-5 w-full max-w-md mx-4"
+        onClick={e => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-serif text-base text-on-surface">{cardName}</h2>

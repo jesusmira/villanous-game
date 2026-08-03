@@ -24,7 +24,7 @@ export function StartRevealModal({ state, startingPlayerIndex, onContinue }: Pro
   const other     = state.players[startingPlayerIndex === 0 ? 1 : 0];
 
   return (
-    <div className={modalStyles.overlay}>
+    <div className={`${modalStyles.overlay} pointer-events-none`}>
       <div className="bg-surface-container-highest/98 border-2 border-tertiary/40 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col items-center gap-3 sm:gap-6 p-4 sm:p-8 w-11/12 sm:w-full sm:max-w-sm pointer-events-auto backdrop-blur-sm max-h-[90vh] overflow-y-auto">
 
         <p className="font-stats text-[9px] sm:text-xs uppercase tracking-widest text-on-surface-variant/60">
