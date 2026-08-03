@@ -28,7 +28,7 @@ import { canMovePawn, canPlayCard, canMoveItemAlly, canMoveHero, canPayToDiscard
 import { computeKingdomCostMod } from '../core/engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../core/engine/slotHelpers';
 import { buildPlayCtx, getAttachCandidates } from '../core/ai/contextBuilder';
-import { LayoutGrid, RotateCcw, X, ScrollText, Beaker, BookOpen } from 'lucide-react';
+import { LayoutGrid, RotateCcw, RotateCw, X, ScrollText, Beaker, BookOpen } from 'lucide-react';
 import { useSwipe } from '../hooks/useSwipe';
 import { DragSource } from '../hooks/DragProvider';
 
@@ -56,6 +56,21 @@ export function GameBoard({ state }: Props) {
   // Carta que estaba en vista previa ANTES del toque actual: permite el "toque en dos
   // pasos" táctil (1º toque = vista previa, 2º toque sobre la misma carta = seleccionar).
   const touchPrevHoveredRef = useRef<string | null>(null);
+
+  // ─── Orientación: jugar de verdad (mover el peón, jugar cartas…) necesita el ancho de
+  // landscape — en retrato el tablero queda demasiado apretado para usarlo. El Historial es
+  // solo lectura y no necesita el tablero, así que se deja ver en cualquier orientación (ver
+  // el `!historyOpen` más abajo). Escoger Personajes (GameSetup) no pasa por aquí.
+  const [isLandscape, setIsLandscape] = useState(window.innerHeight < window.innerWidth);
+  useEffect(() => {
+    const update = () => setIsLandscape(window.innerHeight < window.innerWidth);
+    window.addEventListener('orientationchange', update);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('orientationchange', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
 
   // ─── UI State: Drawers & modals ───────────────────────────────────────────
   const [handOpen, setHandOpen]             = useState(false);
@@ -547,6 +562,21 @@ export function GameBoard({ state }: Props) {
     setFateDragCardId(null);
   }
 
+  // Jugar de verdad necesita landscape; el Historial (solo lectura) se deja ver igual.
+  if (!isLandscape && !historyOpen) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center px-4 gap-6 bg-surface text-on-surface">
+        <RotateCw className="w-16 h-16 text-primary animate-spin" />
+        <div className="text-center space-y-3">
+          <h2 className="font-serif text-2xl font-bold">Gira el dispositivo</h2>
+          <p className="text-on-surface-variant text-sm max-w-xs">
+            Para jugar necesitas orientación horizontal. Por favor gira tu dispositivo.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Mostrar página de pruebas si está activa
   if (showTests) {
     return (
@@ -864,13 +894,6 @@ export function GameBoard({ state }: Props) {
                         state={state}
                         selected={isSelected || isMarkedDiscard}
                         sizeClassName={isSelected ? 'card-size-hand card-size-hand--selected' : 'card-size-hand'}
-                        draggable={!isDiscardMode}
-                        onDragStart={() => {
-                          setDragCardId(card.instId);
-                          setSelectedCardId(card.instId);
-                          setHandOpen(false);
-                        }}
-                        onDragEnd={() => setDragCardId(null)}
                         onClick={() => {
                           if (isDiscardMode) {
                             setDiscardIds(prev =>
