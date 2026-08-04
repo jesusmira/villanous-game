@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { VillainId } from '../core/types';
 import { getAllPlugins } from '../core/villains/registry';
 import { useGameStore } from '../state/gameStore';
@@ -22,9 +22,12 @@ function pickRandomVillain(excludeId: VillainId): typeof VILLAIN_OPTIONS[0] | un
   return remaining[Math.floor(Math.random() * remaining.length)];
 }
 
-// Número de círculos visibles por fila según breakpoint
+// Número de círculos visibles por fila según breakpoint. En horizontal el alto siempre es
+// escaso (incluso a ≥768px de ancho puede ser un móvil apaisado con ~340px de alto), así que
+// SIEMPRE es una sola fila — antes DESK_PER_PAGE=12 dejaba que el grid de escritorio
+// envolviera a 2 filas de 6 en cuanto había más de 6 villanos, desbordando en vertical corto.
 const MOB_PER_ROW   = 6;   // < 768 px: 1 fila de 6
-const DESK_PER_PAGE = 12;  // ≥ 768 px: 2 filas de 6
+const DESK_PER_PAGE = 6;   // ≥ 768 px: 1 fila de hasta 6
 
 // Ancho del círculo de villano en el carrusel móvil.
 // El juego es landscape-only y el alto útil es pequeño (más aún con la barra del
@@ -158,6 +161,20 @@ export function GameSetup() {
   const [showHistory, setShowHistory]   = useState(false);
   const [activePlayer, setActivePlayer] = useState<ActivePlayer>('player1');
 
+  // El carrusel de 1 fila (svh) y la rejilla de escritorio asumen ancho sobrante / alto
+  // escaso — el perfil típico de landscape. En vertical es al revés (alto sobra, ancho
+  // falta), así que esa pantalla usa su propia disposición (rejilla + tarjetas apiladas).
+  const [isLandscape, setIsLandscape] = useState(window.innerHeight < window.innerWidth);
+  useEffect(() => {
+    const update = () => setIsLandscape(window.innerHeight < window.innerWidth);
+    window.addEventListener('orientationchange', update);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('orientationchange', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
   // Página independiente por breakpoint (no se puede saber cuál se muestra sin JS)
   const [mobPage,  setMobPage]  = useState(0);
   const [deskPage, setDeskPage] = useState(0);
@@ -255,10 +272,72 @@ export function GameSetup() {
   }
 
   // ── Selección de villanos ──────────────────────────────────────────────────
-  // CSS grid de filas: [cabecera auto] [villanos 1fr] [indicador auto] [jugadores auto] [botón auto]
-  // La zona de villanos (1fr) nunca puede desbordar porque tiene overflow:hidden.
-  // SIEMPRE es una sola fila de círculos → no hay problema de altura sin importar
-  // el ratio del viewport.
+  // En horizontal: grid de filas [cabecera auto][villanos 1fr][indicador auto][jugadores
+  // auto][botón auto] fijado a 100dvh — el ancho sobra y el alto escasea, así que la zona
+  // de villanos (1fr, overflow:hidden) siempre es una sola fila de círculos.
+  // En vertical el perfil es el opuesto (alto sobra, ancho escaso): flujo natural de arriba
+  // a abajo, con scroll de página si hace falta, en vez de forzar todo en 100dvh.
+  if (!isLandscape) {
+    return (
+      <div style={{ minHeight: '100dvh' }} className="flex flex-col overflow-y-auto">
+        {/* Cabecera */}
+        <div className="flex items-center justify-between px-4 pt-3 pb-1 shrink-0">
+          <button onClick={goBack}
+            className="p-1.5 rounded-lg border border-outline-variant/50 text-on-surface-variant hover:text-on-surface transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <p className="font-stats text-[10px] text-on-surface-variant uppercase tracking-widest text-center flex-1 px-3">
+            Selecciona Villano ({activePlayer === 'player1' ? 'J1' : 'J2'})
+          </p>
+          <div className="w-7" />
+        </div>
+
+        {/* Rejilla de villanos: ancho escaso → varias filas de 3 columnas en vez de 1 fila de 6 */}
+        <div className="flex flex-col items-center gap-2 px-4 py-3 shrink-0">
+          <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
+            {mobSlice.map((v, i) => (
+              <VillainCircle key={`p${mobPage}-${i}`} {...circleProps(v)} />
+            ))}
+          </div>
+          {mobTotal > 1 && (
+            <div className="flex items-center gap-3 pt-1">
+              <NavBtn dir="left"  disabled={mobPage === 0}           onClick={() => setMobPage(p => p - 1)} />
+              <PageDots total={mobTotal} current={mobPage} />
+              <NavBtn dir="right" disabled={mobPage >= mobTotal - 1} onClick={() => setMobPage(p => p + 1)} />
+            </div>
+          )}
+        </div>
+
+        {/* Tarjetas de jugadores apiladas, con VS en medio — empujadas al fondo de la
+            pantalla (mt-auto) en vez de quedar flotando justo debajo de la rejilla. */}
+        <div className="flex flex-col items-center gap-2 px-4 py-3 shrink-0 mt-auto">
+          <div className="w-full max-w-xs">
+            <PlayerCard label="Jugador 1" name={p1Name} villainId={p1Villain}
+              vColor={p1Meta?.color} vName={p1Meta?.name} onNameChange={setP1Name}
+              isActive={activePlayer === 'player1'} onActivate={() => setActivePlayer('player1')} />
+          </div>
+          <span className="font-serif text-sm font-bold uppercase tracking-widest text-on-surface-variant/50">VS</span>
+          <div className="w-full max-w-xs">
+            <PlayerCard label={p2IsAI ? 'IA' : 'Jugador 2'} name={p2Name} villainId={p2Villain}
+              vColor={p2Meta?.color} vName={p2Meta?.name} onNameChange={setP2Name}
+              isActive={activePlayer === 'player2'} onActivate={() => setActivePlayer('player2')} />
+          </div>
+        </div>
+
+        {/* Botón de inicio */}
+        <div className="flex justify-center px-4 pb-5 shrink-0">
+          <button
+            onClick={start} disabled={!p1Villain || !p2Villain}
+            className="w-full max-w-xs px-8 py-3 min-h-11 rounded-lg font-stats text-sm font-bold uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:opacity-85 active:enabled:scale-95"
+            style={{ background: 'linear-gradient(135deg,#2d1b4d,#4f3d71)', border: '2px solid #75fd00', color: '#75fd00' }}
+          >
+            Comenzar Partida
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: '100dvh', maxHeight: '100dvh', display: 'grid', gridTemplateRows: 'auto 1fr auto auto auto', overflowY: 'auto' }}>
 
