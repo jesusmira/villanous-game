@@ -61,6 +61,13 @@ const WEIGHTS = {
   MALEFICENT_HERO_BLOCKING_UNCURSED_BASE: 12,
   MALEFICENT_HERO_BLOCKING_UNCURSED_PER_HERO: 4,
   MALEFICENT_HERO_BLOCKING_CURSED: 5,
+
+  // FASE 15: Conciencia del avance del Príncipe Juan (cuando es el rival) — Garfio tenía
+  // Maléfica-awareness pero nada equivalente para Jhon. Mismos umbrales de Poder que usa
+  // jhon/ai.ts sobre sí mismo (10/14/18), en negativo porque aquí es amenaza, no objetivo.
+  JHON_POWER_ADVANTAGE: -20,        // 10-13 Poder: ventaja clara para él
+  JHON_POWER_NEAR_WIN: -45,         // 14-17 Poder: cerca de ganar
+  JHON_POWER_ALMOST_WIN: -80,       // 18+ Poder: victoria inminente
 };
 
 export function scoreState(state: GameState, player: PlayerState, genericPowerScore: number): number {
@@ -273,6 +280,11 @@ function scoreHookObjective(state: GameState, p: PlayerState): number {
         v += WEIGHTS.MALEFICENT_HERO_BLOCKING_CURSED + 2; // con maldición → bloquea ranuras, menos crítico
       }
     }
+  } else if (opp?.villainId === 'jhon') {
+    // ── Conciencia del avance del Príncipe Juan, si es el rival (ver WEIGHTS.JHON_* arriba) ──
+    if (opp.power >= 18) v += WEIGHTS.JHON_POWER_ALMOST_WIN;
+    else if (opp.power >= 14) v += WEIGHTS.JHON_POWER_NEAR_WIN;
+    else if (opp.power >= 10) v += WEIGHTS.JHON_POWER_ADVANTAGE;
   }
 
   return v;

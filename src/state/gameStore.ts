@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ActionType } from '../core/types';
+import { ActionType, TurnPhase } from '../core/types';
 import type { GameState, GameSetupOptions, LocationId, CardInstId } from '../core/types';
 import { createInitialState, movePawn, gainPower, playCard, vanquish,
   moveItemAlly, moveHero, startFate, resolveFate, activateCard,
@@ -12,6 +12,7 @@ import {
 } from '../core/engine/PendingStateResolver';
 import { startSession, recordAction, recordAITurn, abortSession } from './history/recorder';
 import { getActiveProfile, refreshActiveProfile } from './history/profileCache';
+import { reportAIAnomaly } from './history/liveDebug';
 
 interface AIWorkerResponse {
   final: GameState;
@@ -371,6 +372,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 }));
 
+// Detección de anomalías en vivo (solo dev, ver history/liveDebug.ts): cuenta turnos
+// de IA seguidos sin usar ninguna ranura de Activar, por jugador — el patrón exacto
+// de los estancamientos ya diagnosticados a partir de historiales exportados.
+const emptyTurnStreaks = new Map<string, number>();
+
+function checkEmptyActivateTurn(aiInput: GameState, steps: GameState[], aiPlayerId: string): void {
+  // Último estado en fase ACTIVATE antes de pasar a DRAW: si no usó ninguna ranura, el
+  // turno fue vacío (ni Poder, ni carta, ni Destino, ni Vencer).
+  const lastActivate = [...steps].reverse().find(s => s.turnPhase === TurnPhase.ACTIVATE);
+  const emptyActivate = !!lastActivate && lastActivate.usedActionSlotIndices.length === 0;
+  const streak = emptyActivate ? (emptyTurnStreaks.get(aiPlayerId) ?? 0) + 1 : 0;
+  emptyTurnStreaks.set(aiPlayerId, streak);
+  if (!emptyActivate) return;
+
+  const before = aiInput.players.find(p => p.id === aiPlayerId);
+  if (!before) return;
+  const detail = {
+    roundNumber: aiInput.roundNumber,
+    villainId: before.villainId,
+    pawnLocationId: before.pawnLocationId,
+    power: before.power,
+    handCards: before.handInstIds.map(id => aiInput.allCards[id]?.name ?? id),
+    streak,
+  };
+  reportAIAnomaly('EMPTY_ACTIVATE_TURN', detail);
+  if (streak >= 3) reportAIAnomaly('STALL_STREAK', detail);
+}
+
 // Worker response: apply final state and replay steps for animation.
 aiWorker.onmessage = (e: MessageEvent<AIWorkerResponse>) => {
   const aiInput = pendingAIInput;
@@ -378,6 +407,7 @@ aiWorker.onmessage = (e: MessageEvent<AIWorkerResponse>) => {
   if (aiInput && e.data.steps.length > 0) {
     const aiPlayerId = aiInput.players[aiInput.currentPlayerIndex].id;
     recordAITurn(aiInput, e.data.steps, aiPlayerId);
+    checkEmptyActivateTurn(aiInput, e.data.steps, aiPlayerId);
   }
   useGameStore.setState({
     state: e.data.final,

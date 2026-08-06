@@ -38,6 +38,14 @@ const WEIGHTS = {
   HOOK_PP_IN_KINGDOM: -25,          // Peter Pan ya está en el reino de Garfio — AUMENTADO
   HOOK_PP_VANQUISHABLE: -35,        // Garfio ya tiene aliados suficientes para vencer a PP — AUMENTADO
   HOOK_PP_AT_JOLLY_ROGER: -45,      // PP está en su ubicación de victoria — AUMENTADO (CASI GAME OVER)
+
+  // FASE 15: Conciencia del avance del Príncipe Juan (cuando es el rival) — Maléfica tenía
+  // Hook-awareness pero nada equivalente para Jhon (solo la señal genérica de evaluate.ts,
+  // más gruesa: 2 umbrales fijos con Orden de Búsqueda en juego). Mismos umbrales de Poder que
+  // usa jhon/ai.ts sobre sí mismo (10/14/18), en negativo porque aquí es amenaza, no objetivo.
+  JHON_POWER_ADVANTAGE: -20,        // 10-13 Poder: ventaja clara para él
+  JHON_POWER_NEAR_WIN: -45,         // 14-17 Poder: cerca de ganar
+  JHON_POWER_ALMOST_WIN: -80,       // 18+ Poder: victoria inminente
 };
 
 // Umbrales de threatUrgency(): cuántas maldiciones en pie disparan cada nivel de urgencia.
@@ -134,6 +142,11 @@ export function scoreState(state: GameState, player: PlayerState, genericPowerSc
       if (allyStr >= ppStr) v += WEIGHTS.HOOK_PP_VANQUISHABLE;
       if (pp.locId === HookLocationId.JOLLY_ROGER) v += WEIGHTS.HOOK_PP_AT_JOLLY_ROGER;
     }
+  } else if (opp?.villainId === 'jhon') {
+    // ── Conciencia del avance del Príncipe Juan, si es el rival (ver WEIGHTS.JHON_* arriba) ──
+    if (opp.power >= 18) v += WEIGHTS.JHON_POWER_ALMOST_WIN;
+    else if (opp.power >= 14) v += WEIGHTS.JHON_POWER_NEAR_WIN;
+    else if (opp.power >= 10) v += WEIGHTS.JHON_POWER_ADVANTAGE;
   }
 
   return v;

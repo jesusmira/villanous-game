@@ -7,6 +7,8 @@ import type { GameState, PlayerState, LocationState, CardInstId, LocationId, Loc
 import { getPlugin } from '../registry';
 import { CardDefId, EffectId } from '../effectIds';
 import { getEffectiveStrength } from '../../engine/stateHelpers';
+import { findPeterPan } from '../hook/aiHelpers';
+import { HookLocationId, HookObjectiveStep } from '../hook/cards';
 import type { OpponentProfile } from '../../ai/opponentModel';
 
 function locHasCurse(state: GameState, ls: LocationState): boolean {
@@ -70,6 +72,39 @@ function hasHeroInKingdom(state: GameState, player: PlayerState, defId: string):
   );
 }
 
+/**
+ * FASE 17 (curva continua de urgencia): antes POWER_ALMOST_WIN/NEAR_WIN/ADVANTAGE eran
+ * umbrales fijos (18+/14-17/10-13) que se sumaban de golpe al cruzar la frontera. Eso creaba
+ * un "acantilado": bajar de 18 a 16 de Poder (p. ej. al jugar Encarcelamiento sobre Robin
+ * Hood, coste 2) perdía de golpe 120→60 = -60 puntos, muy por encima de CUALQUIER beneficio
+ * estructural real de jugar esa carta (~+20/+25, ver HERO_OUTSIDE_PRISON/HERO_STRONG_
+ * BLOCKING/OWN_HERO_STRENGTH_PENALTY). Confirmado con un test de diagnóstico reproduciendo
+ * la partida real: la IA llegaba a 18/20 de Poder con Robin Hood sin cubrir y 2 copias de
+ * Encarcelamiento en mano y NUNCA las jugaba — cualquier carta con coste ≥1 quedaba "congelada"
+ * en cuanto se cruzaba un umbral hacia abajo, sin importar lo buena que fuera la jugada.
+ * Interpolar linealmente entre los mismos anclajes (0→0, 10→25, 14→60, 18→120, extrapolado
+ * más allá de 18 con la misma pendiente) mantiene la MISMA urgencia en los puntos ya
+ * validados, pero la hace continua: perder 2 de Poder cerca de un anclaje ahora cuesta una
+ * fracción proporcional, no todo el salto entre umbrales.
+ */
+function powerUrgency(power: number): number {
+  const points: [number, number][] = [
+    [0, 0],
+    [10, WEIGHTS.POWER_ADVANTAGE],
+    [14, WEIGHTS.POWER_NEAR_WIN],
+    [18, WEIGHTS.POWER_ALMOST_WIN],
+  ];
+  for (let i = 1; i < points.length; i++) {
+    const [x0, y0] = points[i - 1];
+    const [x1, y1] = points[i];
+    if (power <= x1) return y0 + (power - x0) / (x1 - x0) * (y1 - y0);
+  }
+  const [x0, y0] = points[points.length - 2];
+  const [x1, y1] = points[points.length - 1];
+  const slope = (y1 - y0) / (x1 - x0);
+  return y1 + (power - x1) * slope;
+}
+
 // Pesos de la heurística: el Príncipe Juan acumula Poder SIN tope (su condición de
 // victoria son 20 Monedas), así que aquí no hay rendimientos decrecientes.
 const WEIGHTS = {
@@ -86,6 +121,18 @@ const WEIGHTS = {
   REY_RICARDO_IN_KINGDOM: -40,
   HERO_OUTSIDE_PRISON: -8,      // por cada héroe que bloquea ranuras fuera de La Prisión — AUMENTADO
   HERO_STRONG_BLOCKING: -15,    // NUEVO: penalización por héroe F4+ sin vencer
+
+  // FASE 17: bono directo por cada héroe encerrado en La Prisión (Encarcelamiento), en el
+  // mismo espíritu que HERO_TROPHY (premiar la neutralización lograda, no solo dejar de
+  // penalizar). Sin esto, jugar Encarcelamiento solo se justificaba de forma DERIVADA —
+  // quitando HERO_OUTSIDE_PRISON/HERO_STRONG_BLOCKING — y con la curva de powerUrgency() de
+  // arriba (ver powerUrgency) ese ahorro seguía sin cubrir el coste de la carta en algunos
+  // tramos de Poder, así que la IA nunca la jugaba pese a tener 2 copias en mano y a Robin
+  // Hood sin cubrir 10+ rondas seguidas en una partida real. Menor que HERO_TROPHY (8) porque
+  // encerrar no es tan completo como Vencer: el héroe sigue "vivo" (penalización fija de
+  // kingdom, p. ej. el -1 Poder/ganancia de Robin Hood, sigue aplicando) y puede volver a
+  // bloquear ranuras si algo lo saca de la Prisión.
+  HERO_IMPRISONED: 7,
 
   // Coincidir aliados con el héroe de su ubicación: a diferencia de Garfio (NORMAL_HERO_ALLY_MATCH/
   // READY), el Príncipe Juan no tenía ningún término de este tipo — solo las penalizaciones fijas de
@@ -163,14 +210,26 @@ const WEIGHTS = {
   // HERO_ALLY_MATCH de arriba, solo desempatar A FAVOR de recuperar Poder robado.
   STORED_POWER_RECOVERY_URGENCY: 0.8,
 
-  // FASE 3: Urgencia de victoria según proximidad a 20 poder
+  // FASE 3: Urgencia de victoria según proximidad a 20 poder — puntos de anclaje para
+  // powerUrgency() (interpolación lineal continua, ver función más abajo). Mismos valores
+  // que la versión anterior (a umbrales fijos), conservados como anclas de la curva.
   POWER_ALMOST_WIN: 120,        // 18+ poder: victoria muy cercana — AUMENTADO
-  POWER_NEAR_WIN: 60,           // 14-17 poder: ganando — AUMENTADO
-  POWER_ADVANTAGE: 25,          // 10-13 poder: ventaja clara — AUMENTADO
+  POWER_NEAR_WIN: 60,           // 14 poder: ganando — AUMENTADO
+  POWER_ADVANTAGE: 25,          // 10 poder: ventaja clara — AUMENTADO
 
   // ── Conciencia del avance de Maléfica (cuando es la rival) ──
   MALEFICENT_CURSE_IN_PLAY: -28, // NUEVO: cada maldición amenaza mucho
   MALEFICENT_CURSE_FINAL: -50,   // NUEVO: 3+ maldiciones = casi derrota
+
+  // FASE 15: Conciencia del avance de Garfio (cuando es el rival) — antes Jhon no tenía nada
+  // equivalente a esto (solo Maléfica lo tenía en su propia heurística, ver maleficent/ai.ts),
+  // así que al enfrentarse a Garfio solo se apoyaba en la señal genérica de evaluate.ts
+  // (oppStrategicProgress, más gruesa: 2 umbrales fijos de Fuerza en Jolly Roger). Mismos
+  // valores ya validados en maleficent/ai.ts — misma escala de amenaza, sin retuning ad hoc.
+  HOOK_HANGMAN_UNLOCKED: -50,
+  HOOK_PP_IN_KINGDOM: -25,
+  HOOK_PP_VANQUISHABLE: -35,
+  HOOK_PP_AT_JOLLY_ROGER: -45,
 };
 
 export function scoreState(
@@ -180,14 +239,9 @@ export function scoreState(
   let v = player.power * WEIGHTS.POWER;
   v += player.handInstIds.length * WEIGHTS.HAND_CARD;
 
-  // FASE 3: Urgencia escalada según proximidad a 20 poder
-  if (player.power >= 18) {
-    v += WEIGHTS.POWER_ALMOST_WIN;
-  } else if (player.power >= 14) {
-    v += WEIGHTS.POWER_NEAR_WIN;
-  } else if (player.power >= 10) {
-    v += WEIGHTS.POWER_ADVANTAGE;
-  }
+  // FASE 3/17: Urgencia escalada según proximidad a 20 poder — curva continua, ver
+  // powerUrgency() arriba (evita el acantilado de los umbrales fijos).
+  v += powerUrgency(player.power);
 
   // Robin Hood en el reino es muy perjudicial: penalizar
   if (hasHeroInKingdom(state, player, CardDefId.JHON_ROBIN_HOOD)) v += WEIGHTS.ROBIN_HOOD_IN_KINGDOM;
@@ -201,9 +255,24 @@ export function scoreState(
     .reduce((n, l) => n + player.locationStates[l.id].heroCardInstIds.length, 0);
   v += heroesOutsidePrison * WEIGHTS.HERO_OUTSIDE_PRISON;
 
+  // FASE 17: bono directo por cada héroe ya encerrado (ver WEIGHTS.HERO_IMPRISONED arriba).
+  const heroesImprisoned = plugin.locations
+    .filter(l => l.heroesNeverCoverSlots)
+    .reduce((n, l) => n + player.locationStates[l.id].heroCardInstIds.length, 0);
+  v += heroesImprisoned * WEIGHTS.HERO_IMPRISONED;
+
   // NUEVO: penalizar héroes F4+ que bloquean sin poder vencer
+  // FASE 15: héroes en La Prisión (heroesNeverCoverSlots) no bloquean ranuras, pero siguen
+  // aplicando su penalización fija de kingdom (Robin Hood -1 Poder/turno, Rey Ricardo bloquea
+  // Efectos) mientras vivan — y antes quedaban FUERA de este bucle entero, así que ningún
+  // Aliado invertido en vencerlos ahí sumaba nada (ni HERO_ALLY_MATCH, ni HERO_READY_TO_
+  // VANQUISH, ni recuperar Poder robado si el héroe encerrado era Little John). Con solo el
+  // bono fijo de arriba (que no cambia con la inversión) no hay ningún gradiente que empuje a
+  // rematarlos: verificado en partidas reales que Robin Hood quedaba encarcelado y sin vencer
+  // 21+ rondas, drenando Poder cada turno sin que la IA volviera a por él. Solo se sigue
+  // excluyendo HERO_STRONG_BLOCKING (penalización específica de "bloquea ranuras"), que no
+  // aplica porque en La Prisión no bloquean nada.
   for (const l of plugin.locations) {
-    if (l.heroesNeverCoverSlots) continue;
     const ls = player.locationStates[l.id];
     if (ls.heroCardInstIds.length === 0) continue;
     const allyStr = ls.villainCardInstIds
@@ -226,6 +295,7 @@ export function scoreState(
       v += Math.min(allyStr / heroStr, 1) * storedHere * WEIGHTS.STORED_POWER_RECOVERY_URGENCY;
     }
 
+    if (l.heroesNeverCoverSlots) continue;
     const strongHeroes = ls.heroCardInstIds.filter(id => getEffectiveStrength(state, id) >= 4);
     for (const heroId of strongHeroes) {
       if (allyStr < getEffectiveStrength(state, heroId)) {
@@ -332,6 +402,16 @@ export function deadHandCards(state: GameState, p: PlayerState): CardInstId[] {
       out.push(id);
       continue;
     }
+    // NOTA (FASE 17, revertido): se probó marcar Encarcelamiento como carta muerta cuando no
+    // queda ningún Héroe elegible en el reino, pero rompía el invariante "Vencer nunca puntúa
+    // peor que no vencer" (ai-vanquish-scoring.test.ts): al vencer al ÚNICO héroe presente, una
+    // copia de Encarcelamiento en mano se quedaba sin objetivo y su nueva penalización de
+    // DEAD_HAND_CARD (-3, ver evaluate.ts) podía superar la ganancia estructural de Vencer,
+    // haciendo que rematar puntuara peor que no hacerlo — justo el "trap de gradiente" que este
+    // archivo existe para evitar. No merece la pena perseguir este ciclado fino a costa de ese
+    // invariante ya validado; el fallback de Encarcelamiento en efects.ts ya deja claro en el
+    // log cuándo no hizo nada ("no hay Héroes disponibles"), y powerUrgency()/HERO_IMPRISONED
+    // arriba son los que de verdad resuelven el bug real (Robin Hood nunca encarcelado).
     // FASE 14: Aliado dominado por otro Aliado de la misma mano (ver comentario arriba).
     if (c.cardType === CardType.ALLY) {
       const cost = Math.max(0, c.baseCost + c.costModifier);
@@ -364,6 +444,31 @@ function scoreOppAwareness(state: GameState, player: PlayerState): number {
     // Si Maléfica tiene 3+ maldiciones, estamos casi perdiendo
     if (cursesInPlay >= 3) {
       v += WEIGHTS.MALEFICENT_CURSE_FINAL;
+    }
+  }
+
+  // ── Conciencia del avance de Garfio, si es el rival (ver WEIGHTS.HOOK_* arriba) ──
+  if (opp?.villainId === 'hook') {
+    const hookPlugin = getPlugin(opp.villainId);
+    const hookSteps = opp.completedObjectiveSteps ?? [];
+    if (hookSteps.includes(HookObjectiveStep.HANGMAN_UNLOCKED)) v += WEIGHTS.HOOK_HANGMAN_UNLOCKED;
+    const pp = findPeterPan(state, opp);
+    if (pp) {
+      v += WEIGHTS.HOOK_PP_IN_KINGDOM;
+      const ppStr = getEffectiveStrength(state, pp.id);
+      const locDef = hookPlugin.locations.find(l => l.id === pp.locId);
+      const sameAllies = (opp.locationStates[pp.locId]?.villainCardInstIds ?? []).filter(
+        id => state.allCards[id]?.cardType === CardType.ALLY,
+      );
+      const adjAllies = (locDef?.adjacentIds ?? []).flatMap(adjId =>
+        (opp.locationStates[adjId]?.villainCardInstIds ?? []).filter(id => {
+          const a = state.allCards[id];
+          return a?.cardType === CardType.ALLY && a.effectIds.includes(EffectId.PELOTON_ADJ_VANQUISH);
+        }),
+      );
+      const allyStr = [...sameAllies, ...adjAllies].reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
+      if (allyStr >= ppStr) v += WEIGHTS.HOOK_PP_VANQUISHABLE;
+      if (pp.locId === HookLocationId.JOLLY_ROGER) v += WEIGHTS.HOOK_PP_AT_JOLLY_ROGER;
     }
   }
 

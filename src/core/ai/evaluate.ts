@@ -3,6 +3,7 @@ import type { GameState, PlayerId } from '../types';
 import { getPlugin } from '../villains/registry';
 import { EffectId, CardDefId } from '../villains/effectIds';
 import { getPlayer, getEffectiveStrength } from '../engine/stateHelpers';
+import { heroHasBurla } from '../villains/hook/aiHelpers';
 import type { OpponentProfile } from './opponentModel';
 
 // ─── State evaluation for 1-ply lookahead ────────────────────────────────────────
@@ -35,6 +36,14 @@ const WEIGHTS = {
                                 // a un héroe puntúe mejor que descartarla sin objetivo)
   OPP_POWER_CAP: 10,
   OPP_POWER_PENALTY: 0.25,      // penaliza dejar acaparar poder al rival
+
+  // FASE 15: Burla (mazo de Destino de Garfio) obliga a Garfio a derrotar PRIMERO a
+  // cualquier Héroe con Burla adjunta antes de poder Vencer a ningún otro — incluido Peter
+  // Pan, su remate. Jugarla contra su reino vía Destino lo paraliza por completo mientras
+  // siga en pie, así que vale mucho más que la disrupción genérica de un héroe cualquiera
+  // (OPP_HERO_PRESENCE/STRENGTH de arriba, que no reflejan este bloqueo total). Sin este
+  // término ningún villano priorizaba jugarla al enfrentar a Garfio.
+  OPP_HOOK_BURLA_BLOCK: 30,
 
   // Victory urgency (FASE 1): Peso masivo si está cerca de ganar o perder
   ALMOST_WIN: 500000,           // casi gana
@@ -186,15 +195,31 @@ export function evaluateState(state: GameState, playerId: PlayerId, profile?: Op
     if (jrAllyStr >= 3) pathfindingBonus += 20; // Muy preparado
   } else if (p.villainId === 'jhon') {
     // Príncipe Juan: está en el camino correcto si tiene Items que generan poder
-    // y está acumulando poder de forma constante
-    const itemsGeneratingPower = p.locationStates[Object.keys(p.locationStates)[0]]?.villainCardInstIds
-      ?.filter(id => {
+    // y está acumulando poder de forma constante.
+    // FASE 17: antes solo miraba `Object.keys(p.locationStates)[0]` — una única ubicación
+    // arbitraria (la primera del objeto) en vez de TODO el reino, así que si la Orden de
+    // Búsqueda se jugaba en cualquier otra ubicación (lo normal, ver pickBestPlayTarget) este
+    // bono nunca se activaba. Recorre las 4 ubicaciones de verdad.
+    const itemsGeneratingPower = plugin.locations.reduce((n, l) =>
+      n + p.locationStates[l.id].villainCardInstIds.filter(id => {
         const c = state.allCards[id];
         return c?.cardType === CardType.ITEM &&
                (c.defId === 'jhon_v_orden_1' || c.defId === 'jhon_v_orden_2' || c.defId === 'jhon_v_orden_3');
-      }).length ?? 0;
+      }).length, 0);
     if (itemsGeneratingPower >= 1) pathfindingBonus += 20;
     if (itemsGeneratingPower >= 2) pathfindingBonus += 15;
+
+    // FASE 17: Corona del Rey Ricardo (-1 a todos los costes mientras el peón esté en su
+    // ubicación) es puro valor FUTURO — evaluateState solo mide el estado resultante, así
+    // que jugarla nunca se veía compensada en una sola jugada (paga su coste ahora por un
+    // descuento que solo se cobra en turnos posteriores). Sin ningún término que reconozca
+    // tenerla en juego, la IA la dejaba sin jugar una partida entera pese a tenerla en mano
+    // constantemente. pickBestPlayTarget ya la dirige a La Prisión (la ubicación que más
+    // fiablemente se vuelve a visitar), así que el bono no necesita mirar dónde está el peón.
+    const coronaInPlay = plugin.locations.some(l =>
+      p.locationStates[l.id].villainCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.JHON_CORONA),
+    );
+    if (coronaInPlay) pathfindingBonus += 12;
   } else if (p.villainId === 'maleficent') {
     // Maléfica: tener una Maldición en mano lista para jugar es estar en el camino correcto.
     // (El bloque anterior buscaba Efectos cuyo NOMBRE contuviera «Maldición» — no existe
@@ -320,6 +345,16 @@ export function evaluateState(state: GameState, playerId: PlayerId, profile?: Op
         .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0);
       if (ppInKingdom && jrStr >= 2) oppStrategicProgress = 20;
       if (ppInKingdom && jrStr >= 4) oppStrategicProgress = 40;
+
+      // Burla en su reino: no puede Vencer a NADA (ni siquiera a Peter Pan) hasta resolverla,
+      // así que su "camino ganador" está parado del todo pase lo que pase con jrStr.
+      const hookBlockedByBurla = Object.values(opp.locationStates).some(ls =>
+        ls.heroCardInstIds.some(id => heroHasBurla(state, id)),
+      );
+      if (hookBlockedByBurla) {
+        oppStrategicProgress = 0;
+        v += WEIGHTS.OPP_HOOK_BURLA_BLOCK;
+      }
     } else if (opp.villainId === 'jhon') {
       // Príncipe Juan está en el camino si tiene 10+ poder Y Orden de Búsqueda en juego
       const hasOrdenInPlay = Object.values(opp.locationStates).some(ls =>
