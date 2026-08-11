@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { CardType } from '../core/types';
 import type { GameState, LocationId, CardInstId } from '../core/types';
 import { getEffectDef } from '../core/villains/registry';
@@ -19,6 +20,10 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
   const [_targetLocId,   setTargetLocId]  = useState<LocationId | null>(null);
   const [_targetCardId,  setTargetCardId] = useState<CardInstId | null>(null);
   const [hoveredFateId, setHoveredFateId] = useState<string | null>(null);
+  // Móvil, paso 1 (elegir carta): el panel tapa el tablero entero — permite ocultarlo
+  // temporalmente para ver las ubicaciones antes de decidir qué carta jugar, sin tener que
+  // comprometerse ya a una elección (el paso 2 ya se reduce solo a una barra fina).
+  const [cardsHidden, setCardsHidden]   = useState(false);
 
   if (!pendingFate) return null;
 
@@ -124,16 +129,40 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
     })()}
 
     {/* ════════ MÓVIL/TABLET (<lg) — flujo tipo mano ════════ */}
-    {/* Paso 1: elegir carta (panel arriba con cartas centradas/escaladas) */}
-    {!chosenId && (
+    {/* Paso 1: elegir carta (panel arriba con cartas centradas/escaladas). Se puede ocultar
+        temporalmente (botón "Ver ubicaciones") para consultar el tablero sin perder las
+        cartas reveladas ni tener que elegir una todavía. */}
+    {!chosenId && cardsHidden && (
+      <div className="lg:hidden fixed top-12 inset-x-0 z-50 bg-surface-container-highest/97 backdrop-blur-xl border-b border-error/30 shadow-xl px-4 py-2 flex items-center gap-3">
+        <span className="flex-1 min-w-0 font-stats text-[11px] uppercase tracking-wider text-on-surface-variant/80 truncate">
+          Cartas ocultas · consulta el tablero
+        </span>
+        <button
+          onClick={() => setCardsHidden(false)}
+          className="shrink-0 flex items-center gap-1.5 font-stats text-[11px] uppercase tracking-wider text-primary hover:text-primary/80 px-3 py-1 rounded border border-primary/40 active:scale-95 transition-transform"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          Ver cartas
+        </button>
+      </div>
+    )}
+    {!chosenId && !cardsHidden && (
       <div className="lg:hidden fixed top-12 inset-x-0 bottom-0 z-50 bg-surface-container-highest/97 backdrop-blur-xl border-b border-error/30 shadow-2xl animate-slide-down flex flex-col">
-        <div className="px-4 py-2 shrink-0">
-          <div className="flex items-baseline gap-2">
-            <span className="font-serif text-sm font-bold text-error">Acción Destino</span>
-            <span className="text-on-surface-variant/60 text-[11px]">
+        <div className="px-4 py-2 shrink-0 flex items-center justify-between gap-2">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className="font-serif text-sm font-bold text-error shrink-0">Acción Destino</span>
+            <span className="text-on-surface-variant/60 text-[11px] truncate">
               contra <strong className="text-on-surface">{targetPlayer.name}</strong> · elige una carta
             </span>
           </div>
+          <button
+            onClick={() => setCardsHidden(true)}
+            className="shrink-0 flex items-center gap-1.5 font-stats text-[10px] uppercase tracking-wider text-on-surface-variant/70 hover:text-on-surface px-2.5 py-1 rounded border border-outline-variant/40 active:scale-95 transition-transform"
+            title="Ocultar cartas y ver el tablero"
+          >
+            <EyeOff className="w-3.5 h-3.5" />
+            Ocultar
+          </button>
         </div>
         <div className="flex-1 flex items-center overflow-x-auto overflow-y-hidden">
           <div className="flex items-center gap-5 w-max max-w-full mx-auto px-6 py-4">

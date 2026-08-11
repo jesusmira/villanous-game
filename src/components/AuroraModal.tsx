@@ -78,8 +78,8 @@ export function AuroraModal({ state }: Props) {
 
   return (
     /* Sin backdrop — tablero visible al fondo */
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 pointer-events-none">
-      <div className="bg-surface-container-highest/95 border border-primary/30 rounded-2xl shadow-2xl flex flex-col justify-between p-6 w-full max-w-2xl pointer-events-auto backdrop-blur-sm" style={{ height: '480px' }}>
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-2 sm:p-4 pointer-events-none">
+      <div className="bg-surface-container-highest/95 border border-primary/30 rounded-2xl shadow-2xl flex flex-col justify-between p-3 sm:p-6 w-full max-w-2xl max-h-[92vh] overflow-y-auto gap-4 pointer-events-auto backdrop-blur-sm">
 
         <div className="flex flex-col gap-4">
           {/* Carta revelada */}
@@ -114,12 +114,12 @@ export function AuroraModal({ state }: Props) {
             <p className="font-stats text-[9px] uppercase tracking-wider text-on-surface-variant/60 mb-3">
               Elige dónde colocarlo:
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {validLocs.map(loc => (
                 <button
                   key={loc.id}
                   onClick={() => doResolveAuroraHero(loc.id)}
-                  className="px-3 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container hover:border-primary hover:bg-primary/10 text-left transition-all group"
+                  className="px-3 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container hover:border-primary hover:bg-primary/10 active:scale-95 text-left transition-all group"
                 >
                   <div className="font-serif text-[11px] text-on-surface group-hover:text-primary leading-tight">
                     {loc.name}

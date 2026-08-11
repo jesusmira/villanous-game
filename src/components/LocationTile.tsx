@@ -116,7 +116,13 @@ export function LocationTile({
     : locDef.actions.slice(2, 4).map((slot, i) => ({ slot, idx: i + 2 }));
 
   return (
-    <div className="flex flex-col gap-2">
+    // La zona de "soltar" (dropRef) vive en TODO el bloque, no solo en la imagen de la
+    // ubicación de más abajo: los Aliados/Objetos y los Héroes (arriba, en overlay) están
+    // fuera de esa imagen, así que soltar una carta justo donde se agarró — el caso normal —
+    // caía en una franja sin ninguna zona registrada y el movimiento no hacía nada. En
+    // ratón (recorridos más largos, casi siempre cruzan hacia la imagen de otra ubicación)
+    // colaba por casualidad; en táctil, con gestos cortos, prácticamente nunca.
+    <div ref={dropRef} className="flex flex-col gap-2">
 
       {/* ── Location card ─────────────────────────────────── */}
       <div className="relative w-full aspect-3/4">
@@ -152,7 +158,6 @@ export function LocationTile({
 
         {/* ── Visual background — starts at 15% to leave room for hero overlay ── */}
         <div
-          ref={dropRef}
           onClick={onFateLocationClick && playHighlight?.playState === 'valid' ? onFateLocationClick : onLocationClick ? () => onLocationClick(locDef.id) : undefined}
           className={`absolute inset-x-0 bottom-0 rounded-xl overflow-hidden transition-all duration-150 pointer-events-auto
             ${locState.isLocked

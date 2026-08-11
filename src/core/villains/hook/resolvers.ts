@@ -3,6 +3,7 @@ import { CardType } from '../../types';
 import { getPlayer, updatePlayer, updateLocationState, updateCard, addLog } from '../../engine/stateHelpers';
 import { runEffects } from '../../engine/EffectEngine';
 import { placeHeroInKingdom } from '../../engine/actions/fate';
+import { buildPlayCtx } from '../../ai/contextBuilder';
 
 export function resolveDemosles(
   state: GameState,
@@ -37,10 +38,20 @@ function handlePerspicaz(s: GameState, reactingPlayerId: PlayerId, ctx: Conditio
         villainCardInstIds: [...locState.villainCardInstIds, ctx.allyInstId],
       });
       s = updateCard(s, ctx.allyInstId, { locationId: ctx.targetLocationId });
+      // El propio ON_PLAY del Aliado gratuito puede necesitar un target calculado (p. ej. Sr.
+      // Starkey: a qué Héroe mover y a qué ubicación ADYACENTE a él — no la ubicación donde se
+      // colocó el propio Starkey, que es lo que había aquí antes). Sin pasar por buildPlayCtx
+      // (el mismo cálculo que usa el flujo normal de jugar carta, tanto para IA como para
+      // humano), el efecto caía en su fallback genérico: "primer Héroe que encuentre" (no
+      // necesariamente Peter Pan) y `targetLocationId` reinterpretado como destino del Héroe
+      // pese a ser en realidad la ubicación del propio Starkey — si coincidían, el "movimiento"
+      // no cambiaba nada. Ver hook_starkey_move_hero en effects.ts.
+      const playCtx = buildPlayCtx(s, reactingPlayerId, ctx.allyInstId, ctx.targetLocationId);
       s = runEffects(s, ctx.allyInstId, 'ON_PLAY', {
         actingPlayerId: reactingPlayerId,
         cardInstId: ctx.allyInstId,
         targetLocationId: ctx.targetLocationId,
+        ...playCtx,
       });
       s = addLog(s, `Perspicaz: ${ally.name} jugado gratis en ${ctx.targetLocationId}.`);
       const locAfter = getPlayer(s, reactingPlayerId).locationStates[ctx.targetLocationId];

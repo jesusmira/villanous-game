@@ -8,6 +8,7 @@ import {
 } from '../../engine/stateHelpers';
 import { runEffects } from '../../engine/EffectEngine';
 import { shuffle } from '../../utils/shuffle';
+import { buildPlayCtx } from '../../ai/contextBuilder';
 
 // ── Find Robin Hood anywhere and play him at targetLocId ──────────────────────
 function findAndPlayRobinHood(
@@ -82,10 +83,16 @@ function handleCobardia(s: GameState, reactingPlayerId: PlayerId, ctx: Condition
     villainCardInstIds: [...locState.villainCardInstIds, ctx.allyInstId],
   });
   s = updateCard(s, ctx.allyInstId, { locationId: ctx.targetLocationId });
+  // Ver el comentario equivalente en hook/resolvers.ts (handlePerspicaz): sin pasar por
+  // buildPlayCtx, cualquier Aliado gratuito con un ON_PLAY que necesite un target calculado
+  // (p. ej. mover un Héroe) recibiría `targetLocationId` mal interpretado como su propio
+  // destino de colocación en vez del que su efecto realmente necesita.
+  const playCtx = buildPlayCtx(s, reactingPlayerId, ctx.allyInstId, ctx.targetLocationId);
   s = runEffects(s, ctx.allyInstId, 'ON_PLAY', {
     actingPlayerId: reactingPlayerId,
     cardInstId: ctx.allyInstId,
     targetLocationId: ctx.targetLocationId,
+    ...playCtx,
   });
   return addLog(s, `Cobardía: ${ally.name} jugado gratis en ${ctx.targetLocationId}.`);
 }

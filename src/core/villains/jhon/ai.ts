@@ -298,8 +298,20 @@ export function scoreState(
     if (l.heroesNeverCoverSlots) continue;
     const strongHeroes = ls.heroCardInstIds.filter(id => getEffectiveStrength(state, id) >= 4);
     for (const heroId of strongHeroes) {
-      if (allyStr < getEffectiveStrength(state, heroId)) {
-        v += WEIGHTS.HERO_STRONG_BLOCKING;
+      const strongHeroStr = getEffectiveStrength(state, heroId);
+      if (allyStr < strongHeroStr) {
+        // FASE 18 (trap de gradiente en la inversión de Aliados, parte 2): HERO_STRONG_BLOCKING
+        // se aplicaba entero mientras allyStr < heroStr, sin importar lo cerca que estuviera la
+        // inversión. HERO_ALLY_MATCH (arriba) da crédito parcial por Aliado invertido, pero ese
+        // crédito por sí solo no cubre el coste de powerUrgency() al gastar Poder (confirmado con
+        // partida real: Príncipe Juan nunca jugó Arqueros Lobo/Guardias Rinoceronte contra Lady
+        // Kluck F6 en 16 rondas, pese a tener Poder de sobra — el primer Aliado solo puntuaba
+        // negativo). Prorratear esta penalización por el hueco que falta (en vez de aplicarla de
+        // golpe hasta completar la inversión) da crédito real a cada Aliado invertido, igual que
+        // ya se hace con HERO_ALLY_MATCH, sin tocar powerUrgency (que ya está validada para otro
+        // bug real, ver FASE 17) ni inflar HERO_ALLY_MATCH hasta un valor que distorsionaría la
+        // señal de coincidencia también en héroes débiles.
+        v += WEIGHTS.HERO_STRONG_BLOCKING * (strongHeroStr - allyStr) / strongHeroStr;
       }
     }
   }
