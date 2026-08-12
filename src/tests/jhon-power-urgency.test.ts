@@ -1,17 +1,14 @@
-// ─── FASE 17: guardas de regresión para el "acantilado" de urgencia de Poder ────────────────
-// Bug confirmado en la partida real 5660a246-1cb9-4f9f-8faa-47b364f5e760 (Jhon/IA vs Garfio):
-// la IA llegaba a 18/20 de Poder con Robin Hood sin cubrir en Nottingham y 2 copias de
-// Encarcelamiento en mano, y NUNCA las jugaba — ni esa ni ninguna otra carta con coste ≥1,
-// durante el resto de la partida. Causa raíz: POWER_ALMOST_WIN/NEAR_WIN/ADVANTAGE eran
-// umbrales fijos (18+/14-17/10-13 → +120/+60/+25) que se aplicaban de golpe; bajar de 18 a 16
-// de Poder por CUALQUIER motivo perdía 120→60 = -60 puntos de golpe, muy por encima de
-// cualquier beneficio estructural real de una sola jugada. Ver powerUrgency() y
-// WEIGHTS.HERO_IMPRISONED en jhon/ai.ts, y el bono de Corona/Orden en evaluate.ts.
+// ─── Guardas de regresión para el "acantilado" de urgencia de Poder — Príncipe Juan ─────────
+// Bug histórico (motor anterior): umbrales fijos de Poder que se aplicaban de golpe hacían que
+// bajar de Poder por una jugada legítima (p. ej. Encarcelar a Robin Hood) perdiera muchos más
+// puntos que cualquier beneficio estructural real de esa jugada, y la IA se congelaba cerca del
+// umbral. El motor de intenciones usa curvas continuas (lerpCurve) desde el diseño, no
+// umbrales — estas pruebas comprueban que sigue siendo así.
 import { describe, it, expect } from 'vitest';
 import { runAITurn } from '../core/ai/AIPlayer';
-import { evaluateState } from '../core/ai/evaluate';
-import { scoreState as jhonScoreState } from '../core/villains/jhon/ai';
-import { getPlayer } from '../core/engine/stateHelpers';
+import { chooseIntention } from '../core/ai/intent/planner';
+import { buildAIContext } from '../core/ai/intent/context';
+import { intentions as jhonIntentions } from '../core/villains/jhon/intentions';
 import { TurnPhase } from '../core/types';
 import { CardDefId } from '../core/villains/effectIds';
 import {
@@ -23,6 +20,14 @@ function findAll(state: ReturnType<typeof makeJhonState>, prefix: string, count:
   const ids = Object.keys(state.allCards).filter(id => state.allCards[id]?.defId?.startsWith(prefix));
   if (ids.length < count) throw new Error(`Solo se encontraron ${ids.length} cartas con prefijo ${prefix}`);
   return ids.slice(0, count);
+}
+
+/** Valor holístico (suma de todas las intenciones aplicables + progreso propio) — para
+ *  comparar dos estados directamente sin pasar por el puntuador de acciones por delta. */
+function totalStateValue(state: ReturnType<typeof makeJhonState>, playerId: string): number {
+  const { all } = chooseIntention(state, playerId);
+  const ctx = buildAIContext(state, playerId);
+  return ctx.ownProgress * 8 + all.reduce((sum, i) => sum + i.score * i.polarity, 0);
 }
 
 describe('Príncipe Juan — no debe congelarse cerca de un umbral de Poder', () => {
@@ -57,19 +62,20 @@ describe('Príncipe Juan — no debe congelarse cerca de un umbral de Poder', ()
     s = setCurrentPlayer(s, id);
     s = setPower(s, id, 3);
 
-    const withoutCorona = evaluateState(s, id);
+    const withoutCorona = totalStateValue(s, id);
 
     const [coronaId] = findAll(s, CardDefId.JHON_CORONA, 1);
     s = placeVillainCard(s, id, 'jhon_prison', coronaId);
-    const withCorona = evaluateState(s, id);
+    const withCorona = totalStateValue(s, id);
 
     expect(withCorona).toBeGreaterThan(withoutCorona);
   });
 
-  it('jhonScoreState() es no decreciente en Poder y sin saltos mayores que unos pocos puntos por unidad', () => {
-    // Se mide jhonScoreState() directamente (no evaluateState) para aislar el término que se
-    // arregló aquí de los umbrales GENÉRICOS de evaluate.ts (WEIGHTS.WINNING/LOSING a ±30 de
-    // diferencia de progreso), que son otro mecanismo ya existente y fuera de este alcance.
+  it('JHON_GENERATE_POWER es no decreciente en Poder y sin saltos mayores que unos pocos puntos por unidad', () => {
+    // Se mide la intención directamente (no el estado completo) para aislar la curva que existe
+    // precisamente para evitar el acantilado, de otros mecanismos genéricos (progreso 0-100,
+    // urgencia de victoria) que son otro asunto y están fuera de este alcance.
+    const generatePower = jhonIntentions.find(i => i.id === 'JHON_GENERATE_POWER')!;
     let s = makeJhonState();
     const id = jhonId(s);
     s = setCurrentPlayer(s, id);
@@ -77,14 +83,16 @@ describe('Príncipe Juan — no debe congelarse cerca de un umbral de Poder', ()
     let prevScore = -Infinity;
     for (let power = 0; power <= 20; power++) {
       s = setPower(s, id, power);
-      const player = getPlayer(s, id);
-      const score = jhonScoreState(s, player);
+      const ctx = buildAIContext(s, id);
+      const score = generatePower.evaluate(ctx);
       if (power > 0) {
         const delta = score - prevScore;
         expect(delta, `no debería bajar al pasar de ${power - 1} a ${power} de Poder`).toBeGreaterThan(0);
         // El viejo bug de umbrales fijos saltaba 60 puntos (120→60) de golpe al cruzar 18→17.
+        // La pendiente máxima por diseño de esta curva (tramo 18→20) es 20/punto — muy por debajo
+        // de aquel salto, y sigue siendo estrictamente lineal (sin discontinuidad real).
         expect(delta, `salto sospechoso de ${delta.toFixed(1)} puntos al pasar de ${power - 1} a ${power} de Poder`)
-          .toBeLessThan(20);
+          .toBeLessThanOrEqual(20);
       }
       prevScore = score;
     }

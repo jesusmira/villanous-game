@@ -1,4 +1,4 @@
-import type { OpponentProfile } from './ai/opponentModel';
+import type { IntentionDef } from './ai/intent/types';
 
 export type PlayerId = string;
 export type VillainId = 'maleficent' | 'hook' | 'jhon';
@@ -252,30 +252,17 @@ export interface VillainPlugin {
   onVanquish?: (state: GameState, playerId: PlayerId, heroInstId: CardInstId, heroLocId: LocationId) => GameState;
   onHeroDiscarded?: (state: GameState, playerId: PlayerId, heroInstId: CardInstId) => GameState;
   /**
-   * Heurísticas de IA propias del villano. Punto de extensión usado por core/ai/evaluate.ts
-   * para no tener que ramificar `if (villainId === 'x')` en código compartido entre villanos.
+   * Intenciones de IA propias del villano (además de las universales, ver
+   * core/ai/intent/universalIntentions.ts). Punto de extensión: el planificador las mezcla con
+   * las universales y elige la de mayor score() para gobernar el turno.
    */
-  aiHeuristics?: {
-    /**
-     * Contribución de este villano a evaluateState(): recibe el score de poder/mano "genérico"
-     * (capado con rendimientos decrecientes) y puede sumarle bonos propios o, si su condición de
-     * victoria lo requiere (p. ej. el Príncipe Juan, que necesita acumular poder sin tope),
-     * ignorarlo y devolver un valor propio por completo.
-     */
-    scoreState?: (state: GameState, player: PlayerState, genericPowerScore: number, profile?: OpponentProfile) => number;
-    /**
-     * Cuán urgente es para el RIVAL desbaratar a `self` (este villano), en función de su avance
-     * hacia la victoria. Se invoca sobre el plugin del oponente. Por defecto 1.0 (neutral).
-     */
-    threatUrgency?: (state: GameState, self: PlayerState) => number;
-    /**
-     * FASE 2 (descarte inteligente): cartas de la mano que ya no pueden aportar nada en lo que
-     * queda de partida (p. ej. buscadores de Peter Pan cuando PP ya está en el reino). La IA
-     * las descarta proactivamente en las casillas DISCARD para ciclar el mazo, y evaluate.ts
-     * penaliza tenerlas en mano.
-     */
-    deadHandCards?: (state: GameState, self: PlayerState) => CardInstId[];
-  };
+  intentions?: IntentionDef[];
+  /**
+   * Cartas de la mano que ya no pueden aportar nada en lo que queda de partida (p. ej. buscadores
+   * de Peter Pan cuando PP ya está en el reino). La IA las descarta proactivamente en las
+   * casillas DISCARD para ciclar el mazo, y el contexto de IA las penaliza en mano.
+   */
+  deadCards?: (state: GameState, self: PlayerState) => CardInstId[];
 }
 
 export interface GameSetupOptions {

@@ -1,28 +1,24 @@
-// ─── FASE 9: batería de cordura para la puntuación de la IA al Vencer héroes ────────────────
+// ─── Batería de cordura para la puntuación de la IA al Vencer héroes (motor de intenciones) ──
 // Invariante central: si un jugador YA tiene Aliados suficientes en la ubicación de un héroe
-// (o adyacente, con habilidad especial) para Vencerlo, hacerlo NUNCA debe puntuar peor —para
-// evaluateState() del propio jugador— que dejarlo sin vencer. Si esto falla, la IA prefiere
-// quedarse "a punto" para siempre en vez de rematar (ver [[project_ai_gradient_trap]]).
+// (o adyacente, con habilidad especial) para Vencerlo, la acción de Vencer —puntuada por
+// scoreAction() con la intención que la IA elegiría en ese estado— NUNCA debe salir negativa
+// (peor que no hacer nada). Si esto falla, la IA prefiere quedarse "a punto" para siempre en vez
+// de rematar (ver memoria project_ai_gradient_trap).
 //
-// Garfio y Maléfica ya tenían salvaguardas explícitas contra este problema (HERO_TROPHY /
-// UNCOVERED_READY-persistente). El Príncipe Juan NO las tenía cuando se escribió este archivo
-// — los tests de la sección "Príncipe Juan" están escritos para reflejar eso: los que fallan
-// documentan el bug confirmado en partidas reales, pendiente de la Fase 8.
-//
-// También se comprueba explícitamente la pregunta clave antes de implementar cualquier "bono
-// permanente": si un héroe ya vencido VUELVE a aparecer en el reino (redibujado por Destino,
-// Rival Digno, etc.), la IA debe seguir viéndolo como una amenaza viva — el bono por haberlo
-// vencido antes no puede "cegar" a la IA frente a la reaparición.
+// También se comprueba la pregunta clave: si un héroe ya vencido VUELVE a aparecer en el reino
+// (redibujado por Destino, Rival Digno, etc.), la IA debe seguir viéndolo como una amenaza viva.
 import { describe, it, expect } from 'vitest';
-import { evaluateState } from '../core/ai/evaluate';
 import { canVanquish } from '../core/engine/RuleEngine';
 import { vanquish } from '../core/engine/GameEngine';
 import { getAvailableSlotIndices, getActionAtSlot } from '../core/engine/slotHelpers';
 import { ActionType, TurnPhase } from '../core/types';
 import type { GameState, PlayerId, CardInstId, LocationId } from '../core/types';
 import { CardDefId } from '../core/villains/effectIds';
-import { scoreState as jhonScoreState, deadHandCards as jhonDeadHandCards } from '../core/villains/jhon/ai';
-import type { OpponentProfile } from '../core/ai/opponentModel';
+import { deadCards as jhonDeadCards } from '../core/villains/jhon/intentions';
+import { buildAIContext } from '../core/ai/intent/context';
+import { chooseIntention } from '../core/ai/intent/planner';
+import { scoreAction } from '../core/ai/intent/actionScoring';
+import type { ActionCandidate } from '../core/ai/intent/types';
 import {
   makeState, hookId, malId, makeJhonState, jhonId,
   placeVillainCard, placeHeroInLoc, setPhase, setPawn, setCurrentPlayer, putInHand,
@@ -44,7 +40,6 @@ function vanquishSlotAt(state: GameState, playerId: PlayerId, locId: LocationId)
   return idx;
 }
 
-/** Prepara un estado listo para Vencer: fase ACTIVATE, turno del jugador, peón en `locId`. */
 function readyToActivateAt(state: GameState, playerId: PlayerId, locId: LocationId): GameState {
   let s = setCurrentPlayer(state, playerId);
   s = setPhase(s, TurnPhase.ACTIVATE);
@@ -52,26 +47,48 @@ function readyToActivateAt(state: GameState, playerId: PlayerId, locId: Location
   return s;
 }
 
+/** Valor holístico de un estado (suma de todas las intenciones aplicables + progreso propio) —
+ *  para comparaciones directas estado-vs-estado que no encajan en el puntuador por delta de
+ *  una acción concreta (p. ej. "¿este héroe sigue viéndose como amenaza tras reaparecer?"). */
+function totalStateValue(state: GameState, playerId: PlayerId): number {
+  const { all } = chooseIntention(state, playerId);
+  const ctx = buildAIContext(state, playerId);
+  // polarity convierte cada score (calibrado para SELECCIONAR intención) en una contribución de
+  // "bondad" homogénea: para intenciones de logro, más score es mejor (+); para intenciones de
+  // urgencia, más score es peor, es una necesidad sin resolver (−). Ver IntentionDef.polarity.
+  return ctx.ownProgress * 8 + all.reduce((sum, i) => sum + i.score * i.polarity, 0);
+}
+
+/** Puntúa la acción de Vencer con scoreAction(), usando la intención que la IA elegiría en ese
+ *  estado — igual que hace el planificador de verdad. */
+function scoreVanquish(
+  state: GameState, playerId: PlayerId, heroId: CardInstId, allyIds: CardInstId[], slotIdx: number,
+) {
+  const ctxBefore = buildAIContext(state, playerId);
+  const { chosen } = chooseIntention(state, playerId);
+  const resultState = vanquish(state, playerId, heroId, allyIds, slotIdx);
+  const candidate: ActionCandidate = {
+    kind: ActionType.VANQUISH, slotIdx, label: 'Vencer', resultState, isRepositioning: false,
+  };
+  return scoreAction(ctxBefore, candidate, chosen, playerId);
+}
+
 /** Coloca héroe + Aliados en la misma ubicación y comprueba el invariante central. */
 function expectVanquishNeverWorse(
   state: GameState, playerId: PlayerId, locId: LocationId, heroId: CardInstId, allyIds: CardInstId[],
-): { before: number; after: number } {
+) {
   return expectVanquishNeverWorseAt(state, playerId, locId, locId, heroId, allyIds);
 }
 
 /**
  * Igual que expectVanquishNeverWorse(), pero permite separar dónde está el peón (necesita
  * casilla de Vencer) de dónde están héroe + Aliados (Vencer entre ubicaciones distintas es
- * legal, ver canVanquishFree en RuleEngine.ts). Necesario para Garfio: su única casilla de
- * Vencer está en el Jolly Roger, que además tiene su PROPIO bono de "construir ejército para
- * Peter Pan" (evaluate.ts: 2+ Aliados ahí = +25) — si héroe y Aliados se colocan ahí mismo por
- * comodidad, gastarlos en Vencer también quita ese bono aparte y contamina la medición del
- * trap de gradiente real.
+ * legal, ver canVanquishFree en RuleEngine.ts).
  */
 function expectVanquishNeverWorseAt(
   state: GameState, playerId: PlayerId, pawnLocId: LocationId, heroLocId: LocationId,
   heroId: CardInstId, allyIds: CardInstId[],
-): { before: number; after: number } {
+) {
   let s = readyToActivateAt(state, playerId, pawnLocId);
   s = placeHeroInLoc(s, playerId, heroLocId, heroId);
   for (const allyId of allyIds) s = placeVillainCard(s, playerId, heroLocId, allyId);
@@ -80,12 +97,12 @@ function expectVanquishNeverWorseAt(
   const check = canVanquish(s, playerId, heroId, allyIds, slotIdx);
   expect(check.valid, check.reason).toBe(true);
 
-  const before = evaluateState(s, playerId);
-  const after = vanquish(s, playerId, heroId, allyIds, slotIdx);
-  const afterVal = evaluateState(after, playerId);
-  expect(afterVal, `vencer puntuó ${afterVal.toFixed(2)} < ${before.toFixed(2)} (antes) — la IA preferiría no rematar`)
-    .toBeGreaterThanOrEqual(before);
-  return { before, after: afterVal };
+  const scored = scoreVanquish(s, playerId, heroId, allyIds, slotIdx);
+  expect(
+    scored.breakdown.total,
+    `vencer puntuó ${scored.breakdown.total.toFixed(2)} < 0 — la IA preferiría no rematar`,
+  ).toBeGreaterThanOrEqual(0);
+  return scored;
 }
 
 // ─── Príncipe Juan: un caso por cada héroe real de su mazo de Destino ─────────────
@@ -97,7 +114,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Príncipe Juan', () =
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const heroId = findAll(s0, CardDefId.JHON_TOBY, 1)[0];
-    const allyIds = findAll(s0, CardDefId.JHON_LELO, 1); // F2, suficiente en solitario
+    const allyIds = findAll(s0, CardDefId.JHON_LELO, 1);
     expectVanquishNeverWorse(s0, id, LOC, heroId, allyIds);
   });
 
@@ -105,7 +122,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Príncipe Juan', () =
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const heroId = findAll(s0, 'jhon_f_skippy', 1)[0];
-    const allyIds = findAll(s0, 'jhon_v_hiss', 1); // F2
+    const allyIds = findAll(s0, 'jhon_v_hiss', 1);
     expectVanquishNeverWorse(s0, id, LOC, heroId, allyIds);
   });
 
@@ -113,7 +130,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Príncipe Juan', () =
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const heroId = findAll(s0, CardDefId.JHON_ALAN_A_DALE, 1)[0];
-    const allyIds = findAll(s0, CardDefId.JHON_ARQUEROS, 1); // F2
+    const allyIds = findAll(s0, CardDefId.JHON_ARQUEROS, 1);
     expectVanquishNeverWorse(s0, id, LOC, heroId, allyIds);
   });
 
@@ -121,63 +138,53 @@ describe('Vencer nunca debe puntuar peor que no vencer — Príncipe Juan', () =
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const heroId = findAll(s0, 'jhon_f_fraile', 1)[0];
-    const allyIds = findAll(s0, 'jhon_v_sherif', 1); // F3, coincide exacto
+    const allyIds = findAll(s0, 'jhon_v_sherif', 1);
     expectVanquishNeverWorse(s0, id, LOC, heroId, allyIds);
   });
 
-  // Lady Marian es un caso aparte: al morir, saca a Robin Hood del mazo/descarte y lo juega
-  // de inmediato en su misma ubicación (ver findAndPlayRobinHood en jhon/resolvers.ts). Eso es
-  // una consecuencia MECÁNICA real del juego, no un bug de puntuación — así que en vez de
-  // forzar el marcador hasta que "nunca sea peor" (como con el resto de héroes), aquí se
-  // documentan y comprueban las DOS situaciones reales por separado.
+  // Lady Marian es un caso aparte: al morir, saca a Robin Hood del mazo/descarte y lo juega de
+  // inmediato en su misma ubicación (ver findAndPlayRobinHood en jhon/resolvers.ts). Es una
+  // consecuencia MECÁNICA real, no un bug de puntuación.
   it('Lady Marian (F3) SIN refuerzo para Robin Hood — vencerla sola SÍ debe puntuar peor (a propósito)', () => {
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const heroId = findAll(s0, CardDefId.JHON_LADY_MARIAN, 1)[0];
-    const allyIds = findAll(s0, CardDefId.JHON_TIRO_LISTO, 1); // F4, de sobra para Marian sola
+    const allyIds = findAll(s0, CardDefId.JHON_TIRO_LISTO, 1);
 
     let s = readyToActivateAt(s0, id, LOC);
     s = placeHeroInLoc(s, id, LOC, heroId);
     for (const allyId of allyIds) s = placeVillainCard(s, id, LOC, allyId);
     const slotIdx = vanquishSlotAt(s, id, LOC);
-    const before = evaluateState(s, id);
-    const after = vanquish(s, id, heroId, allyIds, slotIdx);
-    const afterVal = evaluateState(after, id);
+    const scored = scoreVanquish(s, id, heroId, allyIds, slotIdx);
 
-    // Confirma que de verdad apareció Robin Hood sin avisar — si esto deja de ser cierto
-    // (p. ej. porque se cambia esa mecánica), este test entero deja de tener sentido.
     const robinId = findAll(s0, CardDefId.JHON_ROBIN_HOOD, 1)[0];
-    expect(after.players.find(p => p.id === id)!.locationStates[LOC].heroCardInstIds).toContain(robinId);
+    expect(scored.resultState.players.find(p => p.id === id)!.locationStates[LOC].heroCardInstIds).toContain(robinId);
 
-    expect(afterVal, 'se esperaba que empeorase al despertar a Robin Hood sin estar preparado')
-      .toBeLessThan(before);
+    expect(scored.breakdown.total, 'se esperaba que empeorase al despertar a Robin Hood sin estar preparado')
+      .toBeLessThan(0);
   });
 
   it('Lady Marian (F3) CON refuerzo ya listo para Robin Hood — el combo completo no debe empeorar', () => {
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const heroId = findAll(s0, CardDefId.JHON_LADY_MARIAN, 1)[0];
-    const marianAllies = findAll(s0, CardDefId.JHON_TIRO_LISTO, 1); // F4, para Marian (F3)
+    const marianAllies = findAll(s0, CardDefId.JHON_TIRO_LISTO, 1);
     const robinId = findAll(s0, CardDefId.JHON_ROBIN_HOOD, 1)[0];
-    const robinAllies = findAll(s0, 'jhon_v_rino', 2); // F4+F4=8, de sobra para Robin Hood (F5)
+    const robinAllies = findAll(s0, 'jhon_v_rino', 2);
 
     let s = readyToActivateAt(s0, id, LOC);
     s = placeHeroInLoc(s, id, LOC, heroId);
     for (const allyId of [...marianAllies, ...robinAllies]) s = placeVillainCard(s, id, LOC, allyId);
     const slotIdx = vanquishSlotAt(s, id, LOC);
-    const before = evaluateState(s, id);
+    const before = totalStateValue(s, id);
 
-    // Vencer a Marian (esto saca a Robin Hood y lo coloca en la misma ubicación) y, en la
-    // misma ubicación, rematar también a Robin Hood con los Aliados ya preparados. OJO: Jhon
-    // solo tiene UNA casilla de Vencer (Nottingham), así que en la partida real esto no se
-    // encadena en el mismo turno — se llama a vanquish() dos veces seguidas aquí solo para
-    // medir el resultado FINAL una vez resuelto lo de Robin Hood, sin importar en cuántos
-    // turnos. El punto no es "esto es gratis en un turno", es "atacar a Marian no es un error
-    // si ya tienes reunida la fuerza para rematar a Robin Hood poco después".
+    // Jhon solo tiene UNA casilla de Vencer (Nottingham): en la partida real esto no se
+    // encadena en el mismo turno, se llama a vanquish() dos veces para medir el resultado
+    // FINAL una vez resuelto lo de Robin Hood, sin importar en cuántos turnos.
     let after = vanquish(s, id, heroId, marianAllies, slotIdx);
     expect(after.players.find(p => p.id === id)!.locationStates[LOC].heroCardInstIds).toContain(robinId);
     after = vanquish(after, id, robinId, robinAllies, slotIdx);
-    const afterVal = evaluateState(after, id);
+    const afterVal = totalStateValue(after, id);
 
     expect(afterVal, 'ir preparado para ambos no debería puntuar peor que no haber empezado')
       .toBeGreaterThanOrEqual(before);
@@ -187,7 +194,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Príncipe Juan', () =
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const heroId = findAll(s0, 'jhon_f_littlejohn', 1)[0];
-    const allyIds = [...findAll(s0, 'jhon_v_rino', 1), ...findAll(s0, CardDefId.JHON_ARQUEROS, 1)]; // F4+F2=6
+    const allyIds = [...findAll(s0, 'jhon_v_rino', 1), ...findAll(s0, CardDefId.JHON_ARQUEROS, 1)];
     expectVanquishNeverWorse(s0, id, LOC, heroId, allyIds);
   });
 
@@ -195,7 +202,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Príncipe Juan', () =
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const heroId = findAll(s0, 'jhon_f_kluck', 1)[0];
-    const allyIds = [...findAll(s0, 'jhon_v_rino', 1), ...findAll(s0, CardDefId.JHON_TIRO_LISTO, 1)]; // F4+F4=8
+    const allyIds = [...findAll(s0, 'jhon_v_rino', 1), ...findAll(s0, CardDefId.JHON_TIRO_LISTO, 1)];
     expectVanquishNeverWorse(s0, id, LOC, heroId, allyIds);
   });
 
@@ -203,7 +210,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Príncipe Juan', () =
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const heroId = findAll(s0, CardDefId.JHON_ROBIN_HOOD, 1)[0];
-    const allyIds = [...findAll(s0, 'jhon_v_rino', 1), ...findAll(s0, CardDefId.JHON_ARQUEROS, 1)]; // F4+F2=6
+    const allyIds = [...findAll(s0, 'jhon_v_rino', 1), ...findAll(s0, CardDefId.JHON_ARQUEROS, 1)];
     expectVanquishNeverWorse(s0, id, LOC, heroId, allyIds);
   });
 
@@ -211,7 +218,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Príncipe Juan', () =
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const heroId = findAll(s0, CardDefId.JHON_REY_RICARDO, 1)[0];
-    const allyIds = [...findAll(s0, 'jhon_v_rino', 1), ...findAll(s0, CardDefId.JHON_ARQUEROS, 1)]; // F4+F2=6
+    const allyIds = [...findAll(s0, 'jhon_v_rino', 1), ...findAll(s0, CardDefId.JHON_ARQUEROS, 1)];
     expectVanquishNeverWorse(s0, id, LOC, heroId, allyIds);
   });
 });
@@ -219,7 +226,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Príncipe Juan', () =
 // ─── La pregunta clave: ¿un héroe que reaparece se sigue tratando como amenaza? ───────────
 
 describe('Un héroe ya vencido que reaparece debe volver a puntuar como amenaza', () => {
-  it('Lady Marian: tras vencerla y volver a colocarla, evaluateState debe EMPEORAR de nuevo', () => {
+  it('Lady Marian: tras vencerla y volver a colocarla, el valor del estado debe EMPEORAR de nuevo', () => {
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const LOC = 'jhon_nottingham';
@@ -231,16 +238,13 @@ describe('Un héroe ya vencido que reaparece debe volver a puntuar como amenaza'
     s = placeVillainCard(s, id, LOC, allyIds[0]);
     const slotIdx = vanquishSlotAt(s, id, LOC);
     const afterVanquish = vanquish(s, id, heroId, allyIds, slotIdx);
-    const valAfterVanquish = evaluateState(afterVanquish, id);
+    const valAfterVanquish = totalStateValue(afterVanquish, id);
 
-    // Lady Marian debería estar en el descarte de Destino ahora mismo.
     const playerAfter = afterVanquish.players.find(p => p.id === id)!;
     expect(playerAfter.fateDiscardInstIds).toContain(heroId);
 
-    // Simular que reaparece en el reino (p. ej. redibujada por Destino/Rival Digno) SIN
-    // ningún Aliado esperándola esta vez.
     const reappeared = placeHeroInLoc(afterVanquish, id, 'jhon_bosque', heroId);
-    const valReappeared = evaluateState(reappeared, id);
+    const valReappeared = totalStateValue(reappeared, id);
 
     expect(valReappeared, 'la IA no está viendo a Lady Marian como amenaza al reaparecer')
       .toBeLessThan(valAfterVanquish);
@@ -258,29 +262,23 @@ describe('Un héroe ya vencido que reaparece debe volver a puntuar como amenaza'
     s = placeVillainCard(s, id, LOC, allyIds[0]);
     const slotIdx = vanquishSlotAt(s, id, LOC);
     const afterVanquish = vanquish(s, id, heroId, allyIds, slotIdx);
-    const valAfterVanquish = evaluateState(afterVanquish, id);
+    const valAfterVanquish = totalStateValue(afterVanquish, id);
 
-    // Toby NO debería quedarse en el descarte de Destino (su habilidad lo devuelve al mazo).
     const playerAfter = afterVanquish.players.find(p => p.id === id)!;
     expect(playerAfter.fateDiscardInstIds).not.toContain(heroId);
     expect(playerAfter.fateDeckInstIds).toContain(heroId);
 
     const reappeared = placeHeroInLoc(afterVanquish, id, 'jhon_bosque', heroId);
-    const valReappeared = evaluateState(reappeared, id);
+    const valReappeared = totalStateValue(reappeared, id);
 
     expect(valReappeared, 'la IA no está viendo a Toby como amenaza al reaparecer')
       .toBeLessThan(valAfterVanquish);
   });
 });
 
-// ─── Garfio: confirmar que su salvaguarda existente (HERO_TROPHY) sigue intacta ────────────
+// ─── Garfio: héroe normal ─────────────────────────────────────────────────────────
 
 describe('Vencer nunca debe puntuar peor que no vencer — Garfio (control)', () => {
-  // Héroe y Aliados van en Roca Calavera, NO en el Jolly Roger: el JR tiene su propio bono de
-  // "2+ Aliados ahí = +25, preparando a Peter Pan" (ver evaluate.ts) que se perdería al gastar
-  // esos Aliados en Vencer y contaminaría la medición del trap de gradiente real. El peón sí
-  // necesita estar en el Jolly Roger (única casilla de Vencer de Garfio) — Vencer entre
-  // ubicaciones distintas es legal (ver canVanquishFree en RuleEngine.ts).
   const PAWN_LOC = 'jollyroger';
   const HERO_LOC = 'skullrock';
 
@@ -288,7 +286,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Garfio (control)', ()
     const s0 = makeState();
     const id = hookId(s0);
     const heroId = findAll(s0, 'hook_f_wendy', 1)[0];
-    const allyIds = findAll(s0, 'hook_v_espadachin', 2); // F2+F2=4 >= 3
+    const allyIds = findAll(s0, 'hook_v_espadachin', 2);
     expectVanquishNeverWorseAt(s0, id, PAWN_LOC, HERO_LOC, heroId, allyIds);
   });
 
@@ -303,28 +301,24 @@ describe('Vencer nunca debe puntuar peor que no vencer — Garfio (control)', ()
     for (const allyId of allyIds) s = placeVillainCard(s, id, HERO_LOC, allyId);
     const slotIdx = vanquishSlotAt(s, id, PAWN_LOC);
     const afterVanquish = vanquish(s, id, heroId, allyIds, slotIdx);
-    const valAfterVanquish = evaluateState(afterVanquish, id);
+    const valAfterVanquish = totalStateValue(afterVanquish, id);
 
     const reappeared = placeHeroInLoc(afterVanquish, id, HERO_LOC, heroId);
-    const valReappeared = evaluateState(reappeared, id);
+    const valReappeared = totalStateValue(reappeared, id);
 
     expect(valReappeared, 'la IA no está viendo al héroe reaparecido como amenaza')
       .toBeLessThan(valAfterVanquish);
   });
 });
 
-// ─── FASE 12: proximidad de Aliados libres hacia la amenaza prioritaria (Príncipe Juan) ────────
-// Guarda de regresión para PRIORITY_THREAT_PROXIMITY (jhon/ai.ts): un Aliado sin héroe en su
-// ubicación debe puntuar mejor cuanto más cerca (en saltos) esté de un héroe prioritario (Robin
-// Hood/Rey Ricardo) sin vencer — si no, tryMoveItemAlly no tiene ninguna razón para acercarlo.
+// ─── Proximidad de Aliados libres hacia la amenaza prioritaria (universal) ────────────────
+// Reemplaza a la antigua FASE 12 (jhon/ai.ts PRIORITY_THREAT_PROXIMITY): ahora es un término
+// genérico en universalIntentions.ts (prepareCombo), válido para cualquier villano — se prueba
+// directamente sobre la intención en vez de sobre una fórmula específica de un solo villano.
 // Tablero de Jhon es lineal: Bosque(3) — Iglesia(2) — Nottingham(1, hero aquí) — Prisión.
 
-describe('FASE 12: proximidad de Aliados libres hacia la amenaza prioritaria — Príncipe Juan', () => {
-  it('un Aliado a 1 salto de Rey Ricardo puntúa mejor que el mismo Aliado a 2 saltos', () => {
-    // Un único estado base (una sola baraja/mano inicial) para que la única diferencia entre
-    // "near" y "far" sea la ubicación del Aliado — dos llamadas a makeJhonState() barajan por
-    // separado (Math.random) y la mano inicial resultante contamina la comparación con ruido
-    // ajeno a la señal de proximidad que se quiere medir aquí.
+describe('Preparar combo: un Aliado libre más cerca de la amenaza prioritaria puntúa mejor', () => {
+  it('un Aliado a 1 salto de Rey Ricardo vale más que el mismo Aliado a 2 saltos', () => {
     const s0 = makeJhonState();
     const id = jhonId(s0);
     const heroId = findAll(s0, CardDefId.JHON_REY_RICARDO, 1)[0];
@@ -334,56 +328,28 @@ describe('FASE 12: proximidad de Aliados libres hacia la amenaza prioritaria —
     const near = placeVillainCard(base, id, 'jhon_iglesia', allyId); // 1 salto de Nottingham
     const far = placeVillainCard(base, id, 'jhon_bosque', allyId);   // 2 saltos de Nottingham
 
-    const scoreNear = evaluateState(near, id);
-    const scoreFar = evaluateState(far, id);
-    expect(scoreNear, 'el Aliado más cerca de Rey Ricardo debería puntuar mejor')
-      .toBeGreaterThan(scoreFar);
+    const { all: allNear } = chooseIntention(near, id);
+    const { all: allFar } = chooseIntention(far, id);
+    const comboNearIntent = allNear.find(i => i.id === 'PREPARE_COMBO')!;
+    const comboFarIntent = allFar.find(i => i.id === 'PREPARE_COMBO')!;
+    // PREPARE_COMBO es de urgencia (polarity −1: más score = más hueco sin cubrir todavía), así
+    // que "puntúa mejor" se mide con la contribución de BONDAD (score × polarity), no el score
+    // crudo — un Aliado más cerca deja MENOS hueco pendiente (score crudo más bajo).
+    const goodnessNear = comboNearIntent.score * comboNearIntent.polarity;
+    const goodnessFar = comboFarIntent.score * comboFarIntent.polarity;
+
+    expect(goodnessNear, 'el Aliado más cerca de Rey Ricardo debería dejar menos hueco pendiente en Preparar combo')
+      .toBeGreaterThan(goodnessFar);
   });
 });
 
-// ─── FASE 13: tope del colchón defensivo escala con la agresividad histórica del rival ─────────
-// Guarda de regresión para STANDING_ARMY_CAP_EXTRA_MAX (jhon/ai.ts): con un OpponentProfile que
-// muestra que el humano lanza Destino muy seguido jugando su villano actual, mantener MÁS
-// Fuerza de Aliados de reserva (por encima del tope base de Fase 10) debe puntuar mejor que sin
-// ese perfil — si no, tryMoveItemAlly/pickBestPlayTarget no tienen ninguna razón para acumular
-// más reserva de la mínima ante un rival que sabemos que ataca mucho.
+// ─── Aliado dominado por otro Aliado de la misma mano se cicla proactivamente ─────────────
 
-describe('FASE 13: el tope del colchón defensivo escala con la agresividad del rival — Príncipe Juan', () => {
-  it('con un rival históricamente agresivo (Destino frecuente), más reserva de Aliados puntúa mejor', () => {
-    const s0 = makeJhonState();
-    const id = jhonId(s0);
-    const rinoIds = Object.keys(s0.allCards).filter(cid => s0.allCards[cid]?.defId?.startsWith('jhon_v_rino_')).slice(0, 3);
-    expect(rinoIds.length).toBe(3); // 3x F4 = 12 de Fuerza total, muy por encima de cualquier tope
-
-    let s = placeVillainCard(s0, id, 'jhon_bosque', rinoIds[0]);
-    s = placeVillainCard(s, id, 'jhon_iglesia', rinoIds[1]);
-    s = placeVillainCard(s, id, 'jhon_prison', rinoIds[2]);
-    const player = s.players.find(p => p.id === id)!;
-
-    const aggressiveProfile: OpponentProfile = {
-      gamesAnalyzed: 5,
-      byVillain: { hook: { gamesPlayed: 5, moveFrequency: {}, fateCount: 20, avgFateTriggerOppProgress: null, discardRate: 0 } },
-    };
-
-    const scoreWithoutProfile = jhonScoreState(s, player);
-    const scoreWithAggressiveProfile = jhonScoreState(s, player, undefined, aggressiveProfile);
-    expect(scoreWithAggressiveProfile, 'más reserva debería valer más contra un rival históricamente agresivo')
-      .toBeGreaterThan(scoreWithoutProfile);
-  });
-});
-
-// ─── FASE 14: Aliado dominado por otro Aliado de la misma mano se cicla proactivamente ─────────
-// Guarda de regresión: antes solo se ciclaba TODA la mano cuando NADA era asequible; una mano
-// con opciones mediocres pero técnicamente jugables nunca se refrescaba.
-
-// makeJhonState() reparte una mano inicial ALEATORIA (4 cartas). Sin vaciarla antes de insertar
-// las cartas de prueba, una carta cualquiera del reparto podía dominar (o dejar de ser dominada)
-// por pura suerte del barajado — test no determinista. clearHand() aísla la mano de prueba.
 function clearHand(state: GameState, playerId: PlayerId): GameState {
   return { ...state, players: state.players.map(p => p.id === playerId ? { ...p, handInstIds: [] } : p) };
 }
 
-describe('FASE 14: Aliado dominado en mano — Príncipe Juan', () => {
+describe('Cartas muertas en mano — Príncipe Juan', () => {
   it('Sir Hiss (coste 2, F2) se marca muerto si Tiro Listo (coste 2, F4) también está en mano', () => {
     const s0 = makeJhonState();
     const id = jhonId(s0);
@@ -397,7 +363,7 @@ describe('FASE 14: Aliado dominado en mano — Príncipe Juan', () => {
     s = putInHand(s, id, tiroId);
     const player = s.players.find(p => p.id === id)!;
 
-    const dead = jhonDeadHandCards(s, player);
+    const dead = jhonDeadCards(s, player);
     expect(dead).toContain(hissId);
     expect(dead).not.toContain(tiroId);
   });
@@ -414,13 +380,13 @@ describe('FASE 14: Aliado dominado en mano — Príncipe Juan', () => {
     s = putInHand(s, id, arqueroIds[1]);
     const player = s.players.find(p => p.id === id)!;
 
-    const dead = jhonDeadHandCards(s, player);
+    const dead = jhonDeadCards(s, player);
     expect(dead).not.toContain(arqueroIds[0]);
     expect(dead).not.toContain(arqueroIds[1]);
   });
 });
 
-// ─── Maléfica: confirmar que su salvaguarda existente (UNCOVERED_READY persistente) sigue intacta
+// ─── Maléfica: bloqueante genérico ya cubierto ─────────────────────────────────────
 
 describe('Vencer nunca debe puntuar peor que no vencer — Maléfica (control)', () => {
   const LOC = 'castillo';
@@ -429,34 +395,22 @@ describe('Vencer nunca debe puntuar peor que no vencer — Maléfica (control)',
     const s0 = makeState();
     const id = malId(s0);
     const heroId = findAll(s0, 'mal_f_', 1)[0];
-    const allyId = findAll(s0, 'mal_v_salvaje', 1)[0]; // F4
+    const allyId = findAll(s0, 'mal_v_salvaje', 1)[0];
     expectVanquishNeverWorse(s0, id, LOC, heroId, [allyId]);
   });
 
-  // FASE 8a: el test de arriba usa a Aurora, que NO tiene blocksCursePlay — así que en
-  // realidad nunca ejercitó la lógica propia de Maléfica (BLOCKER_ALLY_MATCH/BLOCKER_READY),
-  // solo la penalización genérica de evaluateState. Este sí es un bloqueante de maldición real
-  // (Primavera), y además exige un combo de 2 Aliados (F4, ninguno suelto llega).
   it('Primavera (F4, bloquea Maldiciones de verdad) cubierta por un combo de 2 Aliados', () => {
     const s0 = makeState();
     const id = malId(s0);
     const heroId = findAll(s0, 'mal_f_primavera', 1)[0];
-    const allyIds = findAll(s0, 'mal_v_siniestro', 2); // F3+F3=6 >= 4
+    const allyIds = findAll(s0, 'mal_v_siniestro', 2);
     expectVanquishNeverWorse(s0, id, LOC, heroId, allyIds);
   });
 });
 
 // ─── Garfio: bloqueantes especiales (Burla, Tic Tac) y el objetivo final (Peter Pan) ───────
-// FASE 8a: el "control" de arriba (Wendy) resultó no ser representativo — es un héroe NORMAL,
-// no un bloqueante especial. Burla y Tic Tac tienen su propio bloque de pesos
-// (BLOCKER_MATCH_AT_BURLA_LOC / BLOCKER_READY_AT_BURLA_LOC / ..._AT_OTHER_LOC), con su propio
-// comentario "OJO" en el código afirmando que están calibrados a salvo — hay que comprobarlo,
-// no darlo por hecho después de lo de Wendy.
 
 describe('Vencer nunca debe puntuar peor que no vencer — Garfio: bloqueantes especiales', () => {
-  // Mismo motivo que en el bloque "control": héroe y Aliados en Roca Calavera, peón en el
-  // Jolly Roger solo para acceder a la casilla de Vencer, así no se contamina la medición con
-  // el bono de "Aliados acumulados en JR" (ver evaluate.ts).
   const PAWN_LOC = 'jollyroger';
   const HERO_LOC = 'skullrock';
 
@@ -479,7 +433,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Garfio: bloqueantes e
     const id = hookId(s0);
     const heroId = findAll(s0, 'hook_f_campanilla', 1)[0];
     const burlaId = findAll(s0, 'hook_f_burla', 1)[0];
-    const allyId = findAll(s0, 'hook_v_espadachin', 1)[0]; // F2, suficiente
+    const allyId = findAll(s0, 'hook_v_espadachin', 1)[0];
 
     const s0Burla = attachBurla(s0, heroId, burlaId);
     expectVanquishNeverWorseAt(s0Burla, id, PAWN_LOC, HERO_LOC, heroId, [allyId]);
@@ -489,7 +443,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Garfio: bloqueantes e
     const s0 = makeState();
     const id = hookId(s0);
     const heroId = findAll(s0, 'hook_f_tictac', 1)[0];
-    const allyIds = findAll(s0, 'hook_v_maton', 2); // F4+F4=8 >= 5
+    const allyIds = findAll(s0, 'hook_v_maton', 2);
     expectVanquishNeverWorseAt(s0, id, PAWN_LOC, HERO_LOC, heroId, allyIds);
   });
 
@@ -497,8 +451,7 @@ describe('Vencer nunca debe puntuar peor que no vencer — Garfio: bloqueantes e
     const s0 = makeState();
     const id = hookId(s0);
     const heroId = findAll(s0, CardDefId.HOOK_PETER_PAN, 1)[0];
-    const allyIds = findAll(s0, 'hook_v_maton', 2); // F4+F4=8 >= 8
-    // Aquí SÍ va todo en el Jolly Roger a propósito: es donde hay que vencer a Peter Pan.
+    const allyIds = findAll(s0, 'hook_v_maton', 2);
     expectVanquishNeverWorse(s0, id, PAWN_LOC, heroId, allyIds);
   });
 });

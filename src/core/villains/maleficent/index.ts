@@ -4,7 +4,7 @@ import { getPlayer } from '../../engine/stateHelpers';
 import { effects } from './effects';
 import { locations, villainCardDefs, fateCardDefs } from './cards';
 import { conditionHandlers } from './resolvers';
-import { scoreState, threatUrgency, deadHandCards } from './ai';
+import { intentions, deadCards } from './intentions';
 
 function checkWinCondition(state: GameState, playerId: PlayerId): boolean {
   const player = getPlayer(state, playerId);
@@ -41,5 +41,6 @@ export const maleficentPlugin: VillainPlugin = {
   checkWinCondition,
   getWinProgress,
   conditionHandlers,
-  aiHeuristics: { scoreState, threatUrgency, deadHandCards },
+  intentions,
+  deadCards,
 };

@@ -11,7 +11,7 @@ import { getPlayer } from '../engine/stateHelpers';
 import { getPlugin } from '../villains/registry';
 import { resolveCondition } from '../engine/PendingStateResolver';
 import { EffectId } from '../villains/effectIds';
-import { evaluateState } from './evaluate';
+import { chooseIntention, quickStateValue } from './intent/planner';
 
 /**
  * Decide cómo debe reaccionar la IA a una condición pendiente. Simula cada combinación
@@ -28,9 +28,10 @@ export function chooseConditionResolution(
   pending: PendingCondition,
 ): { condInstId: CardInstId | null; ctx: ConditionCtx } {
   const player = getPlayer(state, pending.reactingPlayerId);
+  const { chosen } = chooseIntention(state, pending.reactingPlayerId);
 
   let best: { condInstId: CardInstId | null; ctx: ConditionCtx } = { condInstId: null, ctx: {} };
-  let bestVal = evaluateState(resolveCondition(state, null), pending.reactingPlayerId);
+  let bestVal = quickStateValue(resolveCondition(state, null), pending.reactingPlayerId, chosen);
 
   for (const condInstId of pending.eligibleCardInstIds) {
     const card = state.allCards[condInstId];
@@ -38,7 +39,7 @@ export function chooseConditionResolution(
 
     if (card.effectIds.includes(EffectId.JHON_COBARDIA_COND)) {
       for (const ctx of freeAllyCandidates(state, player)) {
-        const val = evaluateState(resolveCondition(state, condInstId, ctx), pending.reactingPlayerId);
+        const val = quickStateValue(resolveCondition(state, condInstId, ctx), pending.reactingPlayerId, chosen);
         if (val > bestVal) { bestVal = val; best = { condInstId, ctx }; }
       }
     }

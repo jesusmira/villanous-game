@@ -6,7 +6,7 @@ import { CardType } from '../types';
 import type { GameState, PlayerId, CardInstId } from '../types';
 import { getPlugin } from '../villains/registry';
 import { getPlayer, getEffectiveStrength } from '../engine/stateHelpers';
-import { getWinProgress } from '../ai/evaluate';
+import { getWinProgress } from '../ai/intent/context';
 import type { PlayerSnapshot, PlayerCardSnapshot, CardSummary } from './types';
 
 function summarizeCards(state: GameState, ids: CardInstId[]): CardSummary[] {

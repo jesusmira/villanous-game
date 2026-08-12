@@ -1,17 +1,21 @@
 // ─── Orquestación de un "paso" de IA: resolver pendientes + jugar el turno ──────
 // Extraído de aiWorker.ts para poder reutilizarlo fuera del Web Worker (p. ej. el
 // simulador headless scripts/simulate.ts que mide tasas de victoria IA vs IA).
-import { runAITurn, chooseCuervoAction, resolveTrampaForAI, bestTrampaVanquish } from './AIPlayer';
+import { runAITurnWithAudit, chooseCuervoAction, resolveTrampaForAI, bestTrampaVanquish } from './AIPlayer';
 import { resolveCondition, resolveCuervo, resolveDemosles, resolveJaqueca } from '../engine/PendingStateResolver';
 import { chooseDemoslesResolution } from '../villains/hook/aiHelpers';
 import { chooseConditionResolution } from './conditionAI';
 import { CardDefPrefix } from '../villains/effectIds';
 import type { GameState, PlayerId } from '../types';
 import type { OpponentProfile } from './opponentModel';
+import type { TurnAudit } from './intent/types';
 
 export interface AIStepResult {
   final: GameState;
   steps: GameState[];
+  /** Informe de auditoría del turno de IA (intención elegida, acciones, alternativas ignoradas,
+   *  puntuación lograda vs óptima) — ausente si no le tocaba jugar a una IA en este paso. */
+  audit?: TurnAudit;
 }
 
 // Las 4 resoluciones automáticas siguen el mismo patrón: si hay algo pendiente Y quien debe
@@ -102,10 +106,10 @@ export function runAIStep(state: GameState, profile?: OpponentProfile): AIStepRe
     return { final: s, steps: [] };
   }
 
-  const steps = runAITurn(s, profile);
+  const { steps, audit } = runAITurnWithAudit(s, profile);
   let final = steps.length > 0 ? steps[steps.length - 1] : s;
   final = autoResolveAIPendings(final);
   if (steps.length > 0) steps[steps.length - 1] = final;
 
-  return { final, steps };
+  return { final, steps, audit };
 }

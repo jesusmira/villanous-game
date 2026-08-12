@@ -13,10 +13,12 @@ import {
 import { startSession, recordAction, recordAITurn, abortSession } from './history/recorder';
 import { getActiveProfile, refreshActiveProfile } from './history/profileCache';
 import { reportAIAnomaly } from './history/liveDebug';
+import type { TurnAudit } from '../core/ai/intent/types';
 
 interface AIWorkerResponse {
   final: GameState;
   steps: GameState[];
+  audit?: TurnAudit;
 }
 
 interface GameStore {
@@ -408,6 +410,9 @@ aiWorker.onmessage = (e: MessageEvent<AIWorkerResponse>) => {
     const aiPlayerId = aiInput.players[aiInput.currentPlayerIndex].id;
     recordAITurn(aiInput, e.data.steps, aiPlayerId);
     checkEmptyActivateTurn(aiInput, e.data.steps, aiPlayerId);
+  }
+  if (import.meta.env.DEV && e.data.audit) {
+    console.debug('[AI Audit]', e.data.audit);
   }
   useGameStore.setState({
     state: e.data.final,
