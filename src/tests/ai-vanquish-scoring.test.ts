@@ -165,8 +165,13 @@ describe('Vencer nunca debe puntuar peor que no vencer — Príncipe Juan', () =
   });
 
   it('Lady Marian (F3) CON refuerzo ya listo para Robin Hood — el combo completo no debe empeorar', () => {
-    const s0 = makeJhonState();
-    const id = jhonId(s0);
+    // Mano vaciada a propósito: makeJhonState() reparte una mano ALEATORIA, y si por azar
+    // contiene un Objeto que se adjunta a un Aliado (Flecha Dorada/Arco con Flechas), consumir
+    // TODOS los Aliados del reino al Vencer lo vuelve "muerto" como efecto colateral — ruido
+    // ajeno a lo que este test comprueba (que rematar el combo no empeore el estado).
+    const base = makeJhonState();
+    const id = jhonId(base);
+    const s0 = clearHand(base, id);
     const heroId = findAll(s0, CardDefId.JHON_LADY_MARIAN, 1)[0];
     const marianAllies = findAll(s0, CardDefId.JHON_TIRO_LISTO, 1);
     const robinId = findAll(s0, CardDefId.JHON_ROBIN_HOOD, 1)[0];

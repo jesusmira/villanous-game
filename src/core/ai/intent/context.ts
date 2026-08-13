@@ -10,6 +10,8 @@ import { getPlayer, getEffectiveStrength } from '../../engine/stateHelpers';
 import { getAvailableSlotIndices } from '../../engine/slotHelpers';
 import type { OpponentProfile } from '../opponentModel';
 import type { AIContext, LocationSnapshot } from './types';
+import { buildMemorySummary, buildOppThreatSummary } from './memory';
+import { estimateTurnsToGoal } from './multiTurnPlan';
 
 function buildLocationSnapshots(state: GameState, player: PlayerState): LocationSnapshot[] {
   const plugin = getPlugin(player.villainId);
@@ -28,6 +30,7 @@ function buildLocationSnapshots(state: GameState, player: PlayerState): Location
       allyStrength: ls.villainCardInstIds
         .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
         .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0),
+      blocksSlots: !loc.heroesNeverCoverSlots,
     };
   });
 }
@@ -94,6 +97,8 @@ export function buildAIContext(state: GameState, playerId: PlayerId, profile?: O
   const plugin = getPlugin(player.villainId);
   const opponent = state.players.find(pl => pl.id !== playerId) ?? null;
   const oppPlugin = opponent ? getPlugin(opponent.villainId) : null;
+  const oppProgress = opponent ? getWinProgress(state, opponent.id) : 0;
+  const ownProgress = getWinProgress(state, playerId);
 
   return {
     state,
@@ -103,11 +108,14 @@ export function buildAIContext(state: GameState, playerId: PlayerId, profile?: O
     opponent,
     oppPlugin,
     profile,
-    ownProgress: getWinProgress(state, playerId),
-    oppProgress: opponent ? getWinProgress(state, opponent.id) : 0,
+    ownProgress,
+    oppProgress,
     locations: buildLocationSnapshots(state, player),
     oppLocations: opponent ? buildLocationSnapshots(state, opponent) : [],
     deadHandCardIds: getDeadHandCards(state, playerId),
+    memory: buildMemorySummary(state, playerId, opponent),
+    oppThreat: buildOppThreatSummary(state, opponent, oppProgress),
+    turnsToGoalEstimate: estimateTurnsToGoal(ownProgress),
   };
 }
 

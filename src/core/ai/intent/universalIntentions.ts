@@ -12,8 +12,9 @@ import type { LocationDef, LocationId } from '../../types';
 import type { IntentionDef, AIContext } from './types';
 import { lerpCurve } from './curve';
 
-/** Distancia (en saltos) desde `fromId` a cada ubicación alcanzable, vía adjacentIds. */
-function bfsDistances(locations: LocationDef[], fromId: LocationId): Map<LocationId, number> {
+/** Distancia (en saltos) desde `fromId` a cada ubicación alcanzable, vía adjacentIds. Exportada
+ *  para que locationValue.ts (Fase 4) reutilice el mismo cálculo de "oportunidades futuras". */
+export function bfsDistances(locations: LocationDef[], fromId: LocationId): Map<LocationId, number> {
   const dist = new Map<LocationId, number>([[fromId, 0]]);
   const queue: LocationId[] = [fromId];
   while (queue.length > 0) {

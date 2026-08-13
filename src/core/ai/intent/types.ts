@@ -19,6 +19,9 @@ export interface LocationSnapshot {
   villainCardInstIds: CardInstId[];
   heroStrength: number;
   allyStrength: number;
+  /** false en ubicaciones con heroesNeverCoverSlots (p. ej. La Prisión de Jhon) — un héroe ahí
+   *  no tapa ninguna ranura, así que colocarlo o quitarlo de ahí no cambia nada estructural. */
+  blocksSlots: boolean;
 }
 
 export interface AIContext {
@@ -37,6 +40,29 @@ export interface AIContext {
   oppLocations: LocationSnapshot[];
   /** Cartas en mano que ya no aportan nada (ver VillainPlugin.deadCards + duplicados de Condición). */
   deadHandCardIds: CardInstId[];
+  /** Memoria de partida — derivada de GameState (motor puro, sin estado mutable). */
+  memory: MemorySummary;
+  /** Lectura avanzada del rival: urgencia estimada y recursos disponibles. */
+  oppThreat: OppThreatSummary;
+  /** Planificación a 2-3 turnos (heurística de huecos restantes, no búsqueda exhaustiva) —
+   *  turnos estimados para completar el objetivo de victoria propio. */
+  turnsToGoalEstimate: number;
+}
+
+/** Memoria de partida — ver core/ai/intent/memory.ts para cómo se deriva de GameState. */
+export interface MemorySummary {
+  heroesEliminatedByMe: number;
+  heroesEliminatedByOpp: number;
+  cardsPlayedByMe: number;
+  cardsPlayedByOpp: number;
+}
+
+/** Lectura avanzada del rival — heurística de huecos restantes, no búsqueda exhaustiva. */
+export interface OppThreatSummary {
+  /** null si no hay rival (no debería pasar en 1v1, pero el tipo lo contempla). */
+  turnsToWinEstimate: number | null;
+  alliesAvailableStrength: number;
+  keyCardsInPlay: string[];
 }
 
 // ─── Intenciones ────────────────────────────────────────────────────────────────
@@ -96,6 +122,13 @@ export interface ActionScoreBreakdown {
   handSynergy: number;
   victoryPrep: number;
   intentionAlignment: number;
+  /** Presión acumulada: valor de colocar un héroe rival (vía Destino) donde más estorbe —
+   *  bloqueo de ranuras + sinergia con otros héroes ya colocados + debilidad estructural del
+   *  rival ante héroes + coste de quitarlo. 0 para acciones que no colocan un héroe rival. */
+  pressureScore: number;
+  /** Colocación inteligente de Aliados: cuánto mejora el encaje Aliado↔héroe presente
+   *  (independiente de la intención elegida — un Aliado bien puesto vale por sí solo). */
+  allyPlacement: number;
   uselessPenalty: number;
   total: number;
 }
@@ -109,6 +142,10 @@ export interface ScoredAction extends ActionCandidate {
 export interface AuditedAction {
   label: string;
   total: number;
+  /** true si esta acción se eligió principalmente por la CONTINUACIÓN que habilita (su propio
+   *  delta era mediocre/negativo, pero abre una secuencia de más valor) — combo detectado por el
+   *  propio rollout recursivo, no una lista de combos hardcodeada. */
+  isCombo?: boolean;
 }
 
 export interface TurnAudit {

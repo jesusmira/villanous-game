@@ -3,7 +3,7 @@
 import { CardType } from '../../types';
 import type { CardInstId, GameState, PlayerState } from '../../types';
 import type { AIContext, IntentionDef } from '../../ai/intent/types';
-import { CardDefId, CardDefPrefix } from '../effectIds';
+import { CardDefId, CardDefPrefix, EffectId } from '../effectIds';
 import { getEffectiveStrength } from '../../engine/stateHelpers';
 import { findPeterPan, heroHasBurla, isPeterPanAtJollyRoger } from './aiHelpers';
 import { HookLocationId, HookObjectiveStep } from './cards';
@@ -96,11 +96,20 @@ export function deadCards(state: GameState, p: PlayerState): CardInstId[] {
   const oppHasF4Hero = !!opp && Object.values(opp.locationStates).some(ls =>
     ls.heroCardInstIds.some(id => getEffectiveStrength(state, id) >= 4),
   );
+  // "¡A la orden, señor!" mueve un Aliado YA en juego — sin ningún Aliado en el reino no tiene
+  // nada que mover. Sin marcarla muerta se quedaba en mano jugando siempre en negativo (mismo
+  // patrón que Flecha Dorada/Arco con Flechas del Príncipe Juan, ver memoria
+  // project_ai_frozen_hand_deadlock_fix): la mano nunca se ciclaba y Garfio dejaba de robar
+  // cartas nuevas — confirmado con el simulador, partidas de 150+ rondas con la mano congelada.
+  const hasAllyInKingdom = Object.values(p.locationStates)
+    .some(ls => ls.villainCardInstIds.some(id => state.allCards[id]?.cardType === CardType.ALLY));
 
   return p.handInstIds.filter(id => {
-    const defId = state.allCards[id]?.defId ?? '';
+    const card = state.allCards[id];
+    const defId = card?.defId ?? '';
     if (pp && (defId.startsWith(CardDefPrefix.HOOK_RIVAL) || defId.startsWith(CardDefPrefix.HOOK_SUSTO))) return true;
     if (hangmanUnlocked && defId.startsWith(CardDefPrefix.HOOK_MAPA)) return true;
+    if (!hasAllyInKingdom && (card?.effectIds ?? []).includes(EffectId.A_LA_ORDEN)) return true;
     if (!oppHasF4Ally && defId.startsWith(CardDefPrefix.HOOK_PERSPICAZ)) return true;
     if (!oppHasF4Hero && defId.startsWith(CardDefPrefix.HOOK_OBSESION)) return true;
     return false;

@@ -129,12 +129,23 @@ export function deadCards(state: GameState, p: PlayerState): CardInstId[] {
       return cost > p.power;
     });
 
+  // Objetos que se adjuntan a un Aliado (Flecha Dorada, Arco con Flechas): sin NINGÚN Aliado en
+  // el reino no tienen nada a lo que unirse — sin este chequeo, se quedaban en mano jugando
+  // siempre en negativo (adjuntarlos a nada no aporta nada) SIN marcarse como muertos, así que
+  // nunca se ciclaban — la mano se congelaba para siempre (nunca se descartan, nunca se roban
+  // cartas nuevas, ver drawCards: solo rellena hasta el tope) y Juan nunca volvía a ver un
+  // Aliado. Confirmado con el simulador: partidas de 150+ rondas sin que la mano cambiara nunca.
+  const hasAllyInKingdom = Object.values(p.locationStates)
+    .some(ls => ls.villainCardInstIds.some(id => state.allCards[id]?.cardType === CardType.ALLY));
+  const attachesToAlly = (eid: string) => eid === EffectId.JHON_FLECHA_ATTACH || eid === EffectId.JHON_ARCO_ATTACH;
+
   const seenCondNames = new Set<string>();
   for (const id of p.handInstIds) {
     const c = state.allCards[id];
     if (!c) continue;
     if (noneAffordable) { out.push(id); continue; }
     if (reyPresent && c.cardType === CardType.EFFECT) { out.push(id); continue; }
+    if (!hasAllyInKingdom && c.effectIds.some(attachesToAlly)) { out.push(id); continue; }
     if (c.cardType === CardType.CONDITION) {
       if (seenCondNames.has(c.name)) { out.push(id); continue; }
       seenCondNames.add(c.name);

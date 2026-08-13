@@ -247,33 +247,53 @@ function generateAllScoredCandidates(
  * jugada. Empate se acepta solo para Destino (nunca cuesta Poder; un jugador real se compromete
  * antes de ver qué sale, así que no se descarta por "no compensar" mirando el resultado).
  */
+const COMBO_CONTINUATION_THRESHOLD = 15;
+
 function bestActivateRollout(
   state: GameState, playerId: PlayerId, chosen: IntentionDef, profile: OpponentProfile | undefined, depth: number,
-): { next: ScoredAction | null; val: number } {
-  if (depth === 0 || state.turnPhase !== TurnPhase.ACTIVATE || state.winner) return { next: null, val: 0 };
+): { next: ScoredAction | null; val: number; continuation: number } {
+  if (depth === 0 || state.turnPhase !== TurnPhase.ACTIVATE || state.winner) return { next: null, val: 0, continuation: 0 };
   const all = generateAllScoredCandidates(state, playerId, chosen, profile);
-  if (all.length === 0) return { next: null, val: 0 };
+  if (all.length === 0) return { next: null, val: 0, continuation: 0 };
 
   let best: ScoredAction | null = null;
   let bestVal = 0; // "no hacer nada" vale 0 por construcción (puntuación por delta)
+  let bestContinuation = 0;
   for (const c of all.slice(0, ACTIVATE_BREADTH)) {
     const resolved = autoResolveOwnPendings(c.resultState, playerId, chosen, profile);
     const { val: continuation } = bestActivateRollout(resolved, playerId, chosen, profile, depth - 1);
     const total = c.breakdown.total + continuation;
     const isFate = c.kind === ActionType.FATE;
     const beats = isFate ? total > bestVal - 1e-9 : total > bestVal + 1e-9;
-    if (beats) { bestVal = total; best = c; }
+    if (beats) { bestVal = total; best = c; bestContinuation = continuation; }
   }
-  return { next: best, val: bestVal };
+
+  // Último recurso: si NADA puntúa positivo (turno que iba a quedar vacío) pero hay una casilla
+  // de Descartar disponible, ciclar la mano (aunque el descarte puntúe algo negativo) es
+  // estratégicamente mejor que quedarse quieto — un jugador real no se sienta con una mano
+  // inútil esperando, la refresca buscando algo mejor. La puntuación por delta de un solo turno
+  // no puede ver ese valor futuro (aparece en el próximo robo), igual que ya pasa con Destino.
+  // Confirmado con el simulador: sin esto, Garfio y Maléfica se congelaban 100+ rondas en cuanto
+  // el Poder llegaba al tope y la mano no tenía nada "obviamente bueno" ahora mismo.
+  if (!best) {
+    const discardCandidates = all.filter(c => c.kind === ActionType.DISCARD);
+    if (discardCandidates.length > 0) {
+      const leastBad = discardCandidates.reduce((a, b) => (b.breakdown.total > a.breakdown.total ? b : a));
+      return { next: leastBad, val: leastBad.breakdown.total, continuation: 0 };
+    }
+  }
+
+  return { next: best, val: bestVal, continuation: bestContinuation };
 }
 
 /** Ejecuta la fase ACTIVATE completa como secuencia; si se pasa `record`, audita cada paso. */
 function runActivateSequence(
   state: GameState, playerId: PlayerId, chosen: IntentionDef, profile: OpponentProfile | undefined,
   record?: PlanRecord,
-): { finalState: GameState; scoreSum: number } {
+): { finalState: GameState; scoreSum: number; actionsCount: number } {
   let s = autoResolveOwnPendings(state, playerId, chosen, profile);
   let scoreSum = 0;
+  let actionsCount = 0;
   let iterations = 0;
   while (s.turnPhase === TurnPhase.ACTIVATE && !s.winner && iterations++ < MAX_ACTIVATE_ITERATIONS) {
     const immediate = record ? generateAllScoredCandidates(s, playerId, chosen, profile) : null;
@@ -282,32 +302,36 @@ function runActivateSequence(
       const avail = getAvailableSlotIndices(s, playerId, pl.pawnLocationId);
       console.error(`[TRACE] pawn=${pl.pawnLocationId} avail=${JSON.stringify(avail)} immediate=${immediate!.length} top=${immediate!.slice(0,3).map(c=>`${c.label}:${c.breakdown.total.toFixed(1)}`).join(',')}`);
     }
-    const { next } = bestActivateRollout(s, playerId, chosen, profile, ACTIVATE_ROLLOUT_DEPTH);
+    const { next, continuation } = bestActivateRollout(s, playerId, chosen, profile, ACTIVATE_ROLLOUT_DEPTH);
     if (!next) break;
     s = autoResolveOwnPendings(next.resultState, playerId, chosen, profile);
     scoreSum += next.breakdown.total;
+    actionsCount++;
     if (record) {
-      record.actionsTaken.push({ label: next.label, total: next.breakdown.total });
+      // Combo: la continuación que habilita esta acción vale bastante más que su propio delta —
+      // el rollout la eligió por lo que viene DESPUÉS, no por sí sola.
+      const isCombo = continuation >= COMBO_CONTINUATION_THRESHOLD;
+      record.actionsTaken.push({ label: next.label, total: next.breakdown.total, ...(isCombo ? { isCombo: true } : {}) });
       for (const alt of (immediate ?? []).slice(0, 4)) {
         if (alt.label !== next.label) record.ignoredAlternatives.push({ label: alt.label, total: alt.breakdown.total });
       }
       record.steps.push(s);
     }
   }
-  return { finalState: s, scoreSum };
+  return { finalState: s, scoreSum, actionsCount };
 }
 
 // ─── Fase MOVE: destino con lectura del rival ──────────────────────────────────────
 
 function simulateTurnAtDest(
   state: GameState, playerId: PlayerId, dest: LocationId, chosen: IntentionDef, profile: OpponentProfile | undefined,
-): { finalState: GameState; scoreSum: number } {
+): { finalState: GameState; scoreSum: number; actionsCount: number } {
   const moved = movePawn(state, playerId, dest);
-  const { finalState, scoreSum } = runActivateSequence(moved, playerId, chosen, profile);
+  const { finalState, scoreSum, actionsCount } = runActivateSequence(moved, playerId, chosen, profile);
   let s = finalState;
   if (s.turnPhase === TurnPhase.ACTIVATE) s = endActivatePhase(s);
   if (s.turnPhase === TurnPhase.DRAW) s = drawCards(s, playerId);
-  return { finalState: s, scoreSum };
+  return { finalState: s, scoreSum, actionsCount };
 }
 
 /** Amenaza del rival tras nuestro turno: su propio mejor turno posible desde su posición actual
@@ -330,6 +354,12 @@ function pickMoveDestination(
 
   // Pre-ordenar por una pasada rápida (rollout depth 1) para priorizar los candidatos más
   // prometedores antes de gastar la simulación completa en todos.
+  //
+  // NOTA: se probó ampliar este preordenado con el destino de mayor `computeLocationValue()` —
+  // igual que ya se hace con el destino favorito del rival humano — pero medido con el
+  // simulador SUBIÓ las partidas estancadas (jhon-vs-hook: 1/12 → 5/12). computeLocationValue()
+  // se queda como señal solo informativa para el auditor (ver auditor.ts): útil para EXPLICAR
+  // la elección, no fiable todavía para influir en ella sin más calibración.
   const hinted = dests
     .map(d => {
       const moved = movePawn(state, playerId, d.id);
@@ -341,15 +371,25 @@ function pickMoveDestination(
 
   const opponent = state.players.find(p => p.id !== playerId);
   const evaluated = hinted.map(({ id }) => {
-    const { finalState, scoreSum } = simulateTurnAtDest(state, playerId, id, chosen, profile);
+    const { finalState, scoreSum, actionsCount } = simulateTurnAtDest(state, playerId, id, chosen, profile);
     const threat = opponent ? estimateOpponentThreat(finalState, opponent.id, profile) : 0;
-    return { destId: id, val: scoreSum - threat * 0.4, didSomething: finalState.usedActionSlotIndices.length > 0 };
+    // "Hizo algo" cuenta CUALQUIER acción real tomada (incluida Descartar para ciclar la mano,
+    // que no consume una ranura de `usedActionSlotIndices` por ser una acción libre) — antes solo
+    // se miraba `usedActionSlotIndices`, así que un destino cuya única acción viable era
+    // Descartar (p. ej. Cabaña, ver memoria project_ai_maleficent_discard_move_deadlock_fix)
+    // nunca se distinguía de un destino genuinamente sin nada que hacer, y el "no hacer nada"
+    // (val=0 exacto) le ganaba siempre a Descartar (val ligeramente negativo) — la IA se quedaba
+    // rebotando para siempre entre ubicaciones sin salida, ignorando la única que sí progresaba.
+    return { destId: id, val: scoreSum - threat * 0.4, didSomething: actionsCount > 0, scoreSum, threat };
   });
 
   let best = evaluated.slice().sort((a, b) => b.val - a.val)[0];
   if (!best.didSomething) {
     const alt = evaluated.filter(e => e.didSomething).sort((a, b) => b.val - a.val)[0];
     if (alt && alt.val > best.val - NOOP_OVERRIDE_MARGIN) best = alt;
+  }
+  if (AI_DEBUG_TRACE) {
+    console.error(`[MOVE] from=${player.pawnLocationId} evaluated=${JSON.stringify(evaluated)} chosen=${best.destId}`);
   }
   return best.destId;
 }
