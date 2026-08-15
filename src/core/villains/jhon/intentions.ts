@@ -25,6 +25,18 @@ const generatePowerIntention: IntentionDef = {
     let v = lerpCurve(ctx.player.power, [[0, 5], [10, 25], [14, 60], [18, 120], [20, 160]]);
     if (hasHeroInKingdom(ctx, CardDefId.JHON_ROBIN_HOOD)) v -= 35;
     if (hasHeroInKingdom(ctx, CardDefId.JHON_REY_RICARDO)) v -= 40;
+    // Poder retenido por un héroe (Robar a los Ricos/Little John): mientras siga ahí, es Poder
+    // que Juan ya "tiene" en la práctica pero no puede usar — derrotar a ese héroe lo devuelve de
+    // golpe, tan real y urgente como vencer a Robin Hood/Rey Ricardo. Mismo mecanismo (penalización
+    // FIJA mientras exista, que se convierte en logro al resolverse vía intentionAlignment), pero
+    // escalado con la cantidad: a diferencia de Robin Hood/Rey Ricardo (amenaza fija), el tamaño
+    // real del problema SÍ varía carta a carta — puede ser 4 Monedas o pueden ser 100+ si "Robar a
+    // los Ricos" se repite varias veces sobre el mismo héroe sin que nadie lo derrote.
+    const storedPowerHeld = ctx.locations.reduce(
+      (sum, l) => sum + l.heroCardInstIds.reduce((s2, id) => s2 + (ctx.state.allCards[id]?.storedPower ?? 0), 0),
+      0,
+    );
+    v -= storedPowerHeld * 3;
     // Bono directo por cada héroe ya encerrado en La Prisión: fuera de ahí sigue bloqueando
     // ranuras (ya lo recoge el término estructural OWN_HERO_BLOCKAGE en actionScoring.ts), pero
     // encerrarlo es un logro propio que merece su propio crédito — sin esto, Encarcelamiento
