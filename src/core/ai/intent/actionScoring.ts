@@ -11,6 +11,8 @@ import { buildAIContext } from './context';
 import { lerpCurve } from './curve';
 import { getEffectiveStrength } from '../../engine/stateHelpers';
 import { getEffectDef } from '../../villains/registry';
+import { CardDefPrefix } from '../../villains/effectIds';
+import { findPeterPan } from '../../villains/hook/aiHelpers';
 
 const WEIGHTS = {
   // NOTA: para el Príncipe Juan, ownProgress ES el Poder (progress = power/20*100) — un peso
@@ -77,6 +79,15 @@ const WEIGHTS = {
   // MISMA ubicación) queda cubierto — independiente de la intención elegida, mismo espíritu que
   // DEVELOPMENT_ALLY/OWN_HERO_BLOCKAGE (estructural, no solo cuando coincide con el foco del turno).
   ALLY_PLACEMENT_FIT: 1.5,
+  // Bono fijo por jugar una carta de búsqueda de Peter Pan (Rival Digno/Démosles un susto)
+  // mientras Garfio aún no lo ha encontrado (ver computeSearchBonus). Rival Digno corta su mazo
+  // de Destino en un punto ALEATORIO dentro de su propio efecto — puntuar la candidata solo por
+  // el resultState de ese muestreo puntual la infravalora la mitad de las veces por pura mala
+  // suerte, y sin este bono estructural la IA la descartaba en vez de jugarla (confirmado con el
+  // simulador: "Buscar a Peter Pan" se quedaba clavada en la misma puntuación 15+ rondas seguidas
+  // — Peter Pan nunca se buscaba de verdad). 20 basta para ganarle claramente a descartar (~-0.7)
+  // sin dominar el resto de la puntuación.
+  PP_SEARCH_BONUS: 20,
 };
 
 function vanquishableCount(ctx: AIContext): number {
@@ -235,12 +246,33 @@ function computePressureScore(ctxBefore: AIContext, ctxAfter: AIContext): number
   // ninguna puede ganar — confirmado con el simulador: partidas de 150+ rondas donde ambos
   // reinos terminan con la mayoría de héroes de SU PROPIO mazo de Destino ya revelados y
   // amontonados, sin Fuerza de Aliados suficiente en ningún lado para limpiar nada.
-  const blockableLocs = ctxAfter.oppLocations.filter(l => l.blocksSlots);
+  //
+  // OJO: se mide sobre ctxBefore (antes de esta colocación concreta), NO ctxAfter. Medirlo sobre
+  // ctxAfter era autocontradictorio: colocar un héroe en una ubicación NUEVA sube el recuento de
+  // "ubicaciones bloqueadas" de esa misma jugada, así que esa jugada se autopenalizaba más que
+  // apilar OTRO héroe en una ubicación que YA contaba como bloqueada (que no mueve el recuento).
+  // Resultado medible: apilar salía más barato que repartir — justo lo contrario de la intención
+  // original — y en partidas reales toda la presión terminaba amontonada en una sola ubicación
+  // del reino rival en vez de repartida. Con ctxBefore, la saturación es una propiedad de la
+  // SITUACIÓN (igual para todos los candidatos de esta decisión), no de la elección concreta.
+  const blockableLocs = ctxBefore.oppLocations.filter(l => l.blocksSlots);
   const blockedCount = blockableLocs.filter(l => l.heroCardInstIds.length > 0).length;
   const saturation = blockableLocs.length > 0 ? blockedCount / blockableLocs.length : 0;
   const saturationFactor = 1 - saturation * 0.7;
 
   return rawPressure * saturationFactor;
+}
+
+/** Ver ActionScoreBreakdown.searchBonus / WEIGHTS.PP_SEARCH_BONUS: bono fijo por jugar una carta
+ *  de búsqueda de Peter Pan mientras Garfio aún no lo ha encontrado, independiente de que el
+ *  corte de mazo aleatorio de Rival Digno le tocara favorable o no en este muestreo puntual. */
+function computeSearchBonus(ctxBefore: AIContext, candidate: ActionCandidate): number {
+  if (candidate.kind !== ActionType.PLAY_CARD || !candidate.cardInstId) return 0;
+  if (ctxBefore.player.villainId !== 'hook') return 0;
+  if (findPeterPan(ctxBefore.state, ctxBefore.player)) return 0;
+  const defId = ctxBefore.state.allCards[candidate.cardInstId]?.defId ?? '';
+  const isSearchCard = defId.startsWith(CardDefPrefix.HOOK_RIVAL) || defId.startsWith(CardDefPrefix.HOOK_SUSTO);
+  return isSearchCard ? WEIGHTS.PP_SEARCH_BONUS : 0;
 }
 
 export function scoreAction(
@@ -255,14 +287,14 @@ export function scoreAction(
   if (candidate.resultState.winner === playerId) {
     const breakdown: ActionScoreBreakdown = {
       progress: WEIGHTS.WIN, enemyImpact: 0, economy: 0, handSynergy: 0, victoryPrep: 0,
-      intentionAlignment: 0, pressureScore: 0, allyPlacement: 0, uselessPenalty: 0, total: WEIGHTS.WIN,
+      intentionAlignment: 0, pressureScore: 0, allyPlacement: 0, searchBonus: 0, uselessPenalty: 0, total: WEIGHTS.WIN,
     };
     return { ...candidate, breakdown };
   }
   if (candidate.resultState.winner && candidate.resultState.winner !== playerId) {
     const breakdown: ActionScoreBreakdown = {
       progress: WEIGHTS.LOSE, enemyImpact: 0, economy: 0, handSynergy: 0, victoryPrep: 0,
-      intentionAlignment: 0, pressureScore: 0, allyPlacement: 0, uselessPenalty: 0, total: WEIGHTS.LOSE,
+      intentionAlignment: 0, pressureScore: 0, allyPlacement: 0, searchBonus: 0, uselessPenalty: 0, total: WEIGHTS.LOSE,
     };
     return { ...candidate, breakdown };
   }
@@ -282,8 +314,30 @@ export function scoreAction(
   // (p. ej. Vencer consume el único Aliado del reino, y una Flecha Dorada en mano — que se
   // adjunta a un Aliado — pasa a estar "muerta" sin que la acción de Vencer tenga culpa de eso).
   // Misma trampa de gradiente que ya se corrigió en `allyPlacement` — ver ese comentario.
+  //
+  // Restringido a candidatas DISCARD/PAY_TO_DISCARD: jugar una carta que se autodescarta sin
+  // efecto por falta de objetivo (p. ej. Arco con Flechas/Flecha Dorada sin ningún Aliado en el
+  // reino — ver `discardCardFromKingdom` dentro de su propio `execute()`) TAMBIÉN saca la carta
+  // de deadHandCardIds, así que sin esta restricción se llevaba el mismo crédito que un descarte
+  // gratuito — pero jugarla además paga su coste en Poder para NADA. Confirmado con una traza
+  // real: "Jugar Arco con Flechas" puntuaba +5.0 (exactamente WEIGHTS.DEAD_HAND_CARD) en turnos
+  // sin ningún Aliado en el reino, suficiente para tapar el coste y hacerla parecer rentable.
   const deadCardDelta = ctxAfter.deadHandCardIds.length - ctxBefore.deadHandCardIds.length;
-  const deadHandTerm = deadCardDelta < 0 ? -deadCardDelta * WEIGHTS.DEAD_HAND_CARD : 0;
+  const isDiscardKind = candidate.kind === ActionType.DISCARD || candidate.kind === 'PAY_TO_DISCARD';
+  const deadHandTerm = isDiscardKind && deadCardDelta < 0 ? -deadCardDelta * WEIGHTS.DEAD_HAND_CARD : 0;
+
+  // Jugada de Objeto "requiresTargetCard" (se adjunta a un Aliado/Héroe) SIN objetivo válido: el
+  // propio efecto se autodescarta sin ningún efecto (ver discardCardFromKingdom en el execute()
+  // de Arco con Flechas/Flecha Dorada), pagando su coste para nada. El estado resultante es
+  // INDISTINGUIBLE de un descarte legítimo para cualquier término que solo mire "¿cuántas cartas
+  // muertas quedan?" — por eso deadHandTerm de arriba se restringe por tipo de candidata, y por
+  // eso intentionAlignment de abajo también se anula aquí: sin esto, la intención universal
+  // "Descartar mano muerta" (o "Buscar carta clave", que usa la misma cuenta) premiaba esta
+  // jugada desperdiciada igual que un descarte gratuito de verdad — confirmado con una traza
+  // real, +2.35 en un turno sin ningún Aliado en el reino.
+  const isWastedTargetedPlay = candidate.kind === ActionType.PLAY_CARD && !!candidate.cardInstId
+    && (ctxBefore.state.allCards[candidate.cardInstId]?.effectIds ?? []).some(id => getEffectDef(id)?.requiresTargetCard)
+    && ctxAfter.player.villainDiscardInstIds.includes(candidate.cardInstId);
 
   const handSynergy = (affordableHandCount(ctxAfter) - affordableHandCount(ctxBefore)) * WEIGHTS.HAND_SYNERGY_AFFORDABLE
     + (ctxAfter.player.handInstIds.length - ctxBefore.player.handInstIds.length) * WEIGHTS.HAND_SYNERGY_OPTION
@@ -301,7 +355,9 @@ export function scoreAction(
   // para sumarse directo a las demás puntuaciones de acción (escala de un dígito a decenas) —
   // sin este límite, una intención con un salto grande podía dominar por completo el resto de
   // términos estructurales (progreso, desarrollo, etc.) en una sola acción.
-  const intentionAlignment = Math.max(-20, Math.min(20, intentionAlignmentRaw)) * WEIGHTS.INTENTION;
+  const intentionAlignment = isWastedTargetedPlay
+    ? 0
+    : Math.max(-20, Math.min(20, intentionAlignmentRaw)) * WEIGHTS.INTENTION;
 
   const pressureScore = candidate.kind === ActionType.FATE ? computePressureScore(ctxBefore, ctxAfter) : 0;
 
@@ -312,6 +368,8 @@ export function scoreAction(
   // se pierde al completarlo" que ya se corrigió con `polarity` para las intenciones.
   const allyPlacement = Math.max(0, allyHeroFit(ctxAfter) - allyHeroFit(ctxBefore)) * WEIGHTS.ALLY_PLACEMENT_FIT;
 
+  const searchBonus = computeSearchBonus(ctxBefore, candidate);
+
   const openedNewOptions = progress !== 0
     || vanquishableCount(ctxAfter) > vanquishableCount(ctxBefore)
     || affordableHandCount(ctxAfter) !== affordableHandCount(ctxBefore)
@@ -319,11 +377,11 @@ export function scoreAction(
   const uselessPenalty = candidate.isRepositioning && !openedNewOptions ? WEIGHTS.USELESS_MOVE_PENALTY : 0;
 
   const total = progress + enemyImpact + economy + handSynergy + victoryPrep + intentionAlignment
-    + pressureScore + allyPlacement + uselessPenalty;
+    + pressureScore + allyPlacement + searchBonus + uselessPenalty;
 
   const breakdown: ActionScoreBreakdown = {
     progress, enemyImpact, economy, handSynergy, victoryPrep, intentionAlignment,
-    pressureScore, allyPlacement, uselessPenalty, total,
+    pressureScore, allyPlacement, searchBonus, uselessPenalty, total,
   };
   return { ...candidate, breakdown };
 }

@@ -24,6 +24,9 @@ export function logTurnAudit(audit: TurnAudit): void {
       alternativasIgnoradas: audit.ignoredAlternatives.map(a => `${a.label} (${a.total.toFixed(1)})`),
       erroresDeReglas: audit.ruleErrors,
       puntuacion: `${audit.turnScoreAchieved.toFixed(1)} / óptimo explorado ${audit.turnScoreOptimal.toFixed(1)}`,
+      turnosParaGanar: audit.turnsToGoalEstimate,
+      presion: audit.pressureSummary.map(p => `${p.label}: +${p.pressureScore.toFixed(1)}`),
+      riesgoBeneficio: `beneficio ${audit.riskBenefit.benefit.toFixed(1)} / riesgo ${audit.riskBenefit.risk.toFixed(1)}`,
     },
   );
 }

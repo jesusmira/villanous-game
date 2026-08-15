@@ -116,7 +116,13 @@ export function onVanquish(
   if (hero?.storedPower && hero.storedPower > 0) {
     const pj = getPlayer(s, hero.ownerId);
     s = updatePlayer(s, hero.ownerId, { power: pj.power + hero.storedPower });
-    s = addLog(s, `Little John devuelve ${hero.storedPower} Moneda(s) al Príncipe Juan.`);
+    s = addLog(s, `${hero.name} devuelve ${hero.storedPower} Moneda(s) al Príncipe Juan.`);
+    // Limpiar tras devolver: sin esto, un héroe que se recicla (Toby vuelve al mazo de Destino
+    // en vez de descartarse para siempre) seguiría llevando este mismo storedPower marcado la
+    // próxima vez que sea derrotado, regalando esas Monedas OTRA VEZ aunque nadie haya vuelto a
+    // jugar Robar a los Ricos/Little John sobre él — confirmado con un script de reproducción:
+    // 2a derrota de Toby sumaba +4 Poder fantasma sin ninguna carta nueva de por medio.
+    s = updateCard(s, heroInstId, { storedPower: 0 });
   }
   return s;
 }

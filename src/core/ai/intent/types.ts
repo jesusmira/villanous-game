@@ -113,6 +113,9 @@ export interface ActionCandidate {
   /** Acción de mera reubicación (mover objeto/aliado/héroe) — candidata a la penalización
    *  "mover sin abrir opciones nuevas". */
   isRepositioning: boolean;
+  /** Carta jugada, solo para candidatas PLAY_CARD — permite identificar qué carta concreta es
+   *  sin tener que inferirlo del `label` o diferenciar la mano antes/después. */
+  cardInstId?: CardInstId;
 }
 
 export interface ActionScoreBreakdown {
@@ -129,6 +132,12 @@ export interface ActionScoreBreakdown {
   /** Colocación inteligente de Aliados: cuánto mejora el encaje Aliado↔héroe presente
    *  (independiente de la intención elegida — un Aliado bien puesto vale por sí solo). */
   allyPlacement: number;
+  /** Bono estructural fijo por jugar una carta de búsqueda hacia el objetivo mientras aún no se
+   *  ha encontrado (p. ej. Rival Digno/Démosles un susto de Garfio buscando a Peter Pan) — fijo
+   *  porque el `resultState` de estas cartas puede depender de una tirada aleatoria interna
+   *  (corte de mazo), y puntuar solo por ese muestreo puntual las infravalora la mitad de las
+   *  veces por pura mala suerte. 0 para cualquier otra candidata. */
+  searchBonus: number;
   uselessPenalty: number;
   total: number;
 }
@@ -148,6 +157,22 @@ export interface AuditedAction {
   isCombo?: boolean;
 }
 
+/** Una colocación de héroe rival vía Destino con presión acumulada > 0 (ver `pressureScore` en
+ *  ActionScoreBreakdown) — resumen de auditoría, no un cálculo nuevo. */
+export interface PressurePlacement {
+  label: string;
+  pressureScore: number;
+}
+
+/** Resumen riesgo-beneficio del turno: suma de los términos POSITIVOS (beneficio) y NEGATIVOS
+ *  (riesgo, en valor absoluto) de `ActionScoreBreakdown` a lo largo de todas las acciones
+ *  tomadas — no es una escala nueva, solo agrupa lo que `scoreAction()` ya calculaba término a
+ *  término. */
+export interface RiskBenefitSummary {
+  benefit: number;
+  risk: number;
+}
+
 export interface TurnAudit {
   playerId: PlayerId;
   villainId: string;
@@ -159,4 +184,10 @@ export interface TurnAudit {
   ruleErrors: string[];
   turnScoreAchieved: number;
   turnScoreOptimal: number;
+  /** Planificación a 2-3 turnos (ver AIContext.turnsToGoalEstimate), fotografiada al elegir la
+   *  intención del turno — informativo, no influye en la decisión. */
+  turnsToGoalEstimate: number;
+  /** Héroes rivales colocados este turno vía Destino con presión acumulada > 0. */
+  pressureSummary: PressurePlacement[];
+  riskBenefit: RiskBenefitSummary;
 }

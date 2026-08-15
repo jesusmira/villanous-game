@@ -50,6 +50,17 @@ const generatePowerIntention: IntentionDef = {
       .filter(l => l.heroStrength === 0)
       .reduce((sum, l) => sum + l.allyStrength, 0);
     v += Math.min(standingArmyStr, 8) * 3;
+    // Contrapeso al bloqueo de héroes sin resolver: la intención universal "Preparar combo" no
+    // tiene techo y crece con cada héroe que el rival apila vía Destino — pero sin Aliados que
+    // comprar (sin Poder) esperar a que se resuelva sola nunca pasa. Sin este término, Generar
+    // Poder podía quedar completamente ahogada 15-70+ rondas seguidas mientras el Poder se
+    // quedaba estancado o incluso bajaba (confirmado con el simulador: las dos únicas derrotas de
+    // una muestra de 12 partidas fueron justo las de racha más larga sin priorizar Generar
+    // Poder). Escala con el MISMO hueco que usa Preparar combo, para que ambas intenciones
+    // crezcan juntas en vez de que una ahogue a la otra — no es "ignorar la amenaza", es
+    // reconocer que generar Poder ES el primer paso para poder responder a ella.
+    const unresolvedBlockage = ctx.locations.reduce((sum, l) => sum + Math.max(0, l.heroStrength - l.allyStrength), 0);
+    v += Math.min(unresolvedBlockage, 20) * 2.5;
     return v;
   },
 };

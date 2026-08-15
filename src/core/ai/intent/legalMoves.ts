@@ -63,6 +63,7 @@ function genPlayCard(state: GameState, playerId: PlayerId, slotIdx: number): Act
         label: `Jugar ${card.name} en ${loc.name}`,
         resultState,
         isRepositioning: false,
+        cardInstId: cardId,
       });
     }
   }

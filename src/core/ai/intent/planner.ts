@@ -24,7 +24,10 @@ import { universalIntentions } from './universalIntentions';
 import { generateSlotCandidates, generatePayToDiscardCandidates, chooseCuervoAction } from './legalMoves';
 import { scoreAction } from './actionScoring';
 import { logTurnAudit } from './auditor';
-import type { AuditedAction, IntentionDef, IntentionSummary, ScoredAction, ScoredIntention, TurnAudit } from './types';
+import type {
+  AuditedAction, IntentionDef, IntentionSummary, PressurePlacement, RiskBenefitSummary,
+  ScoredAction, ScoredIntention, TurnAudit,
+} from './types';
 
 /** Despoja la función `evaluate` antes de guardar en el TurnAudit (postMessage no clona funciones). */
 function toSummary(i: ScoredIntention): IntentionSummary {
@@ -46,17 +49,19 @@ export interface PlanRecord {
   actionsTaken: AuditedAction[];
   ignoredAlternatives: AuditedAction[];
   steps: GameState[];
+  pressureSummary: PressurePlacement[];
+  riskBenefit: RiskBenefitSummary;
 }
 
 // ─── Elección de intención ─────────────────────────────────────────────────────────
 
 export function chooseIntention(
   state: GameState, playerId: PlayerId, profile?: OpponentProfile,
-): { chosen: ScoredIntention; all: ScoredIntention[] } {
+): { chosen: ScoredIntention; all: ScoredIntention[]; turnsToGoalEstimate: number } {
   const ctx = buildAIContext(state, playerId, profile);
   const defs: IntentionDef[] = [...universalIntentions, ...(ctx.plugin.intentions ?? [])];
   const all = defs.map(i => ({ ...i, score: i.evaluate(ctx) })).sort((a, b) => b.score - a.score);
-  return { chosen: all[0], all };
+  return { chosen: all[0], all, turnsToGoalEstimate: ctx.turnsToGoalEstimate };
 }
 
 /** Valoración rápida de un estado (sin acción de referencia) — solo para decisiones binarias
@@ -312,6 +317,19 @@ function runActivateSequence(
       // el rollout la eligió por lo que viene DESPUÉS, no por sí sola.
       const isCombo = continuation >= COMBO_CONTINUATION_THRESHOLD;
       record.actionsTaken.push({ label: next.label, total: next.breakdown.total, ...(isCombo ? { isCombo: true } : {}) });
+      if (next.kind === ActionType.FATE && next.breakdown.pressureScore !== 0) {
+        record.pressureSummary.push({ label: next.label, pressureScore: next.breakdown.pressureScore });
+      }
+      // Riesgo-beneficio: reagrupa los mismos términos de ActionScoreBreakdown que ya calculaba
+      // scoreAction() (ninguna escala nueva) — positivos suman a "beneficio", negativos a "riesgo".
+      for (const term of [
+        next.breakdown.progress, next.breakdown.enemyImpact, next.breakdown.economy,
+        next.breakdown.handSynergy, next.breakdown.victoryPrep, next.breakdown.intentionAlignment,
+        next.breakdown.pressureScore, next.breakdown.allyPlacement, next.breakdown.uselessPenalty,
+      ]) {
+        if (term > 0) record.riskBenefit.benefit += term;
+        else if (term < 0) record.riskBenefit.risk += -term;
+      }
       for (const alt of (immediate ?? []).slice(0, 4)) {
         if (alt.label !== next.label) record.ignoredAlternatives.push({ label: alt.label, total: alt.breakdown.total });
       }
@@ -360,6 +378,19 @@ function pickMoveDestination(
   // simulador SUBIÓ las partidas estancadas (jhon-vs-hook: 1/12 → 5/12). computeLocationValue()
   // se queda como señal solo informativa para el auditor (ver auditor.ts): útil para EXPLICAR
   // la elección, no fiable todavía para influir en ella sin más calibración.
+  //
+  // También se probó (2026-08-14) usar computeLocationValue()/estimateTurnsToGoal() como
+  // DESEMPATE de última instancia entre destinos con `val` casi empatado (margen de 2) en vez de
+  // como pre-ordenado — con la esperanza de que un desempate tan estrecho fuera seguro. No lo
+  // fue: con épsilon=2, la mayoría de comparaciones de un turno caen dentro del margen (muchos
+  // candidatos rondan valores parecidos, sobre todo cuando "no hacer nada" es la alternativa), así
+  // que el desempate se disparaba casi siempre — reproduciendo el mismo daño que ya había dado el
+  // preordenado directo. Medido con el simulador: jhon-vs-hook pasó de 27.1 a 33.4 rondas medias y
+  // Garfio dobló su tasa de victorias (3/25 → 6/25); además el turno se volvió ~3.3× más lento
+  // (143s → 490s en 25 partidas hook-vs-maléfica). Revertido. Lección: `computeLocationValue()`
+  // no está calibrado para pesar en la elección de destino en NINGÚN punto del flujo — ni como
+  // preordenado ni como desempate — mientras siga siendo una fórmula ad hoc no validada contra el
+  // rollout real; solo es fiable como explicación posterior (auditor), no como señal de decisión.
   const hinted = dests
     .map(d => {
       const moved = movePawn(state, playerId, d.id);
@@ -400,12 +431,15 @@ export function planTurn(
   state: GameState, playerId: PlayerId, profile?: OpponentProfile,
 ): { finalState: GameState; steps: GameState[]; audit: TurnAudit } {
   let s = state;
-  const record: PlanRecord = { actionsTaken: [], ignoredAlternatives: [], steps: [] };
+  const record: PlanRecord = {
+    actionsTaken: [], ignoredAlternatives: [], steps: [],
+    pressureSummary: [], riskBenefit: { benefit: 0, risk: 0 },
+  };
   const ruleErrors: string[] = [];
   const roundNumber = s.roundNumber;
   const villainId = getPlayer(s, playerId).villainId;
 
-  const { chosen, all } = chooseIntention(s, playerId, profile);
+  const { chosen, all, turnsToGoalEstimate } = chooseIntention(s, playerId, profile);
 
   s = maybeUseRaven(s, playerId, chosen, profile, record);
   s = maybeUseSherif(s, playerId, chosen, profile, record);
@@ -454,6 +488,9 @@ export function planTurn(
     ruleErrors,
     turnScoreAchieved,
     turnScoreOptimal: Math.max(turnScoreOptimal, turnScoreAchieved),
+    turnsToGoalEstimate,
+    pressureSummary: record.pressureSummary,
+    riskBenefit: record.riskBenefit,
   };
   logTurnAudit(audit);
 

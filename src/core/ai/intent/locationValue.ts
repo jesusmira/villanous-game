@@ -69,6 +69,19 @@ export function computeLocationValue(ctx: AIContext, locId: LocationId): Locatio
     futureOpportunity = 5 / (1 + dist);
   }
 
-  const total = actionsAvailable + heroesPresent + alliesPresent + blockage + handSynergy + boardSynergy + futureOpportunity;
+  // Recalibrado (2026-08-14): se midió la correlación de rango (Spearman) de cada componente
+  // contra el valor REAL de cada destino (el que ya calcula pickMoveDestination con rollout
+  // completo), sobre ~400-560 decisiones de IA-vs-IA reales. `alliesPresent` (~0.02),
+  // `handSynergy`, `boardSynergy` y `futureOpportunity` (~0 o negativas, entre -0.07 y -0.01)
+  // salieron como ruido puro — se excluyen del total porque solo diluían la señal débil pero real
+  // de `actionsAvailable` (~0.20), `heroesPresent` (~0.24) y `blockage` (~0.19). Se mantienen en
+  // el desglose por transparencia, pero no cuentan en `total`.
+  //
+  // AVISO IMPORTANTE: incluso tras este recorte, ~0.2 de correlación de rango sigue siendo DEMASIADO
+  // débil para decidir nada por sí sola (ver planner.ts pickMoveDestination — dos intentos de
+  // usar esta función para influir en el destino, como preordenado y como desempate, empeoraron
+  // medidas del simulador). Sigue siendo solo una señal informativa para explicar una elección
+  // después de tomada, no un sustituto del rollout real.
+  const total = actionsAvailable + heroesPresent + blockage;
   return { actionsAvailable, heroesPresent, alliesPresent, blockage, handSynergy, boardSynergy, futureOpportunity, total };
 }
