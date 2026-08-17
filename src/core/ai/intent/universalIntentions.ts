@@ -47,6 +47,7 @@ const advanceObjective: IntentionDef = {
   id: IntentId.ADVANCE_OBJECTIVE,
   name: 'Avanzar objetivo',
   polarity: 1,
+  category: 'objective',
   evaluate: (ctx: AIContext) => lerpCurve(ctx.ownProgress, [[0, 5], [40, 15], [70, 35], [90, 70]]),
 };
 
@@ -57,6 +58,7 @@ const eliminateHeroes: IntentionDef = {
   id: IntentId.ELIMINATE_HEROES,
   name: 'Eliminar héroes',
   polarity: -1,
+  category: 'heroRemoval',
   evaluate: (ctx: AIContext) => {
     let v = 0;
     for (const loc of ctx.locations) {
@@ -73,6 +75,7 @@ const seekKeyCard: IntentionDef = {
   id: IntentId.SEEK_KEY_CARD,
   name: 'Buscar carta clave',
   polarity: -1,
+  category: 'objective',
   evaluate: (ctx: AIContext) => {
     const dead = ctx.deadHandCardIds.length;
     const handSize = ctx.player.handInstIds.length;
@@ -86,6 +89,7 @@ const generatePower: IntentionDef = {
   id: IntentId.GENERATE_POWER,
   name: 'Generar poder',
   polarity: -1,
+  category: 'power',
   evaluate: (ctx: AIContext) => lerpCurve(ctx.player.power, [[0, 40], [4, 20], [8, 5], [14, 0]]),
 };
 
@@ -98,6 +102,7 @@ const prepareCombo: IntentionDef = {
   id: IntentId.PREPARE_COMBO,
   name: 'Preparar combo',
   polarity: -1,
+  category: 'combo',
   evaluate: (ctx: AIContext) => {
     let v = 0;
     let priorityLoc: LocationId | null = null;
@@ -129,6 +134,7 @@ const slowEnemyFate: IntentionDef = {
   id: IntentId.SLOW_ENEMY_FATE,
   name: 'Frenar al enemigo con Destino',
   polarity: -1,
+  category: 'fate',
   evaluate: (ctx: AIContext) => lerpCurve(ctx.oppProgress, [[0, 2], [40, 10], [70, 30], [90, 55]]),
 };
 
@@ -138,6 +144,7 @@ const prepareVictory: IntentionDef = {
   id: IntentId.PREPARE_VICTORY,
   name: 'Preparar victoria en 1-2 turnos',
   polarity: 1,
+  category: 'objective',
   evaluate: (ctx: AIContext) => lerpCurve(ctx.ownProgress, [[0, 0], [70, 0], [85, 60], [95, 150]]),
 };
 
@@ -146,6 +153,7 @@ const unlockLocations: IntentionDef = {
   id: IntentId.UNLOCK_LOCATIONS,
   name: 'Desbloquear ubicaciones',
   polarity: -1,
+  category: 'objective',
   evaluate: (ctx: AIContext) => ctx.locations.filter(l => l.isLocked).length * 20,
 };
 
@@ -154,6 +162,7 @@ const discardDeadHand: IntentionDef = {
   id: IntentId.DISCARD_DEAD_HAND,
   name: 'Descartar mano muerta',
   polarity: -1,
+  category: 'objective',
   evaluate: (ctx: AIContext) => ctx.deadHandCardIds.length * 12,
 };
 

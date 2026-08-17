@@ -13,6 +13,9 @@ import { getEffectiveStrength } from '../../engine/stateHelpers';
 import { getEffectDef } from '../../villains/registry';
 import { CardDefPrefix } from '../../villains/effectIds';
 import { findPeterPan } from '../../villains/hook/aiHelpers';
+import { fuegoVerdeWouldSealCritical } from '../../villains/maleficent/intentions';
+import { computeStructuralThreatBonus } from './structuralThreats';
+import { DEFAULT_VILLAIN_WEIGHTS, weightForCategory } from './villainWeights';
 
 const WEIGHTS = {
   // NOTA: para el Príncipe Juan, ownProgress ES el Poder (progress = power/20*100) — un peso
@@ -88,6 +91,12 @@ const WEIGHTS = {
   // — Peter Pan nunca se buscaba de verdad). 20 basta para ganarle claramente a descartar (~-0.7)
   // sin dominar el resto de la puntuación.
   PP_SEARCH_BONUS: 20,
+  // Jugar Fuego Verde en una ubicación que sellaría para siempre Vencer o Mover Aliado/Objeto
+  // (ver fuegoVerdeWouldSealCritical) — penalización, no veto: debe pesar MENOS que el progreso
+  // típico de cubrir una ubicación (progress ≈ 8.75 por el 0.35 de WEIGHTS.PROGRESS, más
+  // intentionAlignment/allyPlacement/DEAD_HAND_CARD encima) para no impedir jugarlo cuando de
+  // verdad es la única opción que queda.
+  FUEGO_VERDE_SEAL_PENALTY: 12,
 };
 
 function vanquishableCount(ctx: AIContext): number {
@@ -275,6 +284,20 @@ function computeSearchBonus(ctxBefore: AIContext, candidate: ActionCandidate): n
   return isSearchCard ? WEIGHTS.PP_SEARCH_BONUS : 0;
 }
 
+/** Ver WEIGHTS.FUEGO_VERDE_SEAL_PENALTY: penaliza jugar Fuego Verde en una ubicación que
+ *  sellaría para siempre Vencer o Mover Aliado/Objeto mientras aún hacen falta. */
+function computeFuegoVerdeSealPenalty(ctxBefore: AIContext, candidate: ActionCandidate): number {
+  if (ctxBefore.player.villainId !== 'maleficent') return 0;
+  if (candidate.kind !== ActionType.PLAY_CARD || !candidate.cardInstId) return 0;
+  const card = ctxBefore.state.allCards[candidate.cardInstId];
+  if (!card?.defId.startsWith(CardDefPrefix.MAL_FUEGO)) return 0;
+  const targetLocId = candidate.resultState.allCards[candidate.cardInstId]?.locationId;
+  if (!targetLocId) return 0;
+  return fuegoVerdeWouldSealCritical(ctxBefore.state, ctxBefore.player, targetLocId)
+    ? -WEIGHTS.FUEGO_VERDE_SEAL_PENALTY
+    : 0;
+}
+
 export function scoreAction(
   ctxBefore: AIContext,
   candidate: ActionCandidate,
@@ -283,6 +306,13 @@ export function scoreAction(
   profile?: OpponentProfile,
 ): ScoredAction {
   const ctxAfter = buildAIContext(candidate.resultState, playerId, profile);
+  // Capa de pesos dinámicos por villano (ver villainWeights.ts): multiplica los términos de
+  // ActionScoreBreakdown que encajan con una de las 7 categorías, en el punto de ENSAMBLAJE — no
+  // toca el cálculo interno de ningún término (oppBlockageStrength, powerValue,
+  // computePressureScore, computeSearchBonus, computeStructuralThreatBonus siguen intactos). Con
+  // todos los pesos en 1.0 (valor por defecto) es un no-op, idéntico al resultado de antes de
+  // esta capa.
+  const villainWeights = ctxBefore.plugin.aiWeights ?? DEFAULT_VILLAIN_WEIGHTS;
 
   if (candidate.resultState.winner === playerId) {
     const breakdown: ActionScoreBreakdown = {
@@ -299,15 +329,15 @@ export function scoreAction(
     return { ...candidate, breakdown };
   }
 
-  const progress = (ctxAfter.ownProgress - ctxBefore.ownProgress) * WEIGHTS.PROGRESS;
+  const progress = (ctxAfter.ownProgress - ctxBefore.ownProgress) * WEIGHTS.PROGRESS * villainWeights.objectiveWeight;
 
-  const enemyImpact = (oppBlockageStrength(ctxAfter) - oppBlockageStrength(ctxBefore)) * WEIGHTS.ENEMY_IMPACT
-    + (ctxBefore.oppProgress - ctxAfter.oppProgress) * WEIGHTS.ENEMY_IMPACT * 2;
+  const enemyImpact = ((oppBlockageStrength(ctxAfter) - oppBlockageStrength(ctxBefore)) * WEIGHTS.ENEMY_IMPACT
+    + (ctxBefore.oppProgress - ctxAfter.oppProgress) * WEIGHTS.ENEMY_IMPACT * 2) * villainWeights.heroRemovalWeight;
 
   // Valor del Poder hasta el tope (positivo) menos penalización por acaparar por encima de él.
   const powerValue = (p: number) => Math.min(p, WEIGHTS.ECONOMY_HOARD_CAP) * WEIGHTS.ECONOMY_POWER_VALUE
     - Math.max(0, p - WEIGHTS.ECONOMY_HOARD_CAP) * WEIGHTS.ECONOMY_HOARD_PENALTY;
-  const economy = powerValue(ctxAfter.player.power) - powerValue(ctxBefore.player.power);
+  const economy = (powerValue(ctxAfter.player.power) - powerValue(ctxBefore.player.power)) * villainWeights.powerWeight;
 
   // Cartas muertas: SOLO se premia que bajen (descartarlas) — nunca se penaliza que suban,
   // porque una carta puede volverse muerta como efecto COLATERAL de una acción buena y ajena
@@ -339,6 +369,11 @@ export function scoreAction(
     && (ctxBefore.state.allCards[candidate.cardInstId]?.effectIds ?? []).some(id => getEffectDef(id)?.requiresTargetCard)
     && ctxAfter.player.villainDiscardInstIds.includes(candidate.cardInstId);
 
+  // handSynergy/allyPlacement/uselessPenalty quedan SIN peso deliberadamente: son términos
+  // estructurales genéricos (mano jugable, encaje Aliado↔héroe, penalización de reposicionar sin
+  // abrir opciones) que no encajan con ninguna de las 7 categorías del perfil sin forzarlo — y
+  // dividir handSynergy en sub-términos para ponderar solo una parte (p. ej. OWN_HERO_BLOCKAGE
+  // por heroRemoval) tocaría el cálculo interno de la función en vez de solo su ensamblaje.
   const handSynergy = (affordableHandCount(ctxAfter) - affordableHandCount(ctxBefore)) * WEIGHTS.HAND_SYNERGY_AFFORDABLE
     + (ctxAfter.player.handInstIds.length - ctxBefore.player.handInstIds.length) * WEIGHTS.HAND_SYNERGY_OPTION
     + (ownAllyStrength(ctxAfter) - ownAllyStrength(ctxBefore)) * WEIGHTS.DEVELOPMENT_ALLY
@@ -346,7 +381,7 @@ export function scoreAction(
     + (extraSlotValue(ctxAfter) - extraSlotValue(ctxBefore))
     + deadHandTerm;
 
-  const victoryPrep = (victoryPrepCurve(ctxAfter.ownProgress) - victoryPrepCurve(ctxBefore.ownProgress)) * WEIGHTS.VICTORY_PREP;
+  const victoryPrep = (victoryPrepCurve(ctxAfter.ownProgress) - victoryPrepCurve(ctxBefore.ownProgress)) * WEIGHTS.VICTORY_PREP * villainWeights.objectiveWeight;
 
   // polarity corrige el signo: para intenciones "de urgencia" (evaluate baja al resolverse),
   // resolver el problema debe SUMAR alineación, no restarla (ver IntentionDef.polarity).
@@ -355,11 +390,17 @@ export function scoreAction(
   // para sumarse directo a las demás puntuaciones de acción (escala de un dígito a decenas) —
   // sin este límite, una intención con un salto grande podía dominar por completo el resto de
   // términos estructurales (progreso, desarrollo, etc.) en una sola acción.
+  // Pondera por la categoría de la intención ELEGIDA ese turno (misma idea que en
+  // chooseIntention(): el score de una intención se multiplica por el peso de su categoría) —
+  // clamp ANTES de ponderar, no después, para que un peso alto amplifique la influencia real de
+  // la intención en vez de hacer que se recorte antes por el tope de ±20.
   const intentionAlignment = isWastedTargetedPlay
     ? 0
-    : Math.max(-20, Math.min(20, intentionAlignmentRaw)) * WEIGHTS.INTENTION;
+    : Math.max(-20, Math.min(20, intentionAlignmentRaw)) * WEIGHTS.INTENTION * weightForCategory(villainWeights, chosenIntention.category);
 
-  const pressureScore = candidate.kind === ActionType.FATE ? computePressureScore(ctxBefore, ctxAfter) : 0;
+  const pressureScore = candidate.kind === ActionType.FATE
+    ? computePressureScore(ctxBefore, ctxAfter) * villainWeights.pressureWeight
+    : 0;
 
   // Solo se premia que el encaje SUBA (Aliado recién bien colocado) — nunca se penaliza que
   // baje, porque baja tanto al Vencer (héroe Y Aliados desaparecen a la vez: ya lo recoge
@@ -368,12 +409,28 @@ export function scoreAction(
   // se pierde al completarlo" que ya se corrigió con `polarity` para las intenciones.
   const allyPlacement = Math.max(0, allyHeroFit(ctxAfter) - allyHeroFit(ctxBefore)) * WEIGHTS.ALLY_PLACEMENT_FIT;
 
-  const searchBonus = computeSearchBonus(ctxBefore, candidate);
+  // Bono estructural genérico (ver core/ai/intent/structuralThreats.ts): vencer o acercarse al
+  // héroe que de verdad bloquea el camino a la victoria de este villano (declarado vía
+  // VillainPlugin.structuralThreats), independiente de la intención elegida ese turno. Vacío
+  // ([]) para villanos sin amenaza estructural configurada.
+  // computeSearchBonus (buscar en el propio mazo de Destino) pondera por 'fate'; el bono de
+  // amenaza estructural (vencer/acercarse al bloqueante real) pondera por 'heroRemoval', igual
+  // que enemyImpact arriba. fuegoVerdeSealPenalty queda sin peso: es un ajuste de mecánica de
+  // una carta concreta de Maléfica, no encaja en ninguna de las 7 categorías.
+  const structuralThreatBonus = computeStructuralThreatBonus(ctxBefore, ctxAfter, candidate);
+  const searchBonus = computeSearchBonus(ctxBefore, candidate) * villainWeights.fateWeight
+    + structuralThreatBonus * villainWeights.heroRemovalWeight
+    + computeFuegoVerdeSealPenalty(ctxBefore, candidate);
 
+  // structuralThreatBonus > 0 cubre el caso de un salto INTERMEDIO hacia la amenaza (acerca un
+  // Aliado sin llegar a reunir fuerza suficiente todavía): vanquishableCount no sube ese turno
+  // (el Aliado sigue sin estar en la misma ubicación que el héroe), así que sin este OR el
+  // −10 de USELESS_MOVE_PENALTY se comía el bono de acercamiento entero.
   const openedNewOptions = progress !== 0
     || vanquishableCount(ctxAfter) > vanquishableCount(ctxBefore)
     || affordableHandCount(ctxAfter) !== affordableHandCount(ctxBefore)
-    || ctxAfter.deadHandCardIds.length !== ctxBefore.deadHandCardIds.length;
+    || ctxAfter.deadHandCardIds.length !== ctxBefore.deadHandCardIds.length
+    || structuralThreatBonus > 0;
   const uselessPenalty = candidate.isRepositioning && !openedNewOptions ? WEIGHTS.USELESS_MOVE_PENALTY : 0;
 
   const total = progress + enemyImpact + economy + handSynergy + victoryPrep + intentionAlignment

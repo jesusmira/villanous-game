@@ -264,6 +264,8 @@ export function chooseCuervoAction(state: GameState): { action: ActionType; para
   const isSlotAvailable = (type: ActionType) =>
     (locDef?.actions ?? []).some((a, idx) => a.type === type && !coveredSlots.includes(idx));
 
+  // 1) Maldición: cubrir una ubicación nueva vale más que cualquier otra cosa que el Cuervo
+  // pueda hacer.
   if (player.villainId === 'maleficent' && ls && isSlotAvailable(ActionType.PLAY_CARD) && !locHasCurse(state, pc.playerId, pc.locationId)) {
     const blockedByHero = ls.heroCardInstIds.some(hid =>
       state.allCards[hid]?.effectIds.some(eid => getEffectDef(eid)?.blocksCursePlay),
@@ -281,13 +283,77 @@ export function chooseCuervoAction(state: GameState): { action: ActionType; para
     }
   }
 
+  // 2) Vencer: el motor (resolveCuervo) ya soporta VANQUISH perfectamente, pero antes esta
+  // función nunca lo pedía — el Cuervo podía "elegir" ir a Castillo por Primavera y, al llegar,
+  // limitarse a Ganar Poder, desperdiciando el viaje. Solo Aliados de la MISMA ubicación (el
+  // Cuervo no arrastra los de casillas adyacentes, a diferencia de Peloton).
+  if (isSlotAvailable(ActionType.VANQUISH) && ls && ls.heroCardInstIds.length > 0) {
+    for (const heroId of ls.heroCardInstIds) {
+      const hero = state.allCards[heroId];
+      if (!hero) continue;
+      const heroStr = getEffectiveStrength(state, heroId);
+      const needsMultiple = hero.effectIds.some(id => getEffectDef(id)?.requiresMultipleAlliesToVanquish);
+      const allies = ls.villainCardInstIds
+        .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+        .sort((a, b) => getEffectiveStrength(state, b) - getEffectiveStrength(state, a));
+      const chosen: CardInstId[] = [];
+      let total = 0;
+      for (const allyId of allies) {
+        chosen.push(allyId);
+        total += getEffectiveStrength(state, allyId);
+        if (total >= heroStr && (!needsMultiple || chosen.length >= 2)) break;
+      }
+      if (total >= heroStr) {
+        return { action: ActionType.VANQUISH, params: { cardInstId: heroId, allyInstIds: chosen } };
+      }
+    }
+  }
+
+  // 3) Mover Aliado/Objeto: completa un acercamiento de UN salto a un héroe que bloquea
+  // Maldiciones (p. ej. Primavera) — el Cuervo puede tomar la carta de CUALQUIERA de sus
+  // ubicaciones, no solo la de destino, igual que MOVE_ITEM_ALLY normal. Solo se propone si ya
+  // hay algo a un salto exacto: la aproximación gradual de varios saltos ya la cubre el
+  // movimiento normal del peón (ver nearbyAllyProgress en maleficent/intentions.ts).
+  if (isSlotAvailable(ActionType.MOVE_ITEM_ALLY)) {
+    const plugin = getPlugin(player.villainId);
+    const blockedLocIds = new Set(
+      plugin.locations
+        .filter(l => {
+          const locState = player.locationStates[l.id];
+          const hasCurse = locState.villainCardInstIds.some(id => state.allCards[id]?.cardType === CardType.CURSE);
+          if (hasCurse) return false;
+          return locState.heroCardInstIds.some(hid =>
+            state.allCards[hid]?.effectIds.some(eid => getEffectDef(eid)?.blocksCursePlay),
+          );
+        })
+        .map(l => l.id),
+    );
+    if (blockedLocIds.size > 0) {
+      for (const [srcLocId, srcLs] of Object.entries(player.locationStates)) {
+        const srcLocDef = plugin.locations.find(l => l.id === srcLocId);
+        if (!srcLocDef) continue;
+        const targetAdj = srcLocDef.adjacentIds.find(adjId => blockedLocIds.has(adjId));
+        if (!targetAdj) continue;
+        const cardId = srcLs.villainCardInstIds.find(id => {
+          const c = state.allCards[id];
+          return c?.cardType === CardType.ALLY || c?.cardType === CardType.ITEM;
+        });
+        if (cardId) {
+          return { action: ActionType.MOVE_ITEM_ALLY, params: { cardInstId: cardId, targetLocationId: targetAdj } };
+        }
+      }
+    }
+  }
+
+  // 4) Ganar Poder.
   if (isSlotAvailable(ActionType.GAIN_POWER)) return { action: ActionType.GAIN_POWER, params: {} };
 
-  const firstAvailable = (locDef?.actions ?? []).find((a, idx) =>
-    a.type !== ActionType.FATE && a.type !== ActionType.ACTIVATE_CARD && !coveredSlots.includes(idx),
-  );
-  if (firstAvailable?.type === ActionType.DISCARD && player.handInstIds.length > 0) {
-    return { action: ActionType.DISCARD, params: { cardInstIds: [player.handInstIds[0]] } };
+  // 5) Descartar: una carta realmente muerta (getDeadHandCards), no la primera de la mano a
+  // ciegas como antes.
+  if (isSlotAvailable(ActionType.DISCARD) && player.handInstIds.length > 0) {
+    const dead = getDeadHandCards(state, pc.playerId);
+    const toDiscard = player.handInstIds.find(id => dead.includes(id)) ?? player.handInstIds[0];
+    return { action: ActionType.DISCARD, params: { cardInstIds: [toDiscard] } };
   }
   return { action: ActionType.GAIN_POWER, params: { amountOverride: 0 } };
 }
@@ -338,7 +404,12 @@ function genActivateCard(state: GameState, playerId: PlayerId, slotIdx: number):
 function genDiscard(state: GameState, playerId: PlayerId, slotIdx: number): ActionCandidate[] {
   const player = getPlayer(state, playerId);
   if (player.handInstIds.length === 0 || !canDiscard(state, playerId, slotIdx).valid) return [];
-  const discardable = player.handInstIds.filter(id => state.allCards[id]?.cardType !== CardType.ITEM);
+  // Los Objetos SÍ son descartables — ni discardFromHand ni canDiscard los restringen, y el
+  // jugador humano puede descartarlos libremente en la UI (GameBoard.tsx no filtra por tipo).
+  // Excluirlos aquí (como hacía antes) dejaba sin efecto cualquier deadCards() que marcara un
+  // Objeto suelto como muerto: se filtraba en silencio antes de llegar a una candidata real —
+  // en Maléfica, los Objetos son el 32-42% de la mano durante una sequía de Maldiciones.
+  const discardable = player.handInstIds;
   if (discardable.length === 0) return [];
 
   const dead = getDeadHandCards(state, playerId).filter(id => discardable.includes(id));

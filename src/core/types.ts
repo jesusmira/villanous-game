@@ -1,4 +1,4 @@
-import type { IntentionDef } from './ai/intent/types';
+import type { IntentionDef, StructuralThreatDef, VillainWeightProfile } from './ai/intent/types';
 
 export type PlayerId = string;
 export type VillainId = 'maleficent' | 'hook' | 'jhon';
@@ -263,6 +263,18 @@ export interface VillainPlugin {
    * casillas DISCARD para ciclar el mazo, y el contexto de IA las penaliza en mano.
    */
   deadCards?: (state: GameState, self: PlayerState) => CardInstId[];
+  /**
+   * Héroes/obstáculos que bloquean estructuralmente el único camino a la victoria de este
+   * villano (no solo tapan ranuras) — ver core/ai/intent/structuralThreats.ts para cómo se
+   * puntúan (penalización mientras vivan + bono estructural al vencerlos/acercarse).
+   */
+  structuralThreats?: StructuralThreatDef[];
+  /**
+   * Perfil de pesos dinámicos por categoría (ver VillainWeightProfile) — multiplica el score de
+   * cada intención y de los términos de ActionScoreBreakdown que encajan con una de las 7
+   * categorías. Si se omite, se usa DEFAULT_VILLAIN_WEIGHTS (todo en 1.0, no-op).
+   */
+  aiWeights?: VillainWeightProfile;
 }
 
 export interface GameSetupOptions {

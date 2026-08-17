@@ -2,13 +2,40 @@
 // Sustituye a ai.ts (heurística implícita por pesos) por 3 intenciones con nombre propio.
 import { CardType } from '../../types';
 import type { CardInstId, GameState, PlayerState } from '../../types';
-import type { AIContext, IntentionDef } from '../../ai/intent/types';
+import type { AIContext, IntentionDef, StructuralThreatDef, VillainWeightProfile } from '../../ai/intent/types';
 import { CardDefId, EffectId } from '../effectIds';
 import { lerpCurve } from '../../ai/intent/curve';
+import { evaluateFixedThreatPenalty } from '../../ai/intent/structuralThreats';
+import { DEFAULT_VILLAIN_WEIGHTS } from '../../ai/intent/villainWeights';
 
-function hasHeroInKingdom(ctx: AIContext, defId: string): boolean {
-  return ctx.locations.some(l => l.heroCardInstIds.some(id => ctx.state.allCards[id]?.defId === defId));
-}
+/** Perfil de pesos dinámicos de Jhon (ver VillainWeightProfile) — en 1.0. Es el villano
+ *  dominante (76-92% de victorias en ambos emparejamientos); el objetivo de equilibrio se
+ *  persigue ajustando a Garfio/Maléfica, no reforzando más a Jhon. */
+export const aiWeights: VillainWeightProfile = { ...DEFAULT_VILLAIN_WEIGHTS };
+
+/** Amenazas estructurales de Jhon: Robin Hood/Rey Ricardo son binarias (drenan Poder futuro /
+ *  bloquean Efectos mientras vivan, sin que se "inviertan" con Aliados como un bloqueante de
+ *  fuerza) — Poder retenido (Little John vía Robar a los Ricos) es un recurso acumulado que
+ *  escala con la cantidad en vez de ser fijo. Ninguna tiene vanquishBonus/approachBonus: a
+ *  diferencia de Maléfica/Garfio, Jhon ya recibe crédito por vencer héroes vía la intención
+ *  universal ELIMINATE_HEROES y OWN_HERO_BLOCKAGE (actionScoring.ts) — esto es refactor puro
+ *  (mismos números que ya tenía JHON_GENERATE_POWER), no comportamiento nuevo. */
+const robinHoodThreat: StructuralThreatDef = {
+  id: 'jhon-robin-hood',
+  isThreatHero: (state, heroId) => state.allCards[heroId]?.defId === CardDefId.JHON_ROBIN_HOOD,
+  fixedPenaltyWhileAlive: 35,
+};
+const reyRicardoThreat: StructuralThreatDef = {
+  id: 'jhon-rey-ricardo',
+  isThreatHero: (state, heroId) => state.allCards[heroId]?.defId === CardDefId.JHON_REY_RICARDO,
+  fixedPenaltyWhileAlive: 40,
+};
+const storedPowerThreat: StructuralThreatDef = {
+  id: 'jhon-stored-power',
+  isThreatHero: (state, heroId) => (state.allCards[heroId]?.storedPower ?? 0) > 0,
+  scaledPenalty: (state, heroId) => (state.allCards[heroId]?.storedPower ?? 0) * 3,
+};
+export const structuralThreats: StructuralThreatDef[] = [robinHoodThreat, reyRicardoThreat, storedPowerThreat];
 
 /** Generar poder: su condición de victoria son 20 Monedas SIN tope — a diferencia de la
  *  intención universal (que asume rendimientos decrecientes), aquí la urgencia crece cuanto
@@ -21,10 +48,11 @@ const generatePowerIntention: IntentionDef = {
   id: 'JHON_GENERATE_POWER',
   name: 'Generar poder (sin techo)',
   polarity: 1, // LOGRO: sube con el Poder, que es directamente su condición de victoria
+  category: 'power',
   evaluate: (ctx: AIContext) => {
     let v = lerpCurve(ctx.player.power, [[0, 5], [10, 25], [14, 60], [18, 120], [20, 160]]);
-    if (hasHeroInKingdom(ctx, CardDefId.JHON_ROBIN_HOOD)) v -= 35;
-    if (hasHeroInKingdom(ctx, CardDefId.JHON_REY_RICARDO)) v -= 40;
+    v -= evaluateFixedThreatPenalty(ctx, robinHoodThreat);
+    v -= evaluateFixedThreatPenalty(ctx, reyRicardoThreat);
     // Poder retenido por un héroe (Robar a los Ricos/Little John): mientras siga ahí, es Poder
     // que Juan ya "tiene" en la práctica pero no puede usar — derrotar a ese héroe lo devuelve de
     // golpe, tan real y urgente como vencer a Robin Hood/Rey Ricardo. Mismo mecanismo (penalización
@@ -32,11 +60,7 @@ const generatePowerIntention: IntentionDef = {
     // escalado con la cantidad: a diferencia de Robin Hood/Rey Ricardo (amenaza fija), el tamaño
     // real del problema SÍ varía carta a carta — puede ser 4 Monedas o pueden ser 100+ si "Robar a
     // los Ricos" se repite varias veces sobre el mismo héroe sin que nadie lo derrote.
-    const storedPowerHeld = ctx.locations.reduce(
-      (sum, l) => sum + l.heroCardInstIds.reduce((s2, id) => s2 + (ctx.state.allCards[id]?.storedPower ?? 0), 0),
-      0,
-    );
-    v -= storedPowerHeld * 3;
+    v -= evaluateFixedThreatPenalty(ctx, storedPowerThreat);
     // Bono directo por cada héroe ya encerrado en La Prisión: fuera de ahí sigue bloqueando
     // ranuras (ya lo recoge el término estructural OWN_HERO_BLOCKAGE en actionScoring.ts), pero
     // encerrarlo es un logro propio que merece su propio crédito — sin esto, Encarcelamiento
@@ -85,6 +109,7 @@ const stealPowerBackIntention: IntentionDef = {
   id: 'JHON_STEAL_POWER_BACK',
   name: 'Robar poder de vuelta',
   polarity: -1,
+  category: 'power',
   evaluate: (ctx: AIContext) => {
     let v = 0;
     for (const loc of ctx.locations) {
@@ -104,6 +129,7 @@ const playIncomeCardsIntention: IntentionDef = {
   id: 'JHON_PLAY_INCOME_CARDS',
   name: 'Jugar cartas de ingresos',
   polarity: -1,
+  category: 'power',
   evaluate: (ctx: AIContext) => {
     const ordenInHandCount = ctx.player.handInstIds.filter(id => {
       const defId = ctx.state.allCards[id]?.defId;

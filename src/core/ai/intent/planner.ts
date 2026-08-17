@@ -21,6 +21,7 @@ import { chooseDemoslesResolution } from '../../villains/hook/aiHelpers';
 import type { OpponentProfile } from '../opponentModel';
 import { buildAIContext } from './context';
 import { universalIntentions } from './universalIntentions';
+import { DEFAULT_VILLAIN_WEIGHTS, weightForCategory } from './villainWeights';
 import { generateSlotCandidates, generatePayToDiscardCandidates, chooseCuervoAction } from './legalMoves';
 import { scoreAction } from './actionScoring';
 import { logTurnAudit } from './auditor';
@@ -60,7 +61,13 @@ export function chooseIntention(
 ): { chosen: ScoredIntention; all: ScoredIntention[]; turnsToGoalEstimate: number } {
   const ctx = buildAIContext(state, playerId, profile);
   const defs: IntentionDef[] = [...universalIntentions, ...(ctx.plugin.intentions ?? [])];
-  const all = defs.map(i => ({ ...i, score: i.evaluate(ctx) })).sort((a, b) => b.score - a.score);
+  // Capa de pesos dinámicos por villano (ver villainWeights.ts): multiplica el score de cada
+  // intención por el peso de su categoría antes de comparar — con todos los pesos en 1.0 (valor
+  // por defecto) esto es un no-op, idéntico a la selección de antes de esta capa.
+  const villainWeights = ctx.plugin.aiWeights ?? DEFAULT_VILLAIN_WEIGHTS;
+  const all = defs
+    .map(i => ({ ...i, score: i.evaluate(ctx) * weightForCategory(villainWeights, i.category) }))
+    .sort((a, b) => b.score - a.score);
   return { chosen: all[0], all, turnsToGoalEstimate: ctx.turnsToGoalEstimate };
 }
 
@@ -362,6 +369,33 @@ function estimateOpponentThreat(state: GameState, opponentId: PlayerId, profile:
   return scoreSum;
 }
 
+/**
+ * Coste de LLEGAR a un destino, invisible al resto del rollout: `movePawn` dispara efectos
+ * ON_PAWN_ARRIVES (p. ej. Fuego Verde de Maléfica se autodescarta al pisarlo) ANTES de que
+ * empiece a puntuarse ninguna acción de la fase ACTIVATE — como todo lo de aquí en adelante se
+ * puntúa por DELTA ("no hacer nada vale 0 por construcción", ver bestActivateRollout), esa pérdida
+ * de progreso quedaba fuera de toda comparación: dos destinos con el mismo `scoreSum` de ACTIVATE
+ * podían empatar aunque uno hubiera destruido en silencio una Maldición ya puesta. Medido con el
+ * simulador: el 100% de las Maldiciones perdidas por Maléfica (49/49 en 30 partidas) eran Fuego
+ * Verde autodestruido por su propio movimiento, nunca Sueño Sin Sueños ni Selva de Mortales
+ * Espinos (que sí se puntúan bien, al ser consecuencia de una acción PLAY_CARD ya evaluada por
+ * scoreAction).
+ *
+ * Usa quickStateValue (mismo peso ownProgress×8 que ya arbitra Cuervo/Sheriff/Trampa) y no
+ * WEIGHTS.PROGRESS (0.35): probado primero con WEIGHTS.PROGRESS, la pérdida de Fuego Verde apenas
+ * bajó (1.64→1.43/partida) porque -8.75 puntos no compite con el resto de motivos para visitar esa
+ * ubicación (p. ej. ser la única con Vencer disponible). Para Maléfica el progreso no es un
+ * recurso que se recupera solo (a diferencia del Poder de Jhon, motivo por el que WEIGHTS.PROGRESS
+ * es deliberadamente bajo): perder una Maldición ya puesta cuesta de media 12-30 rondas reponerla
+ * (ver roundsToNthCurse en el diagnóstico), así que aquí sí debe pesar como el resto de decisiones
+ * de "a qué ubicación conviene ir".
+ */
+function arrivalProgressCost(
+  state: GameState, moved: GameState, playerId: PlayerId, chosen: IntentionDef, profile: OpponentProfile | undefined,
+): number {
+  return quickStateValue(moved, playerId, chosen, profile) - quickStateValue(state, playerId, chosen, profile);
+}
+
 function pickMoveDestination(
   state: GameState, playerId: PlayerId, chosen: IntentionDef, profile: OpponentProfile | undefined,
 ): LocationId {
@@ -395,13 +429,15 @@ function pickMoveDestination(
     .map(d => {
       const moved = movePawn(state, playerId, d.id);
       const { val } = bestActivateRollout(moved, playerId, chosen, profile, 1);
-      return { id: d.id, hint: val };
+      const arrivalCost = arrivalProgressCost(state, moved, playerId, chosen, profile);
+      return { id: d.id, hint: val + arrivalCost };
     })
     .sort((a, b) => b.hint - a.hint)
     .slice(0, MOVE_BREADTH);
 
   const opponent = state.players.find(p => p.id !== playerId);
   const evaluated = hinted.map(({ id }) => {
+    const arrivalCost = arrivalProgressCost(state, movePawn(state, playerId, id), playerId, chosen, profile);
     const { finalState, scoreSum, actionsCount } = simulateTurnAtDest(state, playerId, id, chosen, profile);
     const threat = opponent ? estimateOpponentThreat(finalState, opponent.id, profile) : 0;
     // "Hizo algo" cuenta CUALQUIER acción real tomada (incluida Descartar para ciclar la mano,
@@ -411,7 +447,7 @@ function pickMoveDestination(
     // nunca se distinguía de un destino genuinamente sin nada que hacer, y el "no hacer nada"
     // (val=0 exacto) le ganaba siempre a Descartar (val ligeramente negativo) — la IA se quedaba
     // rebotando para siempre entre ubicaciones sin salida, ignorando la única que sí progresaba.
-    return { destId: id, val: scoreSum - threat * 0.4, didSomething: actionsCount > 0, scoreSum, threat };
+    return { destId: id, val: scoreSum + arrivalCost - threat * 0.4, didSomething: actionsCount > 0, scoreSum, threat };
   });
 
   let best = evaluated.slice().sort((a, b) => b.val - a.val)[0];
@@ -451,8 +487,10 @@ export function planTurn(
       // humano) — se compara quedarse vs la mejor alternativa de moverse.
       const stay = runActivateSequence(skipMove(s, playerId), playerId, chosen, profile);
       const dest = pickMoveDestination(s, playerId, chosen, profile);
-      const moved = runActivateSequence(movePawn(s, playerId, dest), playerId, chosen, profile);
-      s = moved.scoreSum > stay.scoreSum ? movePawn(s, playerId, dest) : skipMove(s, playerId);
+      const movedState = movePawn(s, playerId, dest);
+      const arrivalCost = arrivalProgressCost(s, movedState, playerId, chosen, profile);
+      const moved = runActivateSequence(movedState, playerId, chosen, profile);
+      s = moved.scoreSum + arrivalCost > stay.scoreSum ? movedState : skipMove(s, playerId);
     } else {
       const plugin = getPlugin(player.villainId);
       const dests = plugin.locations.filter(loc => loc.id !== player.pawnLocationId && !player.locationStates[loc.id]?.isLocked);

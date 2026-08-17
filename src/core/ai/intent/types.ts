@@ -86,10 +86,72 @@ export interface IntentionDef {
    * cae a 0 al resolverse) — justo la trampa de gradiente que este campo evita.
    */
   polarity: 1 | -1;
+  /** Categoría para el perfil de pesos dinámicos por villano (ver VillainWeightProfile más abajo
+   *  y core/ai/intent/villainWeights.ts) — `chooseIntention()` multiplica `evaluate(ctx)` por
+   *  `profile[categoria + 'Weight']` antes de comparar intenciones entre sí. */
+  category: WeightCategory;
+}
+
+// ─── Perfil de pesos dinámicos por villano ─────────────────────────────────────────
+// Capa multiplicativa por encima del motor de intenciones/puntuación ya existente (no sustituye
+// ninguna lógica): cada intención y cada término de ActionScoreBreakdown que encaja con una de
+// estas 7 categorías se multiplica por el peso correspondiente del VillainPlugin.aiWeights antes
+// de sumarse — así un villano puede, sin código nuevo, priorizar más/menos una categoría entera
+// (p. ej. Garfio con más peso en `fate`, ya que su búsqueda de Peter Pan depende de cavar su
+// propio mazo de Destino). Pesos en 1.0 = comportamiento idéntico al de antes de esta capa
+// (no-op, provable con el simulador).
+export type WeightCategory =
+  | 'objective' | 'heroRemoval' | 'fate' | 'power' | 'combo' | 'pressure' | 'locationValue';
+
+export interface VillainWeightProfile {
+  objectiveWeight: number;
+  heroRemovalWeight: number;
+  fateWeight: number;
+  powerWeight: number;
+  comboWeight: number;
+  pressureWeight: number;
+  /** OJO: `computeLocationValue()` (locationValue.ts) no está conectado a NINGUNA decisión hoy —
+   *  dos intentos anteriores de usarla (preordenado de destino, desempate) empeoraron el
+   *  simulador y se revirtieron (ver memoria project_locationvalue_calibration_failed). Este peso
+   *  existe para completar el perfil de 7 categorías pedido, pero no tiene ningún efecto
+   *  observable en el juego mientras esa señal siga sin conectarse a una decisión real. */
+  locationValueWeight: number;
 }
 
 export interface ScoredIntention extends IntentionDef {
   score: number;
+}
+
+// ─── Amenazas estructurales ─────────────────────────────────────────────────────────
+// Generaliza un patrón que aparecía reinventado por villano (héroe único que bloquea el
+// camino a la victoria de Maléfica/Garfio/Jhon, cada uno con su propia penalización a mano) en
+// un mecanismo declarativo: cada VillainPlugin lista sus amenazas, y el motor común
+// (structuralThreats.ts) se encarga de puntuarlas — tanto la penalización de "sigue viva" (para
+// usar dentro de la intención propia del villano) como el bono estructural de vencerla/acercarse
+// (independiente de la intención elegida ese turno, en actionScoring.ts).
+export interface StructuralThreatDef {
+  id: string;
+  /** True si el héroe `heroId` cuenta como esta amenaza. */
+  isThreatHero: (state: GameState, heroId: CardInstId) => boolean;
+  /** Filtro opcional de ubicaciones donde la amenaza sigue siendo relevante (p. ej. Maléfica:
+   *  una ubicación ya maldita deja de contar aunque el héroe siga ahí). Por defecto, todas. */
+  locationStillRelevant?: (ctx: AIContext, locId: LocationId) => boolean;
+  /** Amenaza "de hueco de fuerza" — se vence acumulando Aliados >= Fuerza del héroe (Primavera de
+   *  Maléfica, Burla/Tic Tac de Garfio). Habilita tanto la penalización por ubicación bloqueada
+   *  como el bono estructural de vencer/acercarse. Omitir para amenazas binarias o por recurso
+   *  (ver `fixedPenaltyWhileAlive`/`scaledPenalty`). */
+  strengthGap?: {
+    basePenalty: number;
+    perRemaining: number;
+    vanquishBonus: number;
+    approachBonusPerUnit: number;
+  };
+  /** Penalización fija mientras exista al menos un héroe de esta amenaza en el reino — amenaza
+   *  binaria, no se "invierte" contra ella con Aliados (Robin Hood/Rey Ricardo de Jhon). */
+  fixedPenaltyWhileAlive?: number;
+  /** Penalización escalada por una cantidad propia del héroe, sumada sobre todos los héroes de
+   *  esta amenaza presentes (Poder retenido por Little John). */
+  scaledPenalty?: (state: GameState, heroId: CardInstId) => number;
 }
 
 /** Versión serializable de ScoredIntention (sin la función `evaluate`) — TurnAudit cruza el

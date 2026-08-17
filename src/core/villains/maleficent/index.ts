@@ -4,7 +4,7 @@ import { getPlayer } from '../../engine/stateHelpers';
 import { effects } from './effects';
 import { locations, villainCardDefs, fateCardDefs } from './cards';
 import { conditionHandlers } from './resolvers';
-import { intentions, deadCards } from './intentions';
+import { intentions, deadCards, structuralThreats, aiWeights } from './intentions';
 
 function checkWinCondition(state: GameState, playerId: PlayerId): boolean {
   const player = getPlayer(state, playerId);
@@ -43,4 +43,6 @@ export const maleficentPlugin: VillainPlugin = {
   conditionHandlers,
   intentions,
   deadCards,
+  structuralThreats,
+  aiWeights,
 };

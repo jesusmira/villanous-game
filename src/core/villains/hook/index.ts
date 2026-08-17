@@ -3,7 +3,7 @@ import { getPlayer, updatePlayer } from '../../engine/stateHelpers';
 import { CardDefId } from '../effectIds';
 import { effects } from './effects';
 import { locations, villainCardDefs, fateCardDefs, HookObjectiveStep, HookLocationId } from './cards';
-import { intentions, deadCards } from './intentions';
+import { intentions, deadCards, structuralThreats, aiWeights } from './intentions';
 import { conditionHandlers } from './resolvers';
 
 function onVanquish(state: GameState, playerId: PlayerId, heroInstId: CardInstId, heroLocId: LocationId): GameState {
@@ -63,4 +63,6 @@ export const hookPlugin: VillainPlugin = {
   conditionHandlers,
   intentions,
   deadCards,
+  structuralThreats,
+  aiWeights,
 };
