@@ -13,6 +13,7 @@ import { getEffectiveStrength } from '../../engine/stateHelpers';
 import { getEffectDef } from '../../villains/registry';
 import { CardDefPrefix } from '../../villains/effectIds';
 import { findPeterPan } from '../../villains/hook/aiHelpers';
+import { HookLocationId } from '../../villains/hook/cards';
 import { fuegoVerdeWouldSealCritical } from '../../villains/maleficent/intentions';
 import { computeStructuralThreatBonus } from './structuralThreats';
 import { DEFAULT_VILLAIN_WEIGHTS, weightForCategory } from './villainWeights';
@@ -97,6 +98,11 @@ const WEIGHTS = {
   // intentionAlignment/allyPlacement/DEAD_HAND_CARD encima) para no impedir jugarlo cuando de
   // verdad es la única opción que queda.
   FUEGO_VERDE_SEAL_PENALTY: 12,
+  // Ver computeJollyRogerGarrisonBonus: mismo orden de magnitud que ALLY_PLACEMENT_FIT (1.5) por
+  // ser el mismo tipo de señal (encaje Aliado↔objetivo real), pero contra la ubicación FIJA donde
+  // Peter Pan debe ser Vencido (Jolly Roger) en vez de contra su ubicación actual, que va
+  // cambiando turno a turno mientras se le acerca.
+  JR_GARRISON_FIT: 1.5,
 };
 
 function vanquishableCount(ctx: AIContext): number {
@@ -298,6 +304,37 @@ function computeFuegoVerdeSealPenalty(ctxBefore: AIContext, candidate: ActionCan
     : 0;
 }
 
+/** Ver WEIGHTS.JR_GARRISON_FIT: recompensa CONTINUA por Fuerza de Aliados estacionada en Jolly
+ *  Roger — el único sitio donde Garfio puede Vencer a Peter Pan (RuleEngine.ts:202-205: "Peter
+ *  Pan solo puede ser derrotado en el Jolly Roger"). Sin esto, jugar un Aliado en Jolly Roger
+ *  ANTES de que Peter Pan llegue ahí no sumaba nada más que DEVELOPMENT_ALLY (igual que jugarlo
+ *  en cualquier otro sitio): allyHeroFit/ALLY_PLACEMENT_FIT solo premia encaje con un héroe YA
+ *  presente EN ESA MISMA ubicación, así que la IA nunca pre-posicionaba Fuerza en Jolly Roger y
+ *  en cambio perseguía la ubicación ACTUAL de Peter Pan turno a turno — la Fuerza quedaba varada
+ *  donde él había estado, no donde hace falta para Vencerlo cuando por fin llega (partida real
+ *  analizada: Peter Pan terminó en Roca Calavera con 12 de Fuerza y solo 2 de Fuerza propia
+ *  esperándolo en Jolly Roger).
+ *
+ *  Objetivo dinámico = Fuerza efectiva ACTUAL de Peter Pan (igual que movePeterPanIntention:
+ *  `jrAllyStr >= ppStr`) — nada especulativo, se recalcula solo cuando el rival lo refuerza (p.
+ *  ej. Polvo de Hada). Antes de que Peter Pan aparezca en el reino no hay objetivo que fijar
+ *  (vale 0): en esa ventana ya domina la intención HOOK_FIND_PETER_PAN.
+ *
+ *  Solo se premia que la Fuerza en Jolly Roger SUBA (mismo patrón que `allyPlacement` más abajo:
+ *  nunca se penaliza que baje, para no crear la trampa de gradiente de "el logro se pierde al
+ *  completarlo" — ver polarity en IntentionDef) y se capa en `target` para no incentivar
+ *  amontonar Fuerza sin límite una vez ya alcanza. */
+function computeJollyRogerGarrisonBonus(ctxBefore: AIContext, ctxAfter: AIContext): number {
+  if (ctxBefore.player.villainId !== 'hook') return 0;
+  const pp = findPeterPan(ctxAfter.state, ctxAfter.player);
+  if (!pp) return 0;
+  const target = getEffectiveStrength(ctxAfter.state, pp.id);
+  if (target <= 0) return 0;
+  const jrStrength = (ctx: AIContext) =>
+    Math.min(target, ctx.locations.find(l => l.id === HookLocationId.JOLLY_ROGER)?.allyStrength ?? 0);
+  return Math.max(0, jrStrength(ctxAfter) - jrStrength(ctxBefore)) * WEIGHTS.JR_GARRISON_FIT;
+}
+
 export function scoreAction(
   ctxBefore: AIContext,
   candidate: ActionCandidate,
@@ -418,9 +455,12 @@ export function scoreAction(
   // que enemyImpact arriba. fuegoVerdeSealPenalty queda sin peso: es un ajuste de mecánica de
   // una carta concreta de Maléfica, no encaja en ninguna de las 7 categorías.
   const structuralThreatBonus = computeStructuralThreatBonus(ctxBefore, ctxAfter, candidate);
+  // computeJollyRogerGarrisonBonus pondera por 'objective' (como progress/victoryPrep): es
+  // preparación directa del objetivo de victoria (Vencer a PP en JR), no remoción de amenazas.
   const searchBonus = computeSearchBonus(ctxBefore, candidate) * villainWeights.fateWeight
     + structuralThreatBonus * villainWeights.heroRemovalWeight
-    + computeFuegoVerdeSealPenalty(ctxBefore, candidate);
+    + computeFuegoVerdeSealPenalty(ctxBefore, candidate)
+    + computeJollyRogerGarrisonBonus(ctxBefore, ctxAfter) * villainWeights.objectiveWeight;
 
   // structuralThreatBonus > 0 cubre el caso de un salto INTERMEDIO hacia la amenaza (acerca un
   // Aliado sin llegar a reunir fuerza suficiente todavía): vanquishableCount no sube ese turno

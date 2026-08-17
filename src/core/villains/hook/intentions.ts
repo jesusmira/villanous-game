@@ -27,7 +27,10 @@ import { HookLocationId, HookObjectiveStep } from './cards';
  * categoría 'combo'. Pendiente de intentar esa vía específica. */
 export const aiWeights: VillainWeightProfile = { ...DEFAULT_VILLAIN_WEIGHTS };
 
-function ppDistanceToJollyRoger(locId: string): number {
+/** Distancia (en pasos de adyacencia) desde `locId` hasta Jolly Roger, único sitio donde se
+ *  puede Vencer a Peter Pan (ver RuleEngine.ts:202-205). Exportada: `legalMoves.ts` la usa para
+ *  impedir que MOVE_HERO genere siquiera la opción de alejarlo (ver genMoveHero). */
+export function ppDistanceToJollyRoger(locId: string): number {
   if (locId === HookLocationId.JOLLY_ROGER) return 0;
   if (locId === HookLocationId.SKULL_ROCK) return 1;
   if (locId === HookLocationId.LAGOON) return 2;
@@ -72,10 +75,23 @@ const movePeterPanIntention: IntentionDef = {
   },
 };
 
-/** Amenaza estructural de Garfio: Burla (Objeto adjunto) y Tic Tac son los únicos héroes que
- *  bloquean CUALQUIER otro Vencer en su ubicación — máxima prioridad estructural, no solo
- *  disrupción genérica. basePenalty/perRemaining (30/8) son refactor puro, mismos valores que ya
- *  tenía. vanquishBonus/approachBonusPerUnit en 0: se probó copiar los valores ya calibrados de
+/** Amenaza estructural de Garfio: SOLO los héroes con Burla (Objeto adjunto) bloquean
+ *  CUALQUIER otro Vencer en su ubicación (regla real del motor, ver RuleEngine.ts:190-200:
+ *  "Debes derrotar primero a los Héroes con Burla") — máxima prioridad estructural.
+ *
+ *  Tic Tac se sacó de aquí (antes se trataba igual que Burla): su efecto real
+ *  (hook_tictac_hand_discard) es "si Garfio MUEVE EL PEÓN a su ubicación, descarta la mano" — un
+ *  coste situacional al visitar esa casilla, no un bloqueo de Vencer en ningún otro sitio, y
+ *  además NO es requisito de victoria (checkWinCondition en hook/index.ts solo mira
+ *  PETER_PAN_DEFEATED; TIC_TAC_DEFEATED es un paso de objetivo cosmético). Tratarlo con la misma
+ *  urgencia máxima que Burla gastaba Aliados/turnos en vencerlo sin necesidad, y por el camino
+ *  contribuía a que la Fuerza de Aliados nunca terminara de reunirse en Jolly Roger para Peter
+ *  Pan (ver project_hook_ai_redesign_jolly_roger). El coste real de Tic Tac (descarte de mano al
+ *  pisar su casilla) se modela aparte, en la elección de destino del peón (arrivalProgressCost /
+ *  pickMoveDestination en planner.ts), no como amenaza estructural.
+ *
+ *  basePenalty/perRemaining (30/8) son refactor puro, mismos valores que ya tenía.
+ *  vanquishBonus/approachBonusPerUnit en 0: se probó copiar los valores ya calibrados de
  *  Maléfica (15/2) y, medido con el simulador (N=60), empeoró justo el emparejamiento que se
  *  quería mejorar (Jhon vs Garfio: 23.3%→11.7% victorias de Garfio) — probablemente desvía
  *  Aliados/turnos hacia vencer protectores a costa de buscar/escoltar a Peter Pan, su cuello de
@@ -84,20 +100,19 @@ const movePeterPanIntention: IntentionDef = {
  *  otro villano — pendiente como tarea aparte. */
 const protectorThreat: StructuralThreatDef = {
   id: 'hook-protector',
-  isThreatHero: (state, heroId) =>
-    heroHasBurla(state, heroId) || state.allCards[heroId]?.defId === CardDefId.HOOK_TIC_TAC,
+  isThreatHero: (state, heroId) => heroHasBurla(state, heroId),
   strengthGap: { basePenalty: 30, perRemaining: 8, vanquishBonus: 0, approachBonusPerUnit: 0 },
 };
 
 export const structuralThreats: StructuralThreatDef[] = [protectorThreat];
 
-/** Eliminar protectores (Burla/Tic Tac): mientras vivan, bloquean CUALQUIER otro Vencer —
- *  máxima prioridad estructural, no solo disrupción genérica. Urgencia CONTINUA (el hueco de
- *  Fuerza que falta por cubrir, no un salto de golpe) para que cada Aliado invertido rebaje la
- *  urgencia un poco — y con polarity −1, rebajarla puntúa como logro al puntuar la acción. */
+/** Eliminar protectores con Burla: mientras vivan, bloquean CUALQUIER otro Vencer — máxima
+ *  prioridad estructural, no solo disrupción genérica. Urgencia CONTINUA (el hueco de Fuerza que
+ *  falta por cubrir, no un salto de golpe) para que cada Aliado invertido rebaje la urgencia un
+ *  poco — y con polarity −1, rebajarla puntúa como logro al puntuar la acción. */
 const eliminateProtectorsIntention: IntentionDef = {
   id: 'HOOK_ELIMINATE_PROTECTORS',
-  name: 'Eliminar protectores (Burla/Tic Tac)',
+  name: 'Eliminar protectores con Burla',
   polarity: -1,
   category: 'heroRemoval',
   evaluate: (ctx: AIContext) => evaluateStrengthGapPenalty(ctx, protectorThreat),

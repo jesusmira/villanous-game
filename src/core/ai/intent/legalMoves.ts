@@ -8,6 +8,7 @@ import type { ActivateCardCtx, CardInstId, GameState, LocationId, PlayerId } fro
 import { getPlugin, getEffectDef } from '../../villains/registry';
 import { EffectId, CardDefId } from '../../villains/effectIds';
 import { HookLocationId } from '../../villains/hook/cards';
+import { ppDistanceToJollyRoger } from '../../villains/hook/intentions';
 import { getPlayer, getEffectiveStrength, computeKingdomCostMod } from '../../engine/stateHelpers';
 import { getCoveredSlotIndices } from '../../engine/slotHelpers';
 import {
@@ -167,6 +168,13 @@ function genMoveHero(state: GameState, playerId: PlayerId, slotIdx: number): Act
     for (const heroId of ls.heroCardInstIds) {
       const hero = state.allCards[heroId];
       for (const adjId of curLocDef.adjacentIds) {
+        // Peter Pan solo puede Vencerse en Jolly Roger (RuleEngine.ts:202-205): mover el peón,
+        // esta enumeración NUNCA debe ofrecer alejarlo o dejarlo a la misma distancia — de lo
+        // contrario, si ese turno resulta elegida otra intención distinta de "mover a PP hacia
+        // Jolly Roger" (p. ej. Ganar Poder), nada penaliza específicamente retrocederlo y puede
+        // acabar eligiéndose por casualidad (ver project_hook_ai_redesign_jolly_roger).
+        if (hero?.defId === CardDefId.HOOK_PETER_PAN
+          && ppDistanceToJollyRoger(adjId) >= ppDistanceToJollyRoger(locId)) continue;
         if (!canMoveHero(state, playerId, heroId, adjId, slotIdx).valid) continue;
         const destName = plugin.locations.find(l => l.id === adjId)?.name ?? adjId;
         out.push({
