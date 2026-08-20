@@ -92,6 +92,17 @@ const playCursesIntention: IntentionDef = {
     // con este término y la acción de jugarla parecía "neutra" en vez de resolver la urgencia
     // (trampa de gradiente: coincidencia numérica entre "vacía la mano" y "reduce lo que falta").
     if (cursesInHand === 0) v += (4 - ctx.player.handInstIds.length) * 1.5;
+    // Contrapeso a "Preparar combo" (intención universal, sin techo — sube 6 por cada punto de
+    // Fuerza que falte para vencer al bloqueante): mismo patrón ya validado para Príncipe Juan
+    // (ver memoria project_jhon_prepare_combo_counterweight) — cuando el hueco de Fuerza es
+    // grande, "Preparar combo" puede dominar la elección de intención turno tras turno y dejar
+    // maldiciones jugables sin plantar (confirmado con _diag_maleficent.ts: en la mayoría de
+    // turnos con Maldición en mano y Poder de sobra que no se jugó, la intención elegida era
+    // "Preparar combo" persiguiendo al bloqueante). Sube JUNTO a Preparar combo en vez de dejar
+    // que una ahogue a la otra, usando el mismo "hueco" (heroStrength − allyStrength por
+    // ubicación) que ya usa esa intención.
+    const heroGap = ctx.locations.reduce((sum, l) => sum + Math.max(0, l.heroStrength - l.allyStrength), 0);
+    v += Math.min(heroGap, 20) * 2.5;
     return v;
   },
 };

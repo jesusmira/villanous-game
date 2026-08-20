@@ -172,12 +172,25 @@ function maybeUseRaven(
   for (const loc of openLocs) {
     const afterRaven = activateRaven(s, playerId, ravenId, loc.id);
     let resolved = afterRaven;
+    let resolvedAction: ActionType | undefined;
     if (resolved.pendingCuervo) {
       const { action, params } = chooseCuervoAction(resolved);
+      resolvedAction = action;
       resolved = resolveCuervo(resolved, action, params);
     }
     const val = quickValue(resolved, playerId, chosen, profile);
-    if (val > bestVal) { bestVal = val; bestDest = loc.id; }
+    // Empate se acepta SOLO si el Cuervo resuelve algo productivo (jugar carta, Vencer, o mover
+    // Aliado/Objeto) — nunca por Ganar Poder/Descartar de relleno. El Cuervo es él mismo un Aliado
+    // con Fuerza propia: reposicionarlo por un empate irrelevante puede alejarlo de una ubicación
+    // donde su Fuerza hace falta para un Vencer real más tarde en el mismo turno (fase ACTIVATE,
+    // evaluada después de este paso). Probado primero sin este filtro: activaciones subieron de
+    // 0.55 a 2.17/partida pero el 57.5% resolvía Ganar Poder de relleno y las victorias bajaron de
+    // 5/40 a 2/40 — revertido y sustituido por este criterio más estricto.
+    const isProductive = resolvedAction === ActionType.PLAY_CARD
+      || resolvedAction === ActionType.VANQUISH
+      || resolvedAction === ActionType.MOVE_ITEM_ALLY;
+    const beats = isProductive ? val > bestVal - 1e-9 : val > bestVal;
+    if (beats) { bestVal = val; bestDest = loc.id; }
   }
   if (bestDest) {
     s = activateRaven(s, playerId, ravenId, bestDest);

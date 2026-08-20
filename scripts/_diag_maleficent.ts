@@ -11,6 +11,8 @@ import { getEffectDef } from '../src/core/villains/registry';
 
 const GAMES = Number(process.argv[2]) || 30;
 const MAX_AI_STEPS = 300;
+const MAX_OTHER_SAMPLES = 15;
+const otherCaseSamples: string[] = [];
 
 interface GameStats {
   winner: string | null;
@@ -28,6 +30,9 @@ interface GameStats {
   churnDuringOppTurn: number; // pérdidas ocurridas en el turno de Jhon (p. ej. Selva al jugar un Héroe, o Estéfano forzando el movimiento)
   frozenHandTurns: number; // turnos con 0 maldiciones en mano donde ADEMÁS no entró ninguna carta nueva (mano congelada)
   curseTurnPlayCounts: Record<number, number>; // por turno de Maléfica: cuántas "Jugar <Maldición>" hubo (0,1,2,3+) — ¿aprovecha Bosque (2 ranuras) + Cuervo para varias en el mismo turno?
+  curseInHandNotPlayed_cantAfford: number; // turno con maldición en mano, 0 jugadas, y Poder < coste de la más barata
+  curseInHandNotPlayed_endedOnCursedLoc: number; // turno con maldición en mano, 0 jugadas, terminó en una ubicación YA maldita (jugarla ahí sería redundante)
+  curseInHandNotPlayed_other: number; // resto: podía pagarla y terminó en ubicación sin maldecir, pero no la jugó
   raventurnActions: Record<string, number>; // qué tipo de acción resolvió el Cuervo cada vez que se activó (para ver si juega carta/descarta o solo gana poder)
   blockerHeroTurnsAlive: number[]; // por cada bloqueante que llegó a desaparecer: turnos de Maléfica que estuvo vivo
   blockerHeroTurnsAliveStillUp: number[]; // bloqueantes que siguen en pie al final de la partida
@@ -96,6 +101,7 @@ function playGame(startingPlayerIndex: 0 | 1): GameStats {
     curseChurnEvents: 0, churnByDefId: {}, churnDuringOwnTurn: 0, churnDuringOppTurn: 0,
     frozenHandTurns: 0, blockerHeroTurnsAlive: [], blockerHeroTurnsAliveStillUp: [],
     handTypeCountsOnZeroCurse: {}, curseTurnPlayCounts: {}, raventurnActions: {},
+    curseInHandNotPlayed_cantAfford: 0, curseInHandNotPlayed_endedOnCursedLoc: 0, curseInHandNotPlayed_other: 0,
   };
   let lastCovered = 0;
   let lastCursedSet = malCursedLocSet(s, malId);
@@ -154,6 +160,34 @@ function playGame(startingPlayerIndex: 0 | 1): GameStats {
       ).length;
       stats.malPlayCurseActions += cursePlaysThisTurn;
       stats.curseTurnPlayCounts[cursePlaysThisTurn] = (stats.curseTurnPlayCounts[cursePlaysThisTurn] ?? 0) + 1;
+
+      // Por qué una Maldición disponible en mano no se jugó este turno: ¿no podía pagarla, terminó
+      // en una ubicación ya maldecida (jugarla ahí sería redundante), o ninguna de las dos (caso a
+      // investigar: pudo pagarla, la ubicación final estaba libre, y aun así no la jugó)?
+      if (cursesBefore > 0 && cursePlaysThisTurn === 0) {
+        const pBefore = s.players.find(pl => pl.id === malId)!;
+        const curseCosts = pBefore.handInstIds
+          .filter(id => s.allCards[id]?.cardType === CardType.CURSE)
+          .map(id => s.allCards[id]!.baseCost);
+        const cheapestCurse = Math.min(...curseCosts);
+        const pFinal = final.players.find(pl => pl.id === malId)!;
+        const endedOnCursedLoc = pFinal.pawnLocationId
+          ? malCursedLocSet(s, malId).has(pFinal.pawnLocationId)
+          : false;
+        if (pBefore.power < cheapestCurse) stats.curseInHandNotPlayed_cantAfford++;
+        else if (endedOnCursedLoc) stats.curseInHandNotPlayed_endedOnCursedLoc++;
+        else {
+          stats.curseInHandNotPlayed_other++;
+          if (otherCaseSamples.length < MAX_OTHER_SAMPLES && audit) {
+            const curseAlts = audit.ignoredAlternatives.filter(a => curseNameRe.test(a.label));
+            otherCaseSamples.push(
+              `ronda ${s.roundNumber}, Poder=${pBefore.power}, mano=[${curseCosts.map(c => `coste${c}`).join(',')}], `
+              + `intención=${audit.chosenIntention.name}, acciones=[${audit.actionsTaken.map(a => a.label).join(' | ')}], `
+              + `alternativas de Maldición vistas=[${curseAlts.map(a => `${a.label}=${a.total.toFixed(1)}`).join(' | ') || 'NINGUNA (no se generó como candidata)'}]`,
+            );
+          }
+        }
+      }
 
       // Qué acción resolvió el Cuervo cada vez que se activó este turno (¿solo Gana Poder, o
       // aprovecha también Usar Carta/Vencer/Mover/Descartar?).
@@ -285,6 +319,16 @@ for (const g of all) {
 const curseTurnGrandTotal = Object.values(curseTurnTotals).reduce((a, b) => a + b, 0) || 1;
 for (const n of Object.keys(curseTurnTotals).map(Number).sort((a, b) => a - b)) {
   console.log(`  ${n} Maldición(es) en el turno: ${curseTurnTotals[n]} turnos (${(100 * curseTurnTotals[n] / curseTurnGrandTotal).toFixed(1)}%)`);
+}
+
+console.log(`\n--- Maldición en mano pero 0 jugadas ese turno: ¿por qué? ---`);
+console.log(`No podía pagar ninguna (Poder < coste mínimo): ${avg(all.map(g => g.curseInHandNotPlayed_cantAfford))}/partida`);
+console.log(`Terminó en ubicación YA maldecida (jugarla sería redundante): ${avg(all.map(g => g.curseInHandNotPlayed_endedOnCursedLoc))}/partida`);
+console.log(`Resto (podía pagarla, ubicación final libre, no la jugó): ${avg(all.map(g => g.curseInHandNotPlayed_other))}/partida`);
+
+if (otherCaseSamples.length > 0) {
+  console.log(`\n--- Muestras del caso "Resto" (podía pagar, ubicación libre, no la jugó) ---`);
+  for (const line of otherCaseSamples) console.log(`  ${line}`);
 }
 
 console.log(`\n--- Qué acción resuelve el Cuervo cuando se activa (agregado) ---`);

@@ -1180,3 +1180,85 @@ Nottingham
 La cárcel
     vacío
     Gana 3 de Poder | Juega una carta | Descarta cartas
+
+
+Patio
+    Descartar cartas | Mover un objeto o un aliado
+    Ganar 2 de poder | Jugar una carta
+Laberinto de setos
+    Jugar una carta | Activar
+    Ganar 3 de poder | Jugar una carta
+Bosque de Tulgey
+    Destino | Jugar una carta
+    Descartar cartas | Derrotar
+Casa del Conejo Blanco
+    Jugar una carta | Ganar 1 de poder
+    Activar | Destino
+
+🟥 Cartas de Villano — Reina de Corazones
+(30 cartas en total)
+
+Aliados
+Soldados
+
+Trébol × 2
+
+Diamante × 2
+
+Corazón × 2
+
+Pica × 2
+
+El Rey × 1
+
+Tweedle Dee & Tweedle Dum × 1
+
+Efectos
+¡Que le corten la cabeza! × 3
+
+Efectua el tiro × 3
+
+Por orden de la Reina × 2
+
+Te hace más pequeño × 2
+
+Muy feliz no‑cumpleaños × 2
+
+Condiciones
+Furia × 2
+
+Juicio × 2
+
+Objetos
+Lanza × 3
+
+Cronómetro × 1
+
+🟦 Cartas de Destino (Héroes y Efectos)
+(15 cartas en total)
+
+Efectos de Destino
+¡Llegaré tarde! ¡Llegaré tarde! × 2
+
+Te hace más grande × 2
+
+Mome Raths × 2
+
+Por la madriguera × 1
+
+Héroes (1 copia cada uno)
+Alicia
+
+Oruga
+
+Gato de Cheshire
+
+Dodo
+
+Lirón
+
+Sombrerero Loco
+
+Liebre de Marzo
+
+Conejo Blanco
