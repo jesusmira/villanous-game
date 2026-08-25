@@ -3,6 +3,7 @@ import type { GameState, CardInstId, LocationId, PlayerId, PlayCardCtx } from '.
 import { getPlugin, getEffectDef } from '../villains/registry';
 import { EffectId, CardDefId, CardDefPrefix } from '../villains/effectIds';
 import { HookLocationId } from '../villains/hook/cards';
+import { pickStarkeyHeroTarget } from '../villains/hook/aiHelpers';
 import { getPlayer, getEffectiveStrength } from '../engine/stateHelpers';
 
 /**
@@ -123,28 +124,20 @@ export function buildPlayCtx(
     }
   }
 
-  // Sr. Starkey: mover héroe; priorizar PP hacia Jolly Roger
+  // Sr. Starkey: mover héroe; prioriza acercar a Peter Pan al Jolly Roger, y NUNCA lo aleja si ya
+  // está ahí (ver pickStarkeyHeroTarget) — en ese caso no mueve a nadie (sin heurística validada
+  // para elegir OTRO héroe/destino; el jugador humano sí puede elegirlo a mano vía el modal).
   if (card.effectIds.includes(EffectId.STARKEY_MOVE_HERO)) {
     const player = getPlayer(state, playerId);
     const plugin = getPlugin(player.villainId);
-    let heroId: CardInstId | undefined;
-    let heroLocId: LocationId | undefined;
-    for (const [locId, ls] of Object.entries(player.locationStates)) {
-      const ppId = ls.heroCardInstIds.find(id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN);
-      if (ppId) { heroId = ppId; heroLocId = locId; break; }
-    }
-    if (!heroId) {
-      for (const [locId, ls] of Object.entries(player.locationStates)) {
-        if (ls.heroCardInstIds.length > 0) { heroId = ls.heroCardInstIds[0]; heroLocId = locId; break; }
-      }
-    }
-    if (heroId && heroLocId) {
-      const locDef = plugin.locations.find(l => l.id === heroLocId);
+    const picked = pickStarkeyHeroTarget(state, player);
+    if (picked) {
+      const locDef = plugin.locations.find(l => l.id === picked.heroLocId);
       const adjs = locDef?.adjacentIds ?? [];
       const dest = adjs.find(a => a === HookLocationId.JOLLY_ROGER)
         ?? adjs.find(a => !player.locationStates[a]?.isLocked)
         ?? adjs[0];
-      if (dest) return { targetCardInstId: heroId, targetLocationId: dest };
+      if (dest) return { targetCardInstId: picked.heroId, targetLocationId: dest };
     }
   }
 

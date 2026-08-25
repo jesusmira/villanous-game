@@ -366,7 +366,6 @@
           "fuerza": 5,
           "texto": "El Príncipe Juan no puede jugar Efectos.",
           "cantidad": "1"
-          
         },
         {
           "nombre": "LADY KLUCK",
@@ -571,6 +570,229 @@
           "cantidad": "2"
         }
       ]
+    ]
+  },
+  "Queen of Hearts": {
+    "villano": [
+      
+      {
+        "nombre": "Soldados Naipe: Tréboles",
+        "tipo": "Aliado",
+        "coste": 2,
+        "fuerza": 3,
+        "texto": "Paga 1 Moneda de Poder. Convierte este Soldado Naipe en un Postigo, o de Postigo en Soldado Naipe.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "Soldados Naipe: Diamantes",
+        "tipo": "Aliado",
+        "coste": 2,
+        "fuerza": 3,
+        "texto": "Paga 1 Moneda de Poder. Convierte este Soldado Naipe en un Postigo, o de Postigo en Soldado Naipe.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "Soldados Naipe: Corazones",
+        "tipo": "Aliado",
+        "coste": 2,
+        "fuerza": 3,
+        "texto": "Paga 1 Moneda de Poder. Convierte este Soldado Naipe en un Postigo, o de Postigo en Soldado Naipe.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "Soldados Naipe: Picas",
+        "tipo": "Aliado",
+        "coste": 2,
+        "fuerza": 3,
+        "texto": "Paga 1 Moneda de Poder. Convierte este Soldado Naipe en un Postigo, o de Postigo en Soldado Naipe.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "El Rey",
+        "tipo": "Aliado",
+        "coste": 2,
+        "fuerza": 2,
+        "texto": "El Precio para jugar los Soldados Naipe se reduce en -1 Moneda de Poder.",
+        "cantidad": 1
+      },
+      {
+        "nombre": "Tweedle Dee y Tweedle Dum",
+        "tipo": "Aliado",
+        "coste": 3,
+        "fuerza": 2,
+        "texto": "Tweedle Dee y Tweedle Dum no se descartan cuando son utilizados para derrotar a un Héroe.",
+        "cantidad": 1
+      },
+      {
+        "nombre": "¡Que le corten la cabeza!",
+        "tipo": "Efecto",
+        "coste": 3,
+        "fuerza": null,
+        "texto": "Derrota a un Héroe de Fuerza 4 o inferior.",
+        "cantidad": 3
+      },
+      {
+        "nombre": "Efectúa el tiro",
+        "tipo": "Efecto",
+        "coste": 4,
+        "fuerza": null,
+        "texto": "Si hay un Postigo en cada ubicación, revela las cinco cartas de arriba de tu mazo. Si el Precio total es inferior al total de Fuerza de todos tus Postigos, puedes efectuar el tiro y ganar la partida. Si no, descarta las cinco cartas reveladas.",
+        "cantidad": 3
+      },
+      {
+        "nombre": "Por orden de la Reina",
+        "tipo": "Efecto",
+        "coste": 2,
+        "fuerza": null,
+        "texto": "Convierte hasta dos Soldados Naipe en Postigos.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "Menguar",
+        "tipo": "Efecto",
+        "coste": 2,
+        "fuerza": null,
+        "texto": "Mengua a un Héroe o devuelve a su tamaño normal a un Héroe agrandado.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "Feliz No Cumpleaños",
+        "tipo": "Efecto",
+        "coste": null,
+        "fuerza": null,
+        "texto": "Recibe 1 Moneda de Poder por cada Aliado que haya en tu Reino.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "Furia",
+        "tipo": "Condición",
+        "coste": null,
+        "fuerza": null,
+        "texto": "Durante su turno, si otro jugador derrota a un Héroe de Fuerza 4 o superior, puedes jugar Furia. Mengua hasta dos Héroes.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "Juicio",
+        "tipo": "Condición",
+        "coste": null,
+        "fuerza": null,
+        "texto": "Durante su turno, si otro jugador tiene tres o más Aliados en su Reino, puedes jugar Juicio. Recibe 3 Monedas de Poder.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "Lanza",
+        "tipo": "Objeto",
+        "coste": 1,
+        "fuerza": null,
+        "texto": "Cuando juegues la Lanza, únela a un Aliado. Ese Aliado recibe +1 Fuerza.",
+        "cantidad": 3
+      },
+      {
+        "nombre": "Reloj",
+        "tipo": "Objeto",
+        "coste": null,
+        "fuerza": null,
+        "texto": "Gana 1 Moneda de Poder por cada Postigo que tengas en tu Reino.",
+        "cantidad": 1
+      }
+    ],
+    "destino": [
+      {
+        "nombre": "Agrandar",
+        "tipo": "Efecto",
+        "coste": null,
+        "fuerza": null,
+        "texto": "Agranda a un Héroe o devuelve a su estado normal a un Héroe menguado.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "¡Llego tarde! ¡Llego tarde!",
+        "tipo": "Efecto",
+        "coste": null,
+        "fuerza": null,
+        "texto": "Escoge y juega un Héroe de Fuerza 3 o inferior de la pila de descartes de Destino de la Reina de Corazones.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "Mome Raths",
+        "tipo": "Efecto",
+        "coste": null,
+        "fuerza": null,
+        "texto": "Mueve un Aliado a cualquier ubicación.",
+        "cantidad": 2
+      },
+      {
+        "nombre": "Alicia",
+        "tipo": "Héroe",
+        "coste": null,
+        "fuerza": 5,
+        "texto": "La Reina de Corazones no puede mover Aliados ni Objetos.",
+        "cantidad": 1
+      },
+      {
+        "nombre": "Conejo Blanco",
+        "tipo": "Héroe",
+        "coste": null,
+        "fuerza": 2,
+        "texto": "El Precio para activar los Soldados Naipe y los Postigos aumenta en +1 Moneda de Poder.",
+        "cantidad": 1
+      },
+      {
+        "nombre": "Dodo",
+        "tipo": "Héroe",
+        "coste": null,
+        "fuerza": 3,
+        "texto": "Los Soldados Naipe que estén en la misma ubicación que Dodo no pueden ser convertidos en Postigos.",
+        "cantidad": 1
+      },
+      {
+        "nombre": "El Lirón",
+        "tipo": "Héroe",
+        "coste": null,
+        "fuerza": 1,
+        "texto": "El Lirón no puede ser Menguado.",
+        "cantidad": 1
+      },
+      {
+        "nombre": "Gato Risón",
+        "tipo": "Héroe",
+        "coste": null,
+        "fuerza": 5,
+        "texto": "Cuando juegues el Gato Risón, puedes convertir hasta dos Postigos en Soldados Naipe. Cuando el Gato Risón sea derrotado, la Reina de Corazones puede convertir hasta dos Soldados Naipe en Postigos.",
+        "cantidad": 1
+      },
+      {
+        "nombre": "Liebre de Marzo",
+        "tipo": "Héroe",
+        "coste": null,
+        "fuerza": 3,
+        "texto": "La Liebre de Marzo recibe +2 Fuerza si el Sombrerero Loco está en el Reino de la Reina de Corazones.",
+        "cantidad": 1
+      },
+      {
+        "nombre": "Madriguera del Conejo",
+        "tipo": "Efecto",
+        "coste": null,
+        "fuerza": null,
+        "texto": "Si Alicia está en el Reino de la Reina de Corazones, descarta un Aliado de la ubicación de Alicia. Si no, encuentra a Alicia y juégala.",
+        "cantidad": 1
+      },
+      {
+        "nombre": "Oruga",
+        "tipo": "Héroe",
+        "coste": null,
+        "fuerza": 2,
+        "texto": "Todos los Aliados que estén en la ubicación de la Oruga reciben -1 Fuerza.",
+        "cantidad": 1
+      },
+      {
+        "nombre": "Sombrerero Loco",
+        "tipo": "Héroe",
+        "coste": null,
+        "fuerza": 3,
+        "texto": "El Sombrerero Loco recibe +2 Fuerza si la Liebre de Marzo está en el Reino de la Reina de Corazones.",
+        "cantidad": 1
+      }
     ]
   }
 }

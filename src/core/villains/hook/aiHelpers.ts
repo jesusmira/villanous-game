@@ -42,3 +42,23 @@ export function isPeterPanAtJollyRoger(state: GameState, player: PlayerState): b
     id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN,
   ) ?? false;
 }
+
+/**
+ * Héroe candidato a mover con Sr. Starkey, para el target AUTOMÁTICO (IA, y fallback de
+ * seguridad del propio efecto): prioriza acercar a Peter Pan al Jolly Roger si NO está ya ahí
+ * (alejarlo sería autosabotaje irreversible — solo puede Vencerse en el Jolly Roger, ver
+ * RuleEngine.ts:202-205). Si ya está en el Jolly Roger, `null` — mover a OTRO héroe ahí es una
+ * decisión táctica sin heurística validada todavía, mejor no adivinar (el jugador humano sigue
+ * pudiendo elegirlo a mano vía el modal, que no pasa por este helper). Si Peter Pan no está en
+ * el reino, cualquier héroe (comportamiento previo, sin relación con el bug de Peter Pan).
+ */
+export function pickStarkeyHeroTarget(
+  state: GameState, player: PlayerState,
+): { heroId: CardInstId; heroLocId: LocationId } | null {
+  const pp = findPeterPan(state, player);
+  if (pp) return pp.locId === HookLocationId.JOLLY_ROGER ? null : { heroId: pp.id, heroLocId: pp.locId };
+  for (const [locId, ls] of Object.entries(player.locationStates)) {
+    if (ls.heroCardInstIds.length > 0) return { heroId: ls.heroCardInstIds[0], heroLocId: locId };
+  }
+  return null;
+}

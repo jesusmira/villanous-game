@@ -8,6 +8,7 @@ import { runEffects } from '../../engine/EffectEngine';
 import { shuffle } from '../../utils/shuffle';
 import { CardDefId } from '../effectIds';
 import { locations, HookLocationId, HookObjectiveStep } from './cards';
+import { pickStarkeyHeroTarget } from './aiHelpers';
 
 export const effects: EffectDef[] = [
   {
@@ -373,15 +374,12 @@ export const effects: EffectDef[] = [
     requiresTargetHeroAnywhere: true,
     requiresTargetLocation: true,
     execute: (state, ctx) => {
+      if (ctx.skipTargetHero) return state;
       const starkey = state.allCards[ctx.cardInstId];
       if (!starkey) return state;
       const player = getPlayer(state, starkey.ownerId);
       let heroId = ctx.targetCardInstId;
-      if (!heroId) {
-        for (const locState of Object.values(player.locationStates)) {
-          if (locState.heroCardInstIds.length > 0) { heroId = locState.heroCardInstIds[0]; break; }
-        }
-      }
+      if (!heroId) heroId = pickStarkeyHeroTarget(state, player)?.heroId;
       if (!heroId) return state;
       const hero = state.allCards[heroId];
       if (!hero?.locationId) return state;

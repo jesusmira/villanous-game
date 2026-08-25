@@ -113,6 +113,9 @@ export interface EffectContext {
   targetCardInstId?: CardInstId;
   targetLocationId?: LocationId;
   auxiliaryInstIds?: CardInstId[];
+  /** El jugador declinó explícitamente el target opcional (p. ej. "Ignorar" en el modal de Sr.
+   *  Starkey) — el efecto NO debe caer en su propio auto-target de respaldo. */
+  skipTargetHero?: boolean;
 }
 
 /**
@@ -125,6 +128,8 @@ export interface PlayCardCtx {
   auxiliaryInstIds?: CardInstId[];
   mapaInstId?: CardInstId;
   targetLocationId?: LocationId;
+  /** Ver EffectContext.skipTargetHero — viaja igual desde playCard() hasta el execute(). */
+  skipTargetHero?: boolean;
 }
 
 /**

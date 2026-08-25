@@ -20,6 +20,7 @@ import { FloraRevealModal } from './FloraRevealModal';
 import { VictoryModal } from './VictoryModal';
 import { ConfirmLeaveModal } from './ConfirmLeaveModal';
 import { AttachTargetModal } from './AttachTargetModal';
+import { StarkeyMoveModal } from './StarkeyMoveModal';
 import { CardComponent } from './CardComponent';
 import { TestPage } from './TestPage';
 import { useGameStore } from '../state/gameStore';
@@ -96,6 +97,7 @@ export function GameBoard({ state }: Props) {
   const [pendingAttachTarget, setPendingAttachTarget] = useState<{
     cardId: string; locId: string; reqTarget: 'ALLY' | 'HERO'; candidates: string[];
   } | null>(null);
+  const [pendingStarkeyMove, setPendingStarkeyMove] = useState<{ cardId: string; locId: string } | null>(null);
 
   // ─── Replay & Turn tracking ───────────────────────────────────────────────
   const prevPlayerIndexRef = useRef(state.currentPlayerIndex);
@@ -432,6 +434,17 @@ export function GameBoard({ state }: Props) {
     if (slotIdx === undefined) return;
     if (!canPlayCard(displayedState, currentPlayer.id, cardId, slotIdx, locId).valid) return;
 
+    // Sr. Starkey: "puedes mover un Héroe" — dejar elegir cuál y a dónde (o ignorar del todo)
+    // en vez de autoseleccionar (la IA sigue autoseleccionando vía buildPlayCtx/pickStarkeyHeroTarget).
+    const needsHeroTarget = displayedState.allCards[cardId]?.effectIds.some(
+      id => getEffectDef(id)?.requiresTargetHeroAnywhere,
+    );
+    if (needsHeroTarget) {
+      setPendingStarkeyMove({ cardId, locId });
+      setDragCardId(null);
+      return;
+    }
+
     // Si la carta debe adjuntarse a un Aliado/Héroe y hay más de un candidato, dejar elegir
     // en vez de autoseleccionar (la IA sigue autoseleccionando vía buildPlayCtx).
     const attachInfo = getAttachCandidates(displayedState, currentPlayer.id, cardId);
@@ -493,6 +506,40 @@ export function GameBoard({ state }: Props) {
 
   function cancelPendingAttachTarget() {
     setPendingAttachTarget(null);
+    setSelectedCardId(null);
+  }
+
+  function resolvePendingStarkeyMove(heroId: string, destLocId: string) {
+    if (!pendingStarkeyMove) return;
+    const { cardId, locId } = pendingStarkeyMove;
+    setPendingStarkeyMove(null);
+    const pawnLoc = currentPlayer.pawnLocationId;
+    const avail   = getAvailableSlotIndices(displayedState, currentPlayer.id, pawnLoc);
+    const slotIdx = avail.find(i => getActionAtSlot(displayedState, currentPlayer.id, i)?.type === ActionType.PLAY_CARD);
+    if (slotIdx === undefined) return;
+    const ctx = buildPlayCtx(displayedState, currentPlayer.id, cardId, locId);
+    ctx.targetCardInstId = heroId;
+    ctx.targetLocationId = destLocId;
+    ap.store.doPlayCard(cardId, slotIdx, locId, ctx);
+    setSelectedCardId(null);
+  }
+
+  function skipPendingStarkeyMove() {
+    if (!pendingStarkeyMove) return;
+    const { cardId, locId } = pendingStarkeyMove;
+    setPendingStarkeyMove(null);
+    const pawnLoc = currentPlayer.pawnLocationId;
+    const avail   = getAvailableSlotIndices(displayedState, currentPlayer.id, pawnLoc);
+    const slotIdx = avail.find(i => getActionAtSlot(displayedState, currentPlayer.id, i)?.type === ActionType.PLAY_CARD);
+    if (slotIdx === undefined) return;
+    const ctx = buildPlayCtx(displayedState, currentPlayer.id, cardId, locId);
+    ctx.skipTargetHero = true;
+    ap.store.doPlayCard(cardId, slotIdx, locId, ctx);
+    setSelectedCardId(null);
+  }
+
+  function cancelPendingStarkeyMove() {
+    setPendingStarkeyMove(null);
     setSelectedCardId(null);
   }
 
@@ -1113,6 +1160,17 @@ export function GameBoard({ state }: Props) {
           candidates={pendingAttachTarget.candidates}
           onSelect={resolvePendingAttachTarget}
           onCancel={cancelPendingAttachTarget}
+        />
+      )}
+
+      {pendingStarkeyMove && (
+        <StarkeyMoveModal
+          state={displayedState}
+          playerId={currentPlayer.id}
+          cardName={displayedState.allCards[pendingStarkeyMove.cardId]?.name ?? ''}
+          onConfirm={resolvePendingStarkeyMove}
+          onSkip={skipPendingStarkeyMove}
+          onCancel={cancelPendingStarkeyMove}
         />
       )}
 

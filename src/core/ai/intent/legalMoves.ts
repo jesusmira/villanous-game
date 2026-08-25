@@ -405,10 +405,13 @@ function genActivateCard(state: GameState, playerId: PlayerId, slotIdx: number):
 }
 
 // ─── DISCARD ───────────────────────────────────────────────────────────────────
-// Candidatos acotados: solo cartas muertas, o muertas + una carta adicional (una por cada
-// candidata individual) — evita la explosión combinatoria de 2^mano sin perder la comparación
-// real "¿merece la pena ciclar esta carta además de las muertas?" que hace el planificador.
-
+// Candidatos acotados a las cartas VIVAS: se enumeran TODOS sus subconjuntos no vacíos (además de
+// "solo la mano muerta", si hay) — con `handSize` fijo en 4 para los 3 villanos actuales, como
+// mucho 2^4−1=15 candidatas de más, nada comparable a la combinatoria de PLAY_CARD (carta ×
+// ubicación) que ya se genera cada iteración. Antes se limitaba a "muertas + como mucho 1 carta
+// viva de más", así que una mano entera de cartas jugables pero inútiles para el problema real
+// (p. ej. sin ningún Aliado cuando hace falta Fuerza de Aliado) solo podía refrescarse a razón de
+// 1 carta por turno — hasta 4 turnos para una mano de 4, con el rival avanzando mientras tanto.
 function genDiscard(state: GameState, playerId: PlayerId, slotIdx: number): ActionCandidate[] {
   const player = getPlayer(state, playerId);
   if (player.handInstIds.length === 0 || !canDiscard(state, playerId, slotIdx).valid) return [];
@@ -421,6 +424,7 @@ function genDiscard(state: GameState, playerId: PlayerId, slotIdx: number): Acti
   if (discardable.length === 0) return [];
 
   const dead = getDeadHandCards(state, playerId).filter(id => discardable.includes(id));
+  const live = discardable.filter(id => !dead.includes(id));
   const out: ActionCandidate[] = [];
 
   if (dead.length > 0) {
@@ -429,15 +433,24 @@ function genDiscard(state: GameState, playerId: PlayerId, slotIdx: number): Acti
       resultState: discardFromHand(state, playerId, dead, slotIdx), isRepositioning: false,
     });
   }
-  for (const id of discardable) {
-    if (dead.includes(id)) continue;
-    const toDiscard = [...dead, id];
+  for (const subset of nonEmptySubsets(live)) {
+    const toDiscard = [...dead, ...subset];
+    const label = subset.length === 1
+      ? `Descartar ${state.allCards[subset[0]]?.name}`
+      : `Descartar ${subset.length} cartas`;
     out.push({
-      kind: ActionType.DISCARD, slotIdx, label: `Descartar ${state.allCards[id]?.name}`,
+      kind: ActionType.DISCARD, slotIdx, label,
       resultState: discardFromHand(state, playerId, toDiscard, slotIdx), isRepositioning: false,
     });
   }
   return out;
+}
+
+/** Todos los subconjuntos no vacíos de `items`, sin importar el orden. */
+function nonEmptySubsets<T>(items: T[]): T[][] {
+  let subsets: T[][] = [[]];
+  for (const item of items) subsets = [...subsets, ...subsets.map(s => [...s, item])];
+  return subsets.slice(1);
 }
 
 // ─── PAY_TO_DISCARD (p. ej. Buen Disfraz) ─────────────────────────────────────
