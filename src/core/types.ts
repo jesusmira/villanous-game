@@ -1,7 +1,7 @@
 import type { IntentionDef, StructuralThreatDef, VillainWeightProfile } from './ai/intent/types';
 
 export type PlayerId = string;
-export type VillainId = 'maleficent' | 'hook' | 'jhon';
+export type VillainId = 'maleficent' | 'hook' | 'jhon' | 'queen';
 export type LocationId = string;
 export type CardDefId = string;
 export type CardInstId = string;
@@ -105,6 +105,27 @@ export interface CardInst {
   costModifier: number;
   bonusThisTurn: number;
   storedPower?: number;
+  /** Reina de Corazones: un Soldado Naipe convertido en Postigo pierde su capacidad de Vencer
+   *  pero conserva Fuerza a efectos de "Efectúa el tiro". Sigue siendo cardType ALLY. */
+  isWicket?: boolean;
+  /**
+   * Reina de Corazones: Menguar gira al Héroe 45° — si hay varios Héroes en su ubicación, este
+   * pasa a ser el ÚNICO que tapa una casilla, y tapa solo 1 (no las 2 de siempre). No afecta a
+   * su Fuerza. Ver getCoveredSlotIndices (slotHelpers.ts).
+   */
+  isShrunk?: boolean;
+  /** Reina de Corazones: cuál de las casillas normalmente tapadas por este Héroe sigue tapada
+   *  mientras esté Menguado (elegida por quien lo mengua — ver pendingShrinkSlotChoice). */
+  shrunkKeptSlotIndex?: number;
+  /**
+   * Reina de Corazones: Agrandar gira al Héroe 90° — además de tapar su ubicación de siempre,
+   * tapa UNA casilla de una ubicación adyacente (enlargedTargetLocationId/enlargedTargetSlotIndex).
+   * El Héroe se considera presente en ambas ubicaciones a efectos de tapado. Su `locationId`
+   * real nunca cambia — "devolverlo a su ubicación original" es simplemente limpiar estos 3 campos.
+   */
+  isEnlarged?: boolean;
+  enlargedTargetLocationId?: LocationId;
+  enlargedTargetSlotIndex?: number;
 }
 
 export interface EffectContext {
@@ -172,6 +193,26 @@ export interface EffectDef {
   cannotEnterLocationId?: LocationId;
   requiresMultipleAlliesToVanquish?: boolean;
   conditionTrigger?: ConditionTriggerType;
+  /** El Aliado portador no se descarta al ser utilizado para Vencer (Tweedle Dee y Tweedle Dum). */
+  survivesVanquish?: boolean;
+  /** La carta solo puede jugarse si el Reino del jugador tiene al menos un Postigo en cada
+   *  ubicación (gate de jugabilidad de "Efectúa el tiro"). */
+  requiresAllLocationsHaveWicket?: boolean;
+  /** Mientras el Héroe portador esté vivo en el reino, no se pueden mover Aliados ni Objetos
+   *  (Alicia). */
+  blocksMoveItemAlly?: boolean;
+  /** El Héroe portador no puede ser Menguado (El Lirón). */
+  immuneToShrink?: boolean;
+  /**
+   * Declarado en una carta (p. ej. Dodo) que, mientras esté en una ubicación, bloquea activar
+   * ahí cualquier otra carta para la que este predicado devuelva true (p. ej. los Soldados
+   * Naipe/Postigos de la Reina de Corazones). Se comprueba contra TODAS las cartas presentes en
+   * la ubicación de la carta que se intenta activar, no contra los efectos de esa propia carta.
+   */
+  blocksActivationAtLocation?: (cardToActivate: CardInst) => boolean;
+  /** Modificador del Precio de Activación de la carta que se está activando (Conejo Blanco: +1
+   *  a Soldados Naipe/Postigos). Análogo a computePlayCostModifier pero para ACTIVATE_CARD. */
+  computeActivationCostModifier?: (state: GameState, playerId: PlayerId, cardToActivate: CardInst, effectCardInstId: CardInstId) => number;
 }
 
 export interface PlayerState {
@@ -223,6 +264,56 @@ export interface GameState {
   pendingDemosles?: { playerId: PlayerId; topCardIds: CardInstId[] };
   pendingAuroraHero?: { heroInstId: CardInstId; targetPlayerId: PlayerId; actingPlayerId: PlayerId; isHero?: boolean };
   pendingJaqueca?: { itemInstIds: CardInstId[]; actingPlayerId: PlayerId };
+  /**
+   * Reina de Corazones: selección de hasta `max` cartas propias para alternar su estado de
+   * Postigo. `kind` indica la dirección: 'TO_WICKET' (Soldado → Postigo, usado por "Por orden
+   * de la Reina" y el onHeroDiscarded del Gato Risón) o 'TO_SOLDADO' (Postigo → Soldado, usado
+   * por el ON_PLAY del Gato Risón).
+   */
+  pendingWicketPick?: {
+    actingPlayerId: PlayerId;
+    kind: 'TO_WICKET' | 'TO_SOLDADO';
+    sourceCardInstId?: CardInstId;
+    eligibleInstIds: CardInstId[];
+    max: number;
+  };
+  /** Reina de Corazones: "Furia" — selección de hasta `max` Héroes rivales para Menguar. */
+  pendingShrinkPick?: {
+    actingPlayerId: PlayerId;
+    sourceCardInstId?: CardInstId;
+    eligibleHeroInstIds: CardInstId[];
+    max: number;
+  };
+  /**
+   * Reina de Corazones: "Agrandar" — quien la juega elige a qué ubicación adyacente y qué casilla
+   * de esa ubicación tapará también el Héroe agrandado.
+   */
+  pendingEnlargeTarget?: {
+    actingPlayerId: PlayerId;
+    heroInstId: CardInstId;
+    eligible: { locationId: LocationId; slotIndex: number }[];
+  };
+  /**
+   * Reina de Corazones: quien Mengua a un Héroe elige cuál de las casillas normalmente tapadas
+   * sigue tapada (deja la otra libre). Cola porque Furia puede menguar hasta 2 Héroes a la vez —
+   * se resuelve uno a uno (el primero de `queue`).
+   */
+  pendingShrinkSlotChoice?: {
+    actingPlayerId: PlayerId;
+    queue: { heroInstId: CardInstId; locationId: LocationId; eligibleSlotIndices: number[] }[];
+  };
+  /**
+   * Reina de Corazones: "Efectúa el tiro" — las 5 cartas reveladas quedan visibles hasta que el
+   * jugador las revise (el resultado, ganar o descartar, ya se aplicó al jugar la carta; esto es
+   * solo para poder ver qué salió).
+   */
+  pendingShotReveal?: {
+    actingPlayerId: PlayerId;
+    revealedInstIds: CardInstId[];
+    totalCost: number;
+    wicketStrength: number;
+    won: boolean;
+  };
   trampaActive?: PlayerId;
   /** Trampa (fase 2): el aliado ya se movió; el jugador puede llevar a cabo un Vencer gratuito. */
   trampaVanquish?: PlayerId;

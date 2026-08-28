@@ -104,8 +104,11 @@ export function LocationTile({
   const fateItemCards  = allFromVillainSlot.filter(c => c.deck === CardDeck.FATE && c.instId);
   const villainCards   = allFromVillainSlot.filter(c => c.deck !== CardDeck.FATE && c.instId);
   const heroCards      = locState.heroCardInstIds.map(id => state.allCards[id]).filter(c => c && c.instId);
-  // TOP overlay: hero cards + fate items (enemies/threats)
-  const topCards       = [...heroCards, ...fateItemCards];
+  // TOP overlay: hero cards + fate items (enemies/threats). Un Héroe Menguado (Reina de
+  // Corazones) se renderiza aparte, en miniatura y posicionado sobre la única casilla que sigue
+  // tapando, para que se vea claramente que la otra queda libre — no en la fila normal.
+  const shrunkHeroCards = heroCards.filter(c => c.isShrunk);
+  const topCards       = [...heroCards.filter(c => !c.isShrunk), ...fateItemCards];
   // BOTTOM ally zone: villain deck cards only (allies, items, curses, effects)
   const allyZoneCards  = villainCards;
 
@@ -155,6 +158,28 @@ export function LocationTile({
             })}
           </div>
         )}
+
+        {/* ── Héroes Menguados: en miniatura, sobre la única casilla que siguen tapando ── */}
+        {shrunkHeroCards.map(card => {
+          const slotIdx = card.shrunkKeptSlotIndex ?? 0;
+          return (
+            <div key={card.instId}
+              className="absolute z-30 pointer-events-auto hover:z-40 transition-transform duration-200 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
+              style={{ top: '6%', left: slotIdx === 0 ? '30%' : '70%', transform: 'translateX(-50%)' }}
+            >
+              <CardComponent
+                card={card}
+                state={state}
+                selected={selectedCardId === card.instId}
+                onClick={() => onCardClick(card.instId)}
+                sizeClassName="card-size-shrunk-slot"
+                draggable={!!onHeroCardDragStart}
+                onDragStart={onHeroCardDragStart ? () => onHeroCardDragStart(card.instId) : undefined}
+                onDragEnd={() => onHeroCardDragEnd?.()}
+              />
+            </div>
+          );
+        })}
 
         {/* ── Visual background — starts at 15% to leave room for hero overlay ── */}
         <div

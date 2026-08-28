@@ -2,11 +2,13 @@ import type { VillainPlugin, VillainId, CardDef, EffectDef } from '../types';
 import { maleficentPlugin } from './maleficent';
 import { hookPlugin } from './hook';
 import { jhonPlugin } from './jhon';
+import { queenPlugin } from './queen';
 
 const plugins: Record<VillainId, VillainPlugin> = {
   maleficent: maleficentPlugin,
   hook: hookPlugin,
   jhon: jhonPlugin,
+  queen: queenPlugin,
 };
 
 const cardDefMap: Record<string, CardDef> = {};

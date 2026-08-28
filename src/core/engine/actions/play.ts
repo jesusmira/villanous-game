@@ -6,7 +6,7 @@ import { runEffects } from '../EffectEngine';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard,
   discardCardFromKingdom, moveAttachedItems, addLog, checkWin, getEffectiveStrength, computeKingdomCostMod,
-  applyPowerGain, heroBlockedFromLocation,
+  applyPowerGain, heroBlockedFromLocation, computeActivationCostMod,
 } from '../stateHelpers';
 import { getActionAtSlot } from '../slotHelpers';
 import { checkConditions, firePawnArrivalIfMoved } from './_helpers';
@@ -154,6 +154,8 @@ function executeVanquish(
     s = addLog(s, `Flecha Dorada: ${getPlayer(s, playerId).name} recibe ${flechaAllyCount * 2} Moneda(s) de Poder.`);
   }
   for (const allyId of allyInstIds) {
+    const survives = s.allCards[allyId]?.effectIds.some(id => getEffectDef(id)?.survivesVanquish);
+    if (survives) continue;
     const arcoId = s.allCards[allyId]?.attachedItemInstIds.find(
       itemId => s.allCards[itemId]?.effectIds.includes(EffectId.JHON_ARCO_ATTACH),
     );
@@ -251,7 +253,8 @@ export function activateCard(
 ): GameState {
   const player = getPlayer(state, playerId);
   const card = state.allCards[cardInstId];
-  let s = updatePlayer(state, playerId, { power: player.power - (card.activationCost ?? 0) });
+  const effectiveCost = Math.max(0, (card.activationCost ?? 0) + computeActivationCostMod(state, playerId, card));
+  let s = updatePlayer(state, playerId, { power: player.power - effectiveCost });
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
   s = runEffects(s, cardInstId, 'ACTIVATED', { actingPlayerId: playerId, cardInstId, ...ctx });
   return addLog(s, `${player.name} activa ${card.name}.`);

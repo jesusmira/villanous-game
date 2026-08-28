@@ -15,6 +15,11 @@ import { HistoryModal } from './HistoryModal';
 import { HookDeckModal } from './HookDeckModal';
 import { AuroraModal } from './AuroraModal';
 import { JaquecaModal } from './JaquecaModal';
+import { WicketPickModal } from './WicketPickModal';
+import { ShrinkPickModal } from './ShrinkPickModal';
+import { EnlargeTargetModal } from './EnlargeTargetModal';
+import { ShrinkSlotModal } from './ShrinkSlotModal';
+import { ShotRevealModal } from './ShotRevealModal';
 import { VanquishModal } from './VanquishModal';
 import { FloraRevealModal } from './FloraRevealModal';
 import { VictoryModal } from './VictoryModal';
@@ -738,8 +743,9 @@ export function GameBoard({ state }: Props) {
 
       {/* ── Winner banner ───────────────────────────────────── */}
       {/* Durante el replay de la IA no se muestra: primero se ve su turno ganador
-          paso a paso; el modal (con el resumen de la jugada final) llega al terminar. */}
-      {displayedState.winner && !isReplaying && (
+          paso a paso; el modal (con el resumen de la jugada final) llega al terminar.
+          Si "Efectúa el tiro" acaba de ganar, primero se ve ShotRevealModal con las 5 cartas. */}
+      {displayedState.winner && !isReplaying && !displayedState.pendingShotReveal && (
         <VictoryModal state={displayedState} onPlayAgain={resetGame} />
       )}
 
@@ -1220,6 +1226,11 @@ export function GameBoard({ state }: Props) {
       )}
       {state.pendingCuervo    && <CuervoModal state={state} />}
       {state.pendingDemosles  && <DemoslesModal state={state} />}
+      {state.pendingWicketPick && <WicketPickModal state={state} />}
+      {state.pendingShrinkPick && <ShrinkPickModal state={state} />}
+      {state.pendingEnlargeTarget && <EnlargeTargetModal state={state} />}
+      {state.pendingShrinkSlotChoice && <ShrinkSlotModal state={state} />}
+      {state.pendingShotReveal && <ShotRevealModal state={state} />}
       {historyOpen && <HistoryModal state={displayedState} onClose={() => setHistoryOpen(false)} />}
       {showHookDeck && <HookDeckModal state={displayedState} onClose={() => setShowHookDeck(false)} />}
       {floraOpen && floraVictim && (

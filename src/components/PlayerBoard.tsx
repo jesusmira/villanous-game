@@ -29,6 +29,7 @@ const BOARD_IMAGES: Record<string, string> = {
   hook:       assetUrl('boards/hook.webp'),
   maleficent: assetUrl('boards/maleficent.webp'),
   jhon:       assetUrl('boards/jhon.webp'),
+  queen:      assetUrl('boards/queen.webp'),
 };
 import { getCoveredSlotIndices, getAvailableSlotIndices, getHissChoiceSlotIndices } from '../core/engine/slotHelpers';
 import { LocationTile } from './LocationTile';

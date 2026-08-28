@@ -35,6 +35,14 @@ export function getAttachCandidates(
   if (card.effectIds.includes(EffectId.FORMA_DRAGON)) {
     candidates = candidates.filter(id => getEffectiveStrength(state, id) <= 3);
   }
+  // ¡Que le corten la cabeza! (Reina de Corazones): solo Héroes de Fuerza ≤4.
+  if (card.effectIds.includes(EffectId.QUEEN_CABEZA)) {
+    candidates = candidates.filter(id => getEffectiveStrength(state, id) <= 4);
+  }
+  // Menguar (Reina de Corazones): El Lirón es inmune.
+  if (card.effectIds.includes(EffectId.QUEEN_MENGUAR)) {
+    candidates = candidates.filter(id => !state.allCards[id]?.effectIds.includes(EffectId.QUEEN_LIRON_IMMUNE));
+  }
   return { reqTarget, candidates };
 }
 
@@ -96,6 +104,28 @@ export function buildPlayCtx(
     ctx.targetCardInstId = undefined;
     for (const ls of Object.values(player.locationStates)) {
       const heroId = ls.heroCardInstIds.find(id => getEffectiveStrength(state, id) <= 3);
+      if (heroId) { ctx.targetCardInstId = heroId; break; }
+    }
+  }
+
+  // ¡Que le corten la cabeza! (Reina de Corazones): mismo caso que Forma de Dragón — el bloque
+  // genérico cogería el primer Héroe de la ubicación de juego sin mirar su Fuerza.
+  if (card.effectIds.includes(EffectId.QUEEN_CABEZA)) {
+    const player = getPlayer(state, playerId);
+    ctx.targetCardInstId = undefined;
+    for (const ls of Object.values(player.locationStates)) {
+      const heroId = ls.heroCardInstIds.find(id => getEffectiveStrength(state, id) <= 4);
+      if (heroId) { ctx.targetCardInstId = heroId; break; }
+    }
+  }
+
+  // Menguar (Reina de Corazones): el bloque genérico cogería el primer Héroe de la ubicación de
+  // juego aunque sea El Lirón (inmune) — buscar en todo el reino uno que sí pueda ser Menguado.
+  if (card.effectIds.includes(EffectId.QUEEN_MENGUAR)) {
+    const player = getPlayer(state, playerId);
+    ctx.targetCardInstId = undefined;
+    for (const ls of Object.values(player.locationStates)) {
+      const heroId = ls.heroCardInstIds.find(id => !state.allCards[id]?.effectIds.includes(EffectId.QUEEN_LIRON_IMMUNE));
       if (heroId) { ctx.targetCardInstId = heroId; break; }
     }
   }

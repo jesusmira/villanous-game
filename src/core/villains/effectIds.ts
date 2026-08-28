@@ -37,6 +37,10 @@ export const EffectId = {
   JHON_AVARICIA:        'jhon_avaricia',
   JHON_TRAMPA:          'jhon_trampa',
   JHON_KLUCK_NO_PRISON: 'jhon_kluck_no_prison',
+  // Reina de Corazones
+  QUEEN_CABEZA:         'queen_cabeza',
+  QUEEN_MENGUAR:        'queen_menguar',
+  QUEEN_LIRON_IMMUNE:   'queen_liron_immune',
 } as const;
 
 export const CardDefId = {

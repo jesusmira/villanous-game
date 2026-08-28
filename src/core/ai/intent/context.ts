@@ -68,6 +68,14 @@ export function getWinProgress(state: GameState, playerId: PlayerId): number {
       }).length;
       return (locsWithCurse / totalLocs) * 100;
     }
+    case 'queen': {
+      const totalLocs = plugin.locations.length;
+      const locsWithWicket = plugin.locations.filter(loc => {
+        const ls = p.locationStates[loc.id];
+        return ls.villainCardInstIds.some(id => state.allCards[id]?.isWicket);
+      }).length;
+      return (locsWithWicket / totalLocs) * 100;
+    }
     default:
       return 0;
   }

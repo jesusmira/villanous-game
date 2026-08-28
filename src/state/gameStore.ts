@@ -9,6 +9,8 @@ import { createInitialState, movePawn, gainPower, playCard, vanquish,
 import {
   resolveCondition, resolveCuervo, resolveDemosles, resolveJaqueca,
   resolveTrampaMove, resolveTrampaVanquish, skipTrampa,
+  resolveWicketPick, resolveShrinkPick, resolveEnlargeTarget, resolveShrinkSlotChoice,
+  resolveShotReveal,
 } from '../core/engine/PendingStateResolver';
 import { startSession, recordAction, recordAITurn, abortSession } from './history/recorder';
 import { getActiveProfile, refreshActiveProfile } from './history/profileCache';
@@ -57,6 +59,11 @@ interface GameStore {
   doResolveTrampa: (allyInstId: CardInstId, targetLocationId: LocationId) => void;
   doTrampaVanquish: (heroInstId: CardInstId, allyInstIds: CardInstId[]) => void;
   doTrampaSkip: () => void;
+  doResolveWicketPick: (selectedInstIds: CardInstId[]) => void;
+  doResolveShrinkPick: (selectedHeroInstIds: CardInstId[]) => void;
+  doResolveEnlargeTarget: (locationId: LocationId, slotIndex: number) => void;
+  doResolveShrinkSlotChoice: (slotIndex: number) => void;
+  doResolveShotReveal: () => void;
 }
 
 // ─── Web Worker ───────────────────────────────────────────────────────────────
@@ -85,6 +92,26 @@ function needsAIProcessing(state: GameState): boolean {
   }
   if (state.pendingJaqueca) {
     const p = state.players.find(p => p.id === state.pendingJaqueca!.actingPlayerId);
+    if (p?.isAI) return true;
+  }
+  if (state.pendingWicketPick) {
+    const p = state.players.find(p => p.id === state.pendingWicketPick!.actingPlayerId);
+    if (p?.isAI) return true;
+  }
+  if (state.pendingShrinkPick) {
+    const p = state.players.find(p => p.id === state.pendingShrinkPick!.actingPlayerId);
+    if (p?.isAI) return true;
+  }
+  if (state.pendingEnlargeTarget) {
+    const p = state.players.find(p => p.id === state.pendingEnlargeTarget!.actingPlayerId);
+    if (p?.isAI) return true;
+  }
+  if (state.pendingShrinkSlotChoice) {
+    const p = state.players.find(p => p.id === state.pendingShrinkSlotChoice!.actingPlayerId);
+    if (p?.isAI) return true;
+  }
+  if (state.pendingShotReveal) {
+    const p = state.players.find(p => p.id === state.pendingShotReveal!.actingPlayerId);
     if (p?.isAI) return true;
   }
   return false;
@@ -342,6 +369,51 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const actorPlayerId = state.pendingJaqueca?.actingPlayerId;
     const next = resolveJaqueca(state, itemInstId);
     recordAction(state, next, actorPlayerId, 'RESOLVE_JAQUECA', { itemInstId });
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
+  },
+
+  doResolveWicketPick: (selectedInstIds) => {
+    const { state } = get();
+    if (!state) return;
+    const actorPlayerId = state.pendingWicketPick?.actingPlayerId;
+    const next = resolveWicketPick(state, selectedInstIds);
+    recordAction(state, next, actorPlayerId, 'RESOLVE_WICKET_PICK', { selectedInstIds });
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
+  },
+
+  doResolveShrinkPick: (selectedHeroInstIds) => {
+    const { state } = get();
+    if (!state) return;
+    const actorPlayerId = state.pendingShrinkPick?.actingPlayerId;
+    const next = resolveShrinkPick(state, selectedHeroInstIds);
+    recordAction(state, next, actorPlayerId, 'RESOLVE_SHRINK_PICK', { selectedHeroInstIds });
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
+  },
+
+  doResolveEnlargeTarget: (locationId, slotIndex) => {
+    const { state } = get();
+    if (!state) return;
+    const actorPlayerId = state.pendingEnlargeTarget?.actingPlayerId;
+    const next = resolveEnlargeTarget(state, locationId, slotIndex);
+    recordAction(state, next, actorPlayerId, 'RESOLVE_ENLARGE_TARGET', { locationId, slotIndex });
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
+  },
+
+  doResolveShrinkSlotChoice: (slotIndex) => {
+    const { state } = get();
+    if (!state) return;
+    const actorPlayerId = state.pendingShrinkSlotChoice?.actingPlayerId;
+    const next = resolveShrinkSlotChoice(state, slotIndex);
+    recordAction(state, next, actorPlayerId, 'RESOLVE_SHRINK_SLOT_CHOICE', { slotIndex });
+    set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
+  },
+
+  doResolveShotReveal: () => {
+    const { state } = get();
+    if (!state) return;
+    const actorPlayerId = state.pendingShotReveal?.actingPlayerId;
+    const next = resolveShotReveal(state);
+    recordAction(state, next, actorPlayerId, 'RESOLVE_SHOT_REVEAL');
     set(needsAIProcessing(next) ? dispatchAI(next) : { state: next });
   },
 

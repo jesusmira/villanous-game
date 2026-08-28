@@ -2,7 +2,7 @@ import { CardType } from '../types';
 import type { GameState, CardInstId, LocationId, ConditionCtx } from '../types';
 import {
   getPlayer, updatePlayer, updateLocationState, updateCard, addLog, checkWin,
-  discardCardFromKingdom, moveAttachedItems,
+  discardCardFromKingdom, moveAttachedItems, applyMenguarToggle,
 } from './stateHelpers';
 import { getPlugin } from '../villains/registry';
 import { canVanquishFree } from './RuleEngine';
@@ -62,6 +62,82 @@ export function skipTrampa(state: GameState): GameState {
   if (!state.trampaActive && !state.trampaVanquish) return state;
   const s: GameState = { ...state, trampaActive: undefined, trampaVanquish: undefined };
   return addLog(s, 'Trampa: sin acción de Vencer.');
+}
+
+// ─── Reina de Corazones: selección de hasta N cartas (Postigo / Menguar) ──────────────
+
+/**
+ * Por orden de la Reina / Gato Risón: alterna el estado de Postigo de hasta `max` cartas
+ * propias elegidas (dirección fijada por `pendingWicketPick.kind`). Ignora ids fuera de
+ * `eligibleInstIds` o que excedan `max`.
+ */
+export function resolveWicketPick(state: GameState, selectedInstIds: CardInstId[]): GameState {
+  const pending = state.pendingWicketPick;
+  if (!pending) return state;
+  const valid = selectedInstIds.filter(id => pending.eligibleInstIds.includes(id)).slice(0, pending.max);
+
+  let s: GameState = { ...state, pendingWicketPick: undefined };
+  for (const id of valid) {
+    s = updateCard(s, id, { isWicket: pending.kind === 'TO_WICKET' });
+  }
+  if (valid.length === 0) return addLog(s, 'Ningún Soldado Naipe convertido.');
+  const verb = pending.kind === 'TO_WICKET' ? 'convertidos en Postigo' : 'convertidos en Soldado Naipe';
+  return addLog(s, `${valid.length} carta(s) ${verb}.`);
+}
+
+/** Furia: Mengua hasta `max` Héroes rivales elegidos entre `eligibleHeroInstIds`. */
+export function resolveShrinkPick(state: GameState, selectedHeroInstIds: CardInstId[]): GameState {
+  const pending = state.pendingShrinkPick;
+  if (!pending) return state;
+  const valid = selectedHeroInstIds.filter(id => pending.eligibleHeroInstIds.includes(id)).slice(0, pending.max);
+
+  let s: GameState = { ...state, pendingShrinkPick: undefined };
+  for (const id of valid) {
+    s = applyMenguarToggle(s, pending.actingPlayerId, id);
+  }
+  if (valid.length === 0) return addLog(s, 'Furia: ningún Héroe menguado.');
+  return addLog(s, `Furia: ${valid.length} Héroe(s) menguado(s).`);
+}
+
+/** Menguar/Furia: fija cuál de las casillas normalmente tapadas sigue tapada — resuelve el
+ *  primero de la cola; si quedan más Héroes por decidir, el pending sigue vivo con el resto. */
+export function resolveShrinkSlotChoice(state: GameState, slotIndex: number): GameState {
+  const pending = state.pendingShrinkSlotChoice;
+  if (!pending || pending.queue.length === 0) return state;
+  const [current, ...rest] = pending.queue;
+  let s: GameState = {
+    ...state,
+    pendingShrinkSlotChoice: rest.length > 0 ? { ...pending, queue: rest } : undefined,
+  };
+  if (!current.eligibleSlotIndices.includes(slotIndex)) return addLog(s, 'Menguar: casilla inválida.');
+  s = updateCard(s, current.heroInstId, { shrunkKeptSlotIndex: slotIndex });
+  const heroName = s.allCards[current.heroInstId]?.name ?? 'Héroe';
+  return addLog(s, `Menguar: ${heroName} deja tapada esa casilla.`);
+}
+
+/** Efectúa el tiro: el jugador ya vio las 5 cartas reveladas — solo cierra la vista, el
+ *  resultado (ganar/descartar) ya se había aplicado al jugar la carta. */
+export function resolveShotReveal(state: GameState): GameState {
+  if (!state.pendingShotReveal) return state;
+  return { ...state, pendingShotReveal: undefined };
+}
+
+/** Agrandar: fija a qué ubicación adyacente y casilla también tapará el Héroe agrandado. */
+export function resolveEnlargeTarget(
+  state: GameState,
+  locationId: LocationId,
+  slotIndex: number,
+): GameState {
+  const pending = state.pendingEnlargeTarget;
+  if (!pending) return state;
+  const valid = pending.eligible.some(e => e.locationId === locationId && e.slotIndex === slotIndex);
+  let s: GameState = { ...state, pendingEnlargeTarget: undefined };
+  if (!valid) return addLog(s, 'Agrandar: destino inválido.');
+  s = updateCard(s, pending.heroInstId, {
+    isEnlarged: true, enlargedTargetLocationId: locationId, enlargedTargetSlotIndex: slotIndex,
+  });
+  const heroName = s.allCards[pending.heroInstId]?.name ?? 'Héroe';
+  return addLog(s, `Agrandar: ${heroName} también tapa una casilla en ${locationId}.`);
 }
 
 export function resolveJaqueca(state: GameState, itemInstId: CardInstId): GameState {

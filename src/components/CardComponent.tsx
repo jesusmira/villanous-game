@@ -38,9 +38,15 @@ export function CardComponent({ card, state, selected, onClick, draggable: isDra
     ? assetUrl(`cards/${card.villainId}/${card.imageFile}.webp`)
     : null;
 
+  // Reina de Corazones: un Soldado Naipe convertido en Postigo se gira 90° para distinguirlo
+  // de un vistazo, igual que en el tablero físico. Un Héroe Menguado gira 45° y uno Agrandado
+  // 90° (ver getCoveredSlotIndices para el efecto real sobre las casillas tapadas).
+  const isWicket = card.isWicket === true;
+  const rotationClass = isWicket || card.isEnlarged ? 'rotate-90' : card.isShrunk ? 'rotate-45' : '';
+
   return (
     <div
-      className={`villainous-card ${sizeClassName ?? ''} ${isHero ? 'hero-card' : ''} ${onClick ? 'cursor-pointer hover:scale-110 hover:-translate-y-1' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
+      className={`villainous-card ${sizeClassName ?? ''} ${isHero ? 'hero-card' : ''} ${rotationClass} ${onClick ? 'cursor-pointer hover:scale-110 hover:-translate-y-1' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
       style={{
         outline: selected ? '2px solid #e9c349' : undefined,
         outlineOffset: selected ? '2px' : undefined,

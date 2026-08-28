@@ -69,6 +69,30 @@ export function computeKingdomCostMod(
   return mod;
 }
 
+/** Análogo a computeKingdomCostMod pero para el Precio de Activación de ACTIVATE_CARD
+ *  (p. ej. Conejo Blanco: +1 a los Soldados Naipe/Postigos de la Reina de Corazones). */
+export function computeActivationCostMod(
+  state: GameState,
+  playerId: PlayerId,
+  cardToActivate: CardInst,
+): number {
+  const player = getPlayer(state, playerId);
+  let mod = 0;
+  for (const locState of Object.values(player.locationStates)) {
+    // A diferencia de computeKingdomCostMod, también recorre heroCardInstIds: Conejo Blanco
+    // (Reina de Corazones) es un Héroe de Destino, no una carta de Villano.
+    for (const cId of [...locState.villainCardInstIds, ...locState.heroCardInstIds]) {
+      for (const effId of (state.allCards[cId]?.effectIds ?? [])) {
+        const eff = getEffectDef(effId);
+        if (eff?.computeActivationCostModifier) {
+          mod += eff.computeActivationCostModifier(state, playerId, cardToActivate, cId);
+        }
+      }
+    }
+  }
+  return mod;
+}
+
 export function getPlayer(state: GameState, playerId: PlayerId): PlayerState {
   const p = state.players.find(p => p.id === playerId);
   if (!p) throw new Error(`Player ${playerId} not found`);
@@ -140,6 +164,47 @@ export function getEffectiveStrength(state: GameState, instId: CardInstId): numb
     }
   }
   return Math.max(0, strength);
+}
+
+/**
+ * Reina de Corazones: "Mengua a un Héroe o devuelve a su tamaño normal a un Héroe agrandado".
+ * No afecta a la Fuerza — ver getCoveredSlotIndices (slotHelpers.ts) para el efecto real (tapa
+ * solo 1 casilla en vez de las 2 de siempre). Si el objetivo ya estaba Agrandado, lo revierte en
+ * su lugar. No-op si el Héroe es inmune (El Lirón). Usado por la carta Menguar y por Furia.
+ *
+ * Al Menguar de verdad (no revertir), quien lo aplica (`actingPlayerId`) elige cuál de las
+ * casillas normalmente tapadas por Héroes en esa ubicación sigue tapada — si hay más de una
+ * candidata, se encola en `pendingShrinkSlotChoice` (con un valor por defecto ya aplicado
+ * mientras tanto, para que el estado nunca quede a medio resolver).
+ */
+export function applyMenguarToggle(state: GameState, actingPlayerId: PlayerId, instId: CardInstId): GameState {
+  const card = state.allCards[instId];
+  if (!card) return state;
+  if (card.isEnlarged) {
+    return updateCard(state, instId, {
+      isEnlarged: false, enlargedTargetLocationId: undefined, enlargedTargetSlotIndex: undefined,
+    });
+  }
+  if (card.effectIds.some(id => getEffectDef(id)?.immuneToShrink)) return state;
+  if (!card.locationId) return updateCard(state, instId, { isShrunk: true });
+
+  const plugin = getPlugin(card.villainId);
+  const locDef = plugin.locations.find(l => l.id === card.locationId);
+  const coveredCount = locDef ? Math.min(2, locDef.actions.length) : 0;
+  const eligibleSlotIndices = Array.from({ length: coveredCount }, (_, i) => i);
+
+  let s = updateCard(state, instId, { isShrunk: true, shrunkKeptSlotIndex: eligibleSlotIndices[0] ?? 0 });
+  if (eligibleSlotIndices.length > 1) {
+    const queue = s.pendingShrinkSlotChoice?.queue ?? [];
+    s = {
+      ...s,
+      pendingShrinkSlotChoice: {
+        actingPlayerId,
+        queue: [...queue, { heroInstId: instId, locationId: card.locationId, eligibleSlotIndices }],
+      },
+    };
+  }
+  return s;
 }
 
 // Move a card instance from its current position in any deck/hand array.

@@ -101,8 +101,26 @@ const playCursesIntention: IntentionDef = {
     // "Preparar combo" persiguiendo al bloqueante). Sube JUNTO a Preparar combo en vez de dejar
     // que una ahogue a la otra, usando el mismo "hueco" (heroStrength − allyStrength por
     // ubicación) que ya usa esa intención.
+    //
+    // Coeficiente rebajado de 2.5 a 0.6 (2026-08-29): con 2.5 este término por sí solo sumaba
+    // hasta +50 (heroGap capado en 20), MÁS el término base uncovered×20 (hasta +80) — con 2-3
+    // ubicaciones sin cubrir, "Jugar maldiciones" quedaba entre 75-95 mientras que "Preparar
+    // combo"/"Eliminar héroes" (las intenciones que de verdad empujan a jugar Aliados/Vencer)
+    // rondaban 30-40 con el MISMO hueco: el "contrapeso" se pasó de frenada y volvió a ahogar la
+    // intención contraria, justo el problema que decía evitar (reportado por el usuario tras una
+    // partida real donde Maléfica dejaba acumular héroes sin Aliados ni Vencer durante muchos
+    // turnos seguidos). Medido con un diagnóstico ad hoc (racha de turnos con héroes presentes,
+    // 0 Aliados propios y sin Vencer/Jugar Aliado, vs IA-Jhon): con 2.5, racha máxima media
+    // 3.5 turnos (máx. absoluto 22 en una partida de 30) y Fuerza de héroes final 30.1 vs solo
+    // 6.6 de Aliados. Con 0.6 (N=80): racha máxima media 2.4 (máx. absoluto 17), Fuerza de
+    // héroes 28.1 vs 6.7 de Aliados — mejora clara el síntoma de "queda atascada sin jugar/
+    // atacar", aunque NO resolvió el problema de fondo: victorias vs Jhon en el mismo diagnóstico
+    // rondaron 10-13% (8/80, 5/40 con scripts/_diag_maleficent.ts), por debajo del 18% (14/80)
+    // documentado 10 días antes en project_maleficent_curse_regression_fixes — variación normal
+    // de una muestra ruidosa o un debilitamiento real frente a Jhon no ligado a este término
+    // concreto, sin confirmar cuál. Ver [[project_maleficent_stall_investigation]].
     const heroGap = ctx.locations.reduce((sum, l) => sum + Math.max(0, l.heroStrength - l.allyStrength), 0);
-    v += Math.min(heroGap, 20) * 2.5;
+    v += Math.min(heroGap, 20) * 0.6;
     return v;
   },
 };

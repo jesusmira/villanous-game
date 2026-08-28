@@ -89,8 +89,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Villainous card shell ────────────────────────────────── */
 .villainous-card {
-  width: 70px;
-  height: 105px;
+  width: 80px;
+  height: 120px;
   position: relative;
   border-radius: 6px;
   background: #1a1a1a;
@@ -101,7 +101,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   transition: all 0.2s ease;
 }
 @media (min-width: 1024px) {
-  .villainous-card { width: 100px; height: 150px; }
+  .villainous-card { width: 112px; height: 168px; }
 }
 
 /* Large card — para Flora y otros modales */
@@ -160,6 +160,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .card-size-hand--selected {
   height: clamp(120px, 60svh, 280px) !important;
+}
+
+/* Reina de Corazones: Héroe Menguado — miniatura posicionada sobre una única casilla
+   (ver LocationTile.tsx), no la carta de tamaño normal. */
+.card-size-shrunk-slot {
+  width: 46px !important;
+  height: 69px !important;
+}
+@media (min-width: 1024px) {
+  .card-size-shrunk-slot { width: 64px !important; height: 96px !important; }
 }
 
 /* Aurora modal — más pequeño */

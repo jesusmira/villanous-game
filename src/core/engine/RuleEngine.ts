@@ -2,7 +2,7 @@ import { ActionType, TurnPhase, CardType } from '../types';
 import type { GameState, PlayerId, LocationId, CardInstId } from '../types';
 import { getPlugin, getEffectDef } from '../villains/registry';
 import { EffectId, CardDefId } from '../villains/effectIds';
-import { getPlayer, getEffectiveStrength, computeKingdomCostMod, heroBlockedFromLocation } from './stateHelpers';
+import { getPlayer, getEffectiveStrength, computeKingdomCostMod, computeActivationCostMod, heroBlockedFromLocation } from './stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from './slotHelpers';
 
 export interface ValidationResult {
@@ -114,6 +114,15 @@ export function canPlayCard(
     if (effectBlocked) return fail('No se pueden jugar Efectos mientras Rey Ricardo esté en el Reino.');
   }
 
+  // Reina de Corazones / "Efectúa el tiro": solo jugable si hay un Postigo en cada ubicación.
+  const needsAllWicket = card.effectIds.some(id => getEffectDef(id)?.requiresAllLocationsHaveWicket);
+  if (needsAllWicket) {
+    const allCovered = Object.values(player.locationStates).every(ls =>
+      ls.villainCardInstIds.some(id => state.allCards[id]?.isWicket),
+    );
+    if (!allCovered) return fail('Necesitas al menos un Postigo en cada ubicación de tu Reino.');
+  }
+
   return ok;
 }
 
@@ -164,6 +173,7 @@ export function canVanquishFree(
     const ally = state.allCards[allyId];
     if (!ally) return fail(`Aliado ${allyId} no encontrado.`);
     if (ally.cardType !== CardType.ALLY) return fail('Solo Aliados pueden Vencer.');
+    if (ally.isWicket) return fail('Un Postigo no puede Vencer.');
     if (ally.locationId !== hero.locationId) {
       const canFromAdj = ally.effectIds.some(id => getEffectDef(id)?.canVanquishFromAdjacent);
       if (!canFromAdj) return fail('El Aliado debe estar en la misma ubicación que el Héroe.');
@@ -236,6 +246,12 @@ export function canMoveItemAlly(
   if (card.cardType !== CardType.ALLY && card.cardType !== CardType.ITEM)
     return fail('Solo se pueden mover Aliados u Objetos.');
   if (card.attachedToInstId) return fail('No se puede mover un Objeto unido a otro.');
+
+  // Alicia (Reina de Corazones): mientras esté viva en el Reino, no se pueden mover Aliados ni Objetos.
+  const moveBlocked = Object.values(player.locationStates).some(ls =>
+    ls.heroCardInstIds.some(id => state.allCards[id]?.effectIds.some(effId => getEffectDef(effId)?.blocksMoveItemAlly)),
+  );
+  if (moveBlocked) return fail('No se pueden mover Aliados ni Objetos mientras Alicia esté en el Reino.');
 
   const srcLocId = card.locationId;
   if (!srcLocId) return fail('La carta no está en el Reino.');
@@ -332,7 +348,17 @@ export function canActivateCard(
   });
   if (!hasActivatedEffect) return fail('Esta carta no tiene habilidad Activada.');
 
-  const activationCost = card.activationCost ?? 0;
+  // Dodo (Reina de Corazones): mientras esté en la misma ubicación, bloquea activar cartas para
+  // las que su blocksActivationAtLocation devuelva true (los Soldados Naipe/Postigos).
+  const locState = player.locationStates[card.locationId];
+  const blockedHere = [...(locState?.heroCardInstIds ?? []), ...(locState?.villainCardInstIds ?? [])].some(
+    id => id !== cardInstId && state.allCards[id]?.effectIds.some(
+      effId => getEffectDef(effId)?.blocksActivationAtLocation?.(card),
+    ),
+  );
+  if (blockedHere) return fail('La Habilidad de esta carta no puede activarse en esta ubicación.');
+
+  const activationCost = Math.max(0, (card.activationCost ?? 0) + computeActivationCostMod(state, playerId, card));
   if (player.power < activationCost)
     return fail(`Necesitas ${activationCost} de Poder para activar.`);
 

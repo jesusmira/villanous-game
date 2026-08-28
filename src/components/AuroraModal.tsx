@@ -85,7 +85,7 @@ export function AuroraModal({ state }: Props) {
           {/* Carta revelada */}
           <div className="flex flex-col items-center gap-1">
             <p className="font-stats text-[9px] uppercase tracking-widest text-primary/60 mb-2">
-              Aurora revela
+              Carta encontrada
             </p>
             <div className="aurora-card-preview-wrap">
               <div className="aurora-card-preview">

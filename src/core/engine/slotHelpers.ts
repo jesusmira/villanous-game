@@ -48,9 +48,34 @@ export function getCoveredSlotIndices(
   const locDef = getPlugin(player.villainId).locations.find(l => l.id === locationId);
   if (!locDef) return [];
   if (locDef.heroesNeverCoverSlots) return [];
+
   const heroCount = locState.heroCardInstIds.length;
-  const coveredCount = heroCount > 0 ? Math.min(2, locDef.actions.length) : 0;
-  return locDef.actions.slice(0, coveredCount).map((_, i) => i);
+  // Reina de Corazones/Menguar: un Héroe Menguado pasa a ser el ÚNICO que tapa una casilla en su
+  // ubicación, y tapa solo la que él eligió al ser menguado (no las 2 de siempre) — los demás
+  // Héroes ahí dejan de tapar nada.
+  const shrunkHeroId = locState.heroCardInstIds.find(id => state.allCards[id]?.isShrunk);
+  const covered = new Set<number>();
+  if (heroCount > 0) {
+    if (shrunkHeroId !== undefined) {
+      covered.add(state.allCards[shrunkHeroId]?.shrunkKeptSlotIndex ?? 0);
+    } else {
+      const coveredCount = Math.min(2, locDef.actions.length);
+      locDef.actions.slice(0, coveredCount).forEach((_, i) => covered.add(i));
+    }
+  }
+
+  // Reina de Corazones/Agrandar: un Héroe Agrandado en OTRA ubicación de este Reino también tapa
+  // una casilla elegida de esta, aunque su locationId real siga siendo la otra.
+  for (const ls of Object.values(player.locationStates)) {
+    for (const heroId of ls.heroCardInstIds) {
+      const hero = state.allCards[heroId];
+      if (hero?.isEnlarged && hero.enlargedTargetLocationId === locationId
+        && hero.enlargedTargetSlotIndex !== undefined) {
+        covered.add(hero.enlargedTargetSlotIndex);
+      }
+    }
+  }
+  return [...covered];
 }
 
 /**
