@@ -402,7 +402,19 @@ export function scoreAction(
   // "Descartar mano muerta" (o "Buscar carta clave", que usa la misma cuenta) premiaba esta
   // jugada desperdiciada igual que un descarte gratuito de verdad — confirmado con una traza
   // real, +2.35 en un turno sin ningún Aliado en el reino.
+  //
+  // Restringido a cardType ITEM: para un OBJETO, terminar en villainDiscardInstIds SÍ distingue
+  // "sin objetivo" (autodescarte explícito en su propio execute()) de "con objetivo" (queda EN
+  // JUEGO, adjunto). Para un EFECTO o CONDICIÓN (Menguar, ¡Que le corten la cabeza!, Forma de
+  // Dragón de Maléfica...) el motor genérico los descarta SIEMPRE tras ejecutar su ON_PLAY (ver
+  // engine/actions/play.ts: `if (card.cardType === EFFECT || CONDITION) discardCardFromKingdom`),
+  // tuvieran objetivo válido o no — así que sin este filtro por tipo, isWastedTargetedPlay daba
+  // false positive en el 100% de sus jugadas EXITOSAS y anulaba intentionAlignment siempre,
+  // dejando estas cartas sin ninguna vía de puntuación positiva salvo que además redujeran del
+  // todo la Fuerza de un héroe (ownHeroBlockageStrength) — Menguar nunca lo hace (no toca
+  // Fuerza, solo casillas tapadas), así que quedaba huérfana de intención Y de score genérico.
   const isWastedTargetedPlay = candidate.kind === ActionType.PLAY_CARD && !!candidate.cardInstId
+    && ctxBefore.state.allCards[candidate.cardInstId]?.cardType === CardType.ITEM
     && (ctxBefore.state.allCards[candidate.cardInstId]?.effectIds ?? []).some(id => getEffectDef(id)?.requiresTargetCard)
     && ctxAfter.player.villainDiscardInstIds.includes(candidate.cardInstId);
 

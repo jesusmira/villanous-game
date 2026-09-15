@@ -149,6 +149,13 @@ export interface StructuralThreatDef {
   /** Penalización fija mientras exista al menos un héroe de esta amenaza en el reino — amenaza
    *  binaria, no se "invierte" contra ella con Aliados (Robin Hood/Rey Ricardo de Jhon). */
   fixedPenaltyWhileAlive?: number;
+  /** Bono estructural por VENCER (VANQUISH) a un héroe de esta amenaza — equivalente al
+   *  `vanquishBonus` de `strengthGap`, pero para amenazas binarias/por recurso. Sin esto,
+   *  `computeStructuralThreatBonus` no premiaba nunca acumular Fuerza contra una amenaza
+   *  `fixedPenaltyWhileAlive` (p. ej. Alicia de la Reina de Corazones): la penalización subía la
+   *  urgencia de la intención propia mientras vivía, pero ningún término independiente empujaba a
+   *  gastar una acción real en derrotarla. */
+  fixedVanquishBonus?: number;
   /** Penalización escalada por una cantidad propia del héroe, sumada sobre todos los héroes de
    *  esta amenaza presentes (Poder retenido por Little John). */
   scaledPenalty?: (state: GameState, heroId: CardInstId) => number;

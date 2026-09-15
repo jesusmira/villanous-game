@@ -84,7 +84,19 @@ export function computeStructuralThreatBonus(
 ): number {
   let total = 0;
   for (const threat of ctxBefore.plugin.structuralThreats ?? []) {
-    if (!threat.strengthGap) continue;
+    if (!threat.strengthGap) {
+      // Amenaza binaria/por recurso (fixedPenaltyWhileAlive/scaledPenalty): sin strengthGap no
+      // hay "hueco de fuerza" que aproximar, pero SÍ puede haber recompensa por vencerla de una
+      // vez si el villano declaró `fixedVanquishBonus` — ver ese campo en types.ts.
+      if (!threat.fixedVanquishBonus || candidate.kind !== ActionType.VANQUISH) continue;
+      const countBefore = ctxBefore.locations.flatMap(l => l.heroCardInstIds)
+        .filter(id => threat.isThreatHero(ctxBefore.state, id)).length;
+      if (countBefore === 0) continue;
+      const countAfter = ctxAfter.locations.flatMap(l => l.heroCardInstIds)
+        .filter(id => threat.isThreatHero(ctxAfter.state, id)).length;
+      if (countAfter < countBefore) total += threat.fixedVanquishBonus;
+      continue;
+    }
     const blockedBefore = threatBlockedLocationIds(ctxBefore, threat);
     if (blockedBefore.length === 0) continue;
 
