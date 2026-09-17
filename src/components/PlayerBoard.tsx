@@ -187,8 +187,11 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
       </header>
 
       {/* ── Location grid ────────────────────────────────── */}
-      <div className="overflow-x-auto lg:overflow-x-visible pb-2 scrollbar-hide">
-        <div className="grid grid-cols-4 gap-3 md:gap-5 min-w-160 lg:min-w-0 items-start relative z-20">
+      {/* Retrato (vertical): 1 ubicación a la vez, a todo el ancho, con scroll-snap. Horizontal
+          (landscape, incluido desktop): sin cambios, las 4 en grid como siempre — el criterio es
+          la orientación real, no el ancho, para que un móvil en landscape también quede como antes. */}
+      <div className="overflow-x-auto landscape:overflow-x-visible snap-x snap-mandatory landscape:snap-none pb-2 scrollbar-hide">
+        <div className="flex landscape:grid landscape:grid-cols-4 gap-3 md:gap-5 landscape:min-w-160 items-start relative z-20">
           {plugin.locations.map((locDef, locIndex) => {
             const locState      = player.locationStates[locDef.id];
             const covered        = getCoveredSlotIndices(state, player.id, locDef.id);
@@ -202,8 +205,8 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
             const isMovable      = movableLocIds?.includes(locDef.id) ?? false;
             const boardImageUrl  = BOARD_IMAGES[player.villainId] ?? null;
             return (
+              <div key={locDef.id} className="w-full shrink-0 snap-center landscape:snap-align-none">
               <LocationTile
-                key={locDef.id}
                 locDef={locDef}
                 locState={locState}
                 state={state}
@@ -233,6 +236,7 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
                 boardImageUrl={boardImageUrl}
                 locationIndex={locIndex}
               />
+              </div>
             );
           })}
         </div>
