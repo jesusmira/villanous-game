@@ -172,6 +172,12 @@ export function deadCards(state: GameState, p: PlayerState): CardInstId[] {
       out.push(id); continue;
     }
     if (!hasAllyInKingdom && c.effectIds.includes('queen_lanza_attach')) { out.push(id); continue; }
+    // Feliz No Cumpleaños da 1 Poder por Aliado en el Reino (ver queen_no_cumple en effects.ts) —
+    // sin ningún Aliado, jugarla es literalmente 0 Poder por el coste de la ranura de Jugar Carta
+    // Y la propia carta (es EFFECT: se descarta al resolverse, gane o no gane nada). Mismo hueco
+    // que ya cubría Lanza — no estaba aquí y por eso podía quedarse en mano turnos enteros sin
+    // que nada empujara a descartarla mientras no hubiera Aliados.
+    if (!hasAllyInKingdom && c.effectIds.includes('queen_no_cumple')) { out.push(id); continue; }
     // Por orden de la Reina se descarta sin efecto (log "no hay Soldados Naipe que convertir")
     // si no queda ningún Soldado sin convertir en el reino — mismo desperdicio de coste que
     // Lanza sin Aliado, ver `queen_por_orden` en effects.ts.

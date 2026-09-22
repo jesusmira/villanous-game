@@ -81,10 +81,19 @@ export function getWinProgress(state: GameState, playerId: PlayerId): number {
   }
 }
 
+/** Rondas que una Condición puede esperar sin dispararse antes de considerarse descartable — su
+ *  disparo depende de que el RIVAL haga algo concreto (Vencer 4+, jugar 3+ Aliados...), no de
+ *  nada que el dueño pueda forzar, así que no tiene sentido que ocupe hueco de mano para siempre
+ *  si el rival no coopera. Aplica también a la primera copia, no solo a duplicados. */
+const STALE_CONDITION_ROUNDS = 4;
+
 /**
  * Cartas de mano que ya no aportan nada en lo que queda de partida: las que declara el plugin
- * (VillainPlugin.deadCards) + regla genérica de Condiciones duplicadas (una copia en mano basta;
- * las Condiciones no se juegan como acción, solo disparan — la segunda copia solo atasca).
+ * (VillainPlugin.deadCards) + dos reglas genéricas de Condiciones (válidas para cualquier
+ * villano, no solo el que las declare): duplicadas (una copia en mano basta; las Condiciones no
+ * se juegan como acción, solo disparan — la segunda copia solo atasca) y caducadas (ver
+ * STALE_CONDITION_ROUNDS — sin esto podían quedarse en mano decenas de turnos sin jugarse nunca,
+ * confirmado con el simulador: hasta 55 rondas quietas en partidas reales).
  */
 export function getDeadHandCards(ctxState: GameState, playerId: PlayerId): string[] {
   const p = getPlayer(ctxState, playerId);
@@ -94,8 +103,11 @@ export function getDeadHandCards(ctxState: GameState, playerId: PlayerId): strin
   for (const id of p.handInstIds) {
     const c = ctxState.allCards[id];
     if (c?.cardType !== CardType.CONDITION) continue;
-    if (seenCondNames.has(c.name)) dead.add(id);
-    else seenCondNames.add(c.name);
+    if (seenCondNames.has(c.name)) { dead.add(id); continue; }
+    seenCondNames.add(c.name);
+    if (c.handSinceRound !== undefined && ctxState.roundNumber - c.handSinceRound >= STALE_CONDITION_ROUNDS) {
+      dead.add(id);
+    }
   }
   return [...dead];
 }

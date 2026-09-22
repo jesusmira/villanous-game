@@ -105,6 +105,13 @@ export interface CardInst {
   costModifier: number;
   bonusThisTurn: number;
   storedPower?: number;
+  /** Ronda (GameState.roundNumber) en la que esta carta entró en la mano de su dueño — se
+   *  restampa cada vez que vuelve a la mano (robo normal, mano inicial). Usado por
+   *  getDeadHandCards (context.ts) para que una Condición que lleva demasiadas rondas sin
+   *  dispararse (no depende de nada que el dueño pueda forzar) se marque descartable en vez de
+   *  ocupar hueco de mano indefinidamente. undefined si la carta nunca ha pasado por un robo
+   *  instrumentado (no afecta a nada más, el chequeo lo trata como "recién llegada"). */
+  handSinceRound?: number;
   /** Reina de Corazones: un Soldado Naipe convertido en Postigo pierde su capacidad de Vencer
    *  pero conserva Fuerza a efectos de "Efectúa el tiro". Sigue siendo cardType ALLY. */
   isWicket?: boolean;

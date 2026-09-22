@@ -63,6 +63,10 @@ export function createInitialState(options: GameSetupOptions): GameState {
   const p1Split = split([...p1AllInstIds, ...p2AllInstIds], plugin1, p1Id);
   const p2Split = split([...p1AllInstIds, ...p2AllInstIds], plugin2, p2Id);
 
+  // Sella la ronda de entrada en mano (ver CardInst.handSinceRound) — la partida empieza en la
+  // ronda 1, así que la mano inicial cuenta desde ahí para el chequeo de Condiciones caducadas.
+  for (const id of [...p1Split.hand, ...p2Split.hand]) allCards[id].handSinceRound = 1;
+
   function makeLocStates(plugin: ReturnType<typeof getPlugin>) {
     const map: PlayerState['locationStates'] = {};
     for (const loc of plugin.locations) {

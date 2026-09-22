@@ -113,6 +113,23 @@ function oppBlockageStrength(ctx: AIContext): number {
   return ctx.oppLocations.filter(l => l.blocksSlots).reduce((sum, l) => sum + l.heroStrength, 0);
 }
 
+/** Suma de `storedPower` aparcado en cartas del rival (p. ej. Little John / Robar a los Ricos de
+ *  Príncipe Juan: roban Poder y lo guardan SOBRE una carta en vez de destruirlo). Genérico — no
+ *  referencia a Jhon, solo lee el campo; si otro villano usa el mismo mecanismo, se beneficia
+ *  igual. Usado para no dar crédito de "Poder arrebatado para siempre" en enemyImpact cuando en
+ *  realidad es un préstamo que vuelve al rival en cuanto derrote esa carta (ver onVanquish en
+ *  jhon/resolvers.ts). */
+function opponentStoredPower(ctx: AIContext): number {
+  if (!ctx.opponent) return 0;
+  let total = 0;
+  for (const ls of Object.values(ctx.opponent.locationStates)) {
+    for (const id of [...ls.heroCardInstIds, ...ls.villainCardInstIds]) {
+      total += ctx.state.allCards[id]?.storedPower ?? 0;
+    }
+  }
+  return total;
+}
+
 /** Suma la Fuerza de héroes propios que SÍ tapan ranuras (excluye ubicaciones con
  *  heroesNeverCoverSlots, p. ej. La Prisión — un héroe ahí no bloquea nada que quitar). */
 function ownHeroBlockageStrength(ctx: AIContext): number {
@@ -368,8 +385,19 @@ export function scoreAction(
 
   const progress = (ctxAfter.ownProgress - ctxBefore.ownProgress) * WEIGHTS.PROGRESS * villainWeights.objectiveWeight;
 
+  // Descuenta la bajada de oppProgress causada por Poder que ha quedado APARCADO en una carta
+  // del rival (storedPower), no destruido: volverá en cuanto derrote esa carta (a veces con
+  // bonus — Flecha Dorada). Sin esto, jugar una carta de Destino que "roba" Poder así puntuaba
+  // como una denegación permanente cuando en realidad es un préstamo — confirmado con el
+  // simulador: los 3 villanos pierden 80-97% de sus partidas contra Jhon, y su mano se llenaba
+  // de Destino repetido contra él sin que le costara nada a medio plazo.
+  const oppPowerLoss = Math.max(0, (ctxBefore.opponent?.power ?? 0) - (ctxAfter.opponent?.power ?? 0));
+  const storedPowerDelta = Math.max(0, opponentStoredPower(ctxAfter) - opponentStoredPower(ctxBefore));
+  const recoverableFraction = oppPowerLoss > 0 ? Math.min(1, storedPowerDelta / oppPowerLoss) : 0;
+  const oppProgressDrop = (ctxBefore.oppProgress - ctxAfter.oppProgress) * (1 - recoverableFraction);
+
   const enemyImpact = ((oppBlockageStrength(ctxAfter) - oppBlockageStrength(ctxBefore)) * WEIGHTS.ENEMY_IMPACT
-    + (ctxBefore.oppProgress - ctxAfter.oppProgress) * WEIGHTS.ENEMY_IMPACT * 2) * villainWeights.heroRemovalWeight;
+    + oppProgressDrop * WEIGHTS.ENEMY_IMPACT * 2) * villainWeights.heroRemovalWeight;
 
   // Valor del Poder hasta el tope (positivo) menos penalización por acaparar por encima de él.
   const powerValue = (p: number) => Math.min(p, WEIGHTS.ECONOMY_HOARD_CAP) * WEIGHTS.ECONOMY_POWER_VALUE

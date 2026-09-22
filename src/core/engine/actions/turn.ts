@@ -118,6 +118,8 @@ export function drawCards(state: GameState, playerId: PlayerId): GameState {
   }
 
   const drawn = deck.splice(0, needed);
+  // Sella la ronda de entrada en mano de cada carta robada — ver CardInst.handSinceRound.
+  for (const id of drawn) s = updateCard(s, id, { handSinceRound: s.roundNumber });
   s = updatePlayer(s, playerId, {
     handInstIds: [...getPlayer(s, playerId).handInstIds, ...drawn],
     villainDeckInstIds: deck,
