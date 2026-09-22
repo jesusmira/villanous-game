@@ -98,6 +98,19 @@ const WEIGHTS = {
   // intentionAlignment/allyPlacement/DEAD_HAND_CARD encima) para no impedir jugarlo cuando de
   // verdad es la única opción que queda.
   FUEGO_VERDE_SEAL_PENALTY: 12,
+  // Selva de Mortales Espinos (coste 2, la Maldición más barata de Maléfica) se descarta SOLA en
+  // cuanto se juegue CUALQUIER Héroe de Fuerza 4+ ahí (ON_HERO_PLAYED_HERE, sin ventana de
+  // reacción — ver mal_selva_curse en effects.ts), a diferencia de Fuego Verde (solo se pierde si
+  // Maléfica misma vuelve a pisar esa ubicación, evitable) o Sueño Sin Sueños (necesita que el
+  // rival tenga y juegue "Una vez en sueños" Y haya un Héroe ya presente, con ventana para
+  // Vencerlo antes). Medido con scripts/_diag_maleficent.ts (60 partidas vs Jhon): 8.5
+  // Maldiciones jugadas por partida vs 6.4 perdidas — casi todo el "churn" era Selva (43.6% de
+  // las pérdidas, pese a ser solo 3 de sus 8 Maldiciones) y el 100% de las pérdidas ocurrían en
+  // el turno del rival, nunca el propio. Como el motor genérico puntúa las 3 Maldiciones con el
+  // mismo progress/economy (cubren la misma ubicación, ahorra solo 1 Moneda), la más barata y más
+  // frágil ganaba el desempate por defecto. Penalización, no veto — igual que Fuego Verde, debe
+  // seguir jugándose cuando es la única Maldición en mano.
+  SELVA_FRAGILITY_PENALTY: 6,
   // Ver computeJollyRogerGarrisonBonus: mismo orden de magnitud que ALLY_PLACEMENT_FIT (1.5) por
   // ser el mismo tipo de señal (encaje Aliado↔objetivo real), pero contra la ubicación FIJA donde
   // Peter Pan debe ser Vencido (Jolly Roger) en vez de contra su ubicación actual, que va
@@ -321,6 +334,18 @@ function computeFuegoVerdeSealPenalty(ctxBefore: AIContext, candidate: ActionCan
     : 0;
 }
 
+/** Ver WEIGHTS.SELVA_FRAGILITY_PENALTY: penaliza jugar Selva de Mortales Espinos (se descarta
+ *  sola sin ventana de reacción en cuanto el rival juegue ahí un Héroe de Fuerza 4+) para que el
+ *  motor prefiera Fuego Verde/Sueño Sin Sueños cuando también estén disponibles, en vez de la
+ *  Maldición más barata por defecto. */
+function computeSelvaFragilityPenalty(ctxBefore: AIContext, candidate: ActionCandidate): number {
+  if (ctxBefore.player.villainId !== 'maleficent') return 0;
+  if (candidate.kind !== ActionType.PLAY_CARD || !candidate.cardInstId) return 0;
+  const card = ctxBefore.state.allCards[candidate.cardInstId];
+  if (!card?.defId.startsWith(CardDefPrefix.MAL_SELVA)) return 0;
+  return -WEIGHTS.SELVA_FRAGILITY_PENALTY;
+}
+
 /** Ver WEIGHTS.JR_GARRISON_FIT: recompensa CONTINUA por Fuerza de Aliados estacionada en Jolly
  *  Roger — el único sitio donde Garfio puede Vencer a Peter Pan (RuleEngine.ts:202-205: "Peter
  *  Pan solo puede ser derrotado en el Jolly Roger"). Sin esto, jugar un Aliado en Jolly Roger
@@ -500,6 +525,7 @@ export function scoreAction(
   const searchBonus = computeSearchBonus(ctxBefore, candidate) * villainWeights.fateWeight
     + structuralThreatBonus * villainWeights.heroRemovalWeight
     + computeFuegoVerdeSealPenalty(ctxBefore, candidate)
+    + computeSelvaFragilityPenalty(ctxBefore, candidate)
     + computeJollyRogerGarrisonBonus(ctxBefore, ctxAfter) * villainWeights.objectiveWeight;
 
   // structuralThreatBonus > 0 cubre el caso de un salto INTERMEDIO hacia la amenaza (acerca un
