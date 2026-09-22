@@ -3,13 +3,16 @@
 // economía del turno, sinergia con la mano, preparación de victoria, alineación con la intención
 // elegida, presión acumulada (colocación de héroes vía Destino), colocación de Aliados — y −10 si
 // es un "mover" que no abre opciones nuevas.
-import { ActionType, CardType } from '../../types';
+import { ActionType, CardType, EffectTrigger } from '../../types';
 import type { PlayerId, VillainId } from '../../types';
 import type { OpponentProfile } from '../opponentModel';
 import type { AIContext, ActionCandidate, ActionScoreBreakdown, IntentionDef, ScoredAction } from './types';
 import { buildAIContext } from './context';
 import { lerpCurve } from './curve';
 import { getEffectiveStrength } from '../../engine/stateHelpers';
+import { activateCard } from '../../engine/GameEngine';
+import { resolveCuervo } from '../../engine/PendingStateResolver';
+import { chooseCuervoAction } from './legalMoves';
 import { getEffectDef } from '../../villains/registry';
 import { CardDefPrefix } from '../../villains/effectIds';
 import { findPeterPan } from '../../villains/hook/aiHelpers';
@@ -116,6 +119,13 @@ const WEIGHTS = {
   // Peter Pan debe ser Vencido (Jolly Roger) en vez de contra su ubicación actual, que va
   // cambiando turno a turno mientras se le acerca.
   JR_GARRISON_FIT: 1.5,
+  // Ver computeActivationPotentialBonus: fracción del valor estimado de activarla YA que se
+  // concede como incentivo a colocarla, no el valor completo — activarla de verdad cuesta otra
+  // ranura/turno futuro y las condiciones pueden cambiar de aquí a entonces (p. ej. el nº de
+  // Postigos del Reloj puede subir o bajar). 0.5 es deliberadamente conservador: basta para sacar
+  // a estas cartas de una puntuación de 0 (clavadas en mano) sin fingir que jugarlas YA vale lo
+  // mismo que jugarlas Y activarlas en el mismo turno.
+  ACTIVATION_POTENTIAL_FRACTION: 0.5,
 };
 
 function vanquishableCount(ctx: AIContext): number {
@@ -346,6 +356,50 @@ function computeSelvaFragilityPenalty(ctxBefore: AIContext, candidate: ActionCan
   return -WEIGHTS.SELVA_FRAGILITY_PENALTY;
 }
 
+/** Ver WEIGHTS.ACTIVATION_POTENTIAL_FRACTION: cartas cuyo valor de verdad llega por una
+ *  ACTIVACIÓN futura (ACTIVATE_CARD), no por su colocación en sí — p. ej. Reloj de la Reina
+ *  (Objeto sin Fuerza que solo genera Poder al activarse) o El Cuervo de Maléfica (Aliado de
+ *  Fuerza 1 cuyo papel real es moverse y actuar vía ACTIVATED). El resto de scoreAction puntúa
+ *  por delta inmediato de un solo paso (simulate-then-evaluate) y no ve ese valor futuro: sin
+ *  relación entre sí (villanos y tipos de carta distintos, ningún nombre de carta hardcodeado
+ *  aquí — el enganche es genérico, por EffectTrigger.ACTIVATED), eran las 2 cartas MÁS atascadas
+ *  en mano de TODO el informe agregado de scripts/simulate.ts (Reloj hasta 48 turnos quieta,
+ *  Cuervo hasta 41) — el patrón común es tener un efecto ACTIVATED y ningún valor inmediato al
+ *  jugarse, así que jugarlas puntuaba prácticamente 0 (peor que cualquier otra carta jugable) y
+ *  nunca ganaban la comparación.
+ *
+ *  Simula activarla YA MISMO, quieta en su propia ubicación (sin intentar elegir el mejor
+ *  destino — eso ya lo cubre `maybeUseRaven` en planner.ts para el Cuervo en concreto, con una
+ *  búsqueda real entre ubicaciones — esto solo necesita un suelo de valor razonable, no el
+ *  óptimo). Si el efecto deja un `pendingCuervo` (mecánica de "muévete y actúa" — hoy solo El
+ *  Cuervo la usa, pero el enganche es genérico por RAVEN_ACTIVATE/pendingCuervo, no por nombre de
+ *  carta), se resuelve con la MISMA lógica que ya usa el motor para el Cuervo real
+ *  (`chooseCuervoAction` + `resolveCuervo`, ver legalMoves.ts) en vez de devolver 0 a ciegas: sin
+ *  esto, El Cuervo quedaba estructuralmente excluido de este bono (activarlo SIEMPRE pasa por
+ *  `pendingCuervo`) pese a ser, junto a Reloj, la carta más atascada en mano de todo el informe
+ *  agregado — confirmado midiendo antes/después con scripts/simulate.ts: el bono sí bajaba el
+ *  atasco de Reloj pero no tocaba en absoluto el de El Cuervo. Mide la ganancia genérica
+ *  (progreso propio + Poder, los mismos dos términos que ya usa el resto del motor) y devuelve
+ *  solo una FRACCIÓN (ver WEIGHTS.ACTIVATION_POTENTIAL_FRACTION) como incentivo a colocarla. */
+function computeActivationPotentialBonus(ctxAfter: AIContext, candidate: ActionCandidate): number {
+  if (candidate.kind !== ActionType.PLAY_CARD || !candidate.cardInstId) return 0;
+  const card = ctxAfter.state.allCards[candidate.cardInstId];
+  if (!card?.locationId) return 0;
+  const hasActivatedEffect = card.effectIds.some(id => getEffectDef(id)?.trigger === EffectTrigger.ACTIVATED);
+  if (!hasActivatedEffect) return 0;
+  const activationCost = Math.max(0, card.activationCost ?? 0);
+  if (ctxAfter.player.power < activationCost) return 0;
+  let simulated = activateCard(ctxAfter.state, ctxAfter.playerId, candidate.cardInstId, -1, { targetLocationId: card.locationId });
+  if (simulated.pendingCuervo) {
+    const { action, params } = chooseCuervoAction(simulated);
+    simulated = resolveCuervo(simulated, action, params);
+  }
+  const ctxSimulated = buildAIContext(simulated, ctxAfter.playerId);
+  const progressGain = Math.max(0, ctxSimulated.ownProgress - ctxAfter.ownProgress) * WEIGHTS.PROGRESS;
+  const powerGain = Math.max(0, ctxSimulated.player.power - ctxAfter.player.power) * WEIGHTS.ECONOMY_POWER_VALUE;
+  return (progressGain + powerGain) * WEIGHTS.ACTIVATION_POTENTIAL_FRACTION;
+}
+
 /** Ver WEIGHTS.JR_GARRISON_FIT: recompensa CONTINUA por Fuerza de Aliados estacionada en Jolly
  *  Roger — el único sitio donde Garfio puede Vencer a Peter Pan (RuleEngine.ts:202-205: "Peter
  *  Pan solo puede ser derrotado en el Jolly Roger"). Sin esto, jugar un Aliado en Jolly Roger
@@ -526,6 +580,7 @@ export function scoreAction(
     + structuralThreatBonus * villainWeights.heroRemovalWeight
     + computeFuegoVerdeSealPenalty(ctxBefore, candidate)
     + computeSelvaFragilityPenalty(ctxBefore, candidate)
+    + computeActivationPotentialBonus(ctxAfter, candidate)
     + computeJollyRogerGarrisonBonus(ctxBefore, ctxAfter) * villainWeights.objectiveWeight;
 
   // structuralThreatBonus > 0 cubre el caso de un salto INTERMEDIO hacia la amenaza (acerca un
