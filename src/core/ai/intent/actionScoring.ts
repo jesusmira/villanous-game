@@ -417,14 +417,21 @@ function computeActivationPotentialBonus(ctxAfter: AIContext, candidate: ActionC
  *  villano en esa ubicación turnos futuros — demasiado especulativo para simular. En vez de
  *  inventar un valor positivo, solo se anula el propio coste de jugarla (Math.max(total, 0)):
  *  igual que Ganar Poder nunca puntúa peor que no hacer nada (ver ECONOMY_HOARD_PENALTY), colocar
- *  una carta puramente estructural tampoco debería, aunque su beneficio real siga sin conocerse. */
+ *  una carta puramente estructural tampoco debería, aunque su beneficio real siga sin conocerse.
+ *
+ *  También cubre `EffectDef.deferredValue` (p. ej. Desaparecer de Maléfica: fija `skipNextMove`,
+ *  una decisión que `planner.ts` YA compara aparte contra la mejor alternativa de moverse —
+ *  jugarla en sí no mueve ninguna aguja de esta puntuación de un solo paso). Coste 0, pero el
+ *  mismo síntoma: -1.02 en solitario, solo por el hueco de mano que deja de "contar" como
+ *  jugable (handSynergy) — hasta 61 turnos quieta en el informe agregado, la más atascada de la
+ *  sesión tras corregir Reloj/Cuervo/Cetro/Rueca/Corona. */
 function isFutureOnlyStructuralItem(ctxBefore: AIContext, candidate: ActionCandidate): boolean {
   if (candidate.kind !== ActionType.PLAY_CARD || !candidate.cardInstId) return false;
   const card = ctxBefore.state.allCards[candidate.cardInstId];
   if (!card || (card.baseStrength ?? 0) > 0) return false;
   return card.effectIds.some(id => {
     const def = getEffectDef(id);
-    return !!def && (def.computePlayCostModifier !== undefined || def.trigger === EffectTrigger.ON_VANQUISH);
+    return !!def && (def.computePlayCostModifier !== undefined || def.trigger === EffectTrigger.ON_VANQUISH || def.deferredValue === true);
   });
 }
 

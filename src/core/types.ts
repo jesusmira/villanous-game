@@ -220,6 +220,15 @@ export interface EffectDef {
   /** Modificador del Precio de Activación de la carta que se está activando (Conejo Blanco: +1
    *  a Soldados Naipe/Postigos). Análogo a computePlayCostModifier pero para ACTIVATE_CARD. */
   computeActivationCostModifier?: (state: GameState, playerId: PlayerId, cardToActivate: CardInst, effectCardInstId: CardInstId) => number;
+  /**
+   * Efecto ON_PLAY cuyo único resultado es una bandera/estado que se consume en una decisión
+   * FUTURA ya resuelta por otro mecanismo (p. ej. Desaparecer → `skipNextMove`, comparado por
+   * `planner.ts` contra la mejor alternativa de moverse) — no aporta Fuerza, progreso ni impacto
+   * en el rival AHORA MISMO, así que `scoreAction()` no ve ningún valor al jugarla. Ver
+   * `isFutureOnlyStructuralItem` en actionScoring.ts: anula (no premia) el coste de jugarla, en
+   * vez de intentar adivinar cuánto valdrá la decisión futura que ya se resuelve aparte.
+   */
+  deferredValue?: boolean;
 }
 
 export interface PlayerState {

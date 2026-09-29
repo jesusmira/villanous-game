@@ -372,6 +372,7 @@ export const effects: EffectDef[] = [
     id: 'mal_desaparecer',
     trigger: EffectTrigger.ON_PLAY,
     description: 'En el próximo turno puedes permanecer en tu ubicación actual',
+    deferredValue: true,
     execute: (state, ctx) => {
       const s = updatePlayer(state, ctx.actingPlayerId, { skipNextMove: true });
       return addLog(s, `${getPlayer(s, ctx.actingPlayerId).name} puede permanecer en su ubicación el próximo turno.`);
