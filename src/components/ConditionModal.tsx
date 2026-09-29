@@ -329,6 +329,22 @@ function CobardiaResolver({ state, reactingPlayer, condInstId }: {
   );
 }
 
+// ─── RESOLVER GENÉRICO (sin selección previa) ──────────────────────────────────
+// Para Condiciones que no piden elegir nada antes de jugarse (Furia y Juicio de la Reina de
+// Corazones: Furia encola su propia elección de Héroes a Menguar en pendingShrinkPick — ver
+// ShrinkPickModal — y Juicio solo da Poder fijo). Sin este resolver, seleccionar la carta no
+// mostraba ningún botón para jugarla y la única salida era "Ignorar".
+function SimpleResolver({ condCard, condInstId }: { condCard: CardInst; condInstId: CardInstId }) {
+  const doResolveCondition = useGameStore(s => s.doResolveCondition);
+  return (
+    <div className={PANEL}>
+      <button className={BTN} onClick={() => doResolveCondition(condInstId, {})}>
+        Jugar {condCard.name}
+      </button>
+    </div>
+  );
+}
+
 // ─── ORCHESTRATOR ─────────────────────────────────────────────────────────────
 
 interface Props { state: GameState }
@@ -389,6 +405,10 @@ export function ConditionModal({ state }: Props) {
         )}
         {selectedCondId && isType(EffectId.JHON_COBARDIA_COND) && (
           <CobardiaResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
+        )}
+        {selectedCondId && condCard && !isType(EffectId.MALICIA_COND) && !isType(EffectId.TIRANIA_COND)
+          && !isType(EffectId.OBSESION_COND) && !isType(EffectId.PERSPICAZ_COND) && !isType(EffectId.JHON_COBARDIA_COND) && (
+          <SimpleResolver condCard={condCard} condInstId={selectedCondId} />
         )}
 
         {/* Footer */}
