@@ -400,6 +400,34 @@ function computeActivationPotentialBonus(ctxAfter: AIContext, candidate: ActionC
   return (progressGain + powerGain) * WEIGHTS.ACTIVATION_POTENTIAL_FRACTION;
 }
 
+/** Objetos ITEM sin Fuerza propia cuyo único efecto depende de un evento FUTURO que el motor no
+ *  puede valorar sin inventarse el resto de la partida: `computePlayCostModifier` CONTINUOUS
+ *  (descuento a cartas que se jueguen ahí más adelante — Cetro de Maléfica, Corona del Rey
+ *  Ricardo de Jhon) u ON_VANQUISH (Poder al Vencer un Héroe ahí más adelante — Rueca de
+ *  Maléfica). Ninguno de los términos existentes ve ese valor (cero Fuerza, cero progreso, cero
+ *  impacto en el rival), así que jugarlas SIEMPRE puntuaba negativo por su sola Precio —
+ *  confirmado jugando Cetro y Corona EN SOLITARIO (sin ninguna otra carta compitiendo por la
+ *  ranura): -1.63 y hasta -4.25 (para Jhon el progreso ES el Poder — ver WEIGHTS.PROGRESS — así
+ *  que gastarlo penaliza el doble). Mismo patrón en 2 villanos distintos con mecánicas
+ *  independientes, detectado mirando el informe agregado de scripts/simulate.ts antes de tocar
+ *  código (ver [[project_ai_activation_potential_bonus]]).
+ *
+ *  Distinto de `computeActivationPotentialBonus` (ACTIVATED): ahí se puede SIMULAR el paso
+ *  siguiente (activar ya mismo) para estimar un valor real. Aquí el pago depende de qué juegue el
+ *  villano en esa ubicación turnos futuros — demasiado especulativo para simular. En vez de
+ *  inventar un valor positivo, solo se anula el propio coste de jugarla (Math.max(total, 0)):
+ *  igual que Ganar Poder nunca puntúa peor que no hacer nada (ver ECONOMY_HOARD_PENALTY), colocar
+ *  una carta puramente estructural tampoco debería, aunque su beneficio real siga sin conocerse. */
+function isFutureOnlyStructuralItem(ctxBefore: AIContext, candidate: ActionCandidate): boolean {
+  if (candidate.kind !== ActionType.PLAY_CARD || !candidate.cardInstId) return false;
+  const card = ctxBefore.state.allCards[candidate.cardInstId];
+  if (!card || (card.baseStrength ?? 0) > 0) return false;
+  return card.effectIds.some(id => {
+    const def = getEffectDef(id);
+    return !!def && (def.computePlayCostModifier !== undefined || def.trigger === EffectTrigger.ON_VANQUISH);
+  });
+}
+
 /** Ver WEIGHTS.JR_GARRISON_FIT: recompensa CONTINUA por Fuerza de Aliados estacionada en Jolly
  *  Roger — el único sitio donde Garfio puede Vencer a Peter Pan (RuleEngine.ts:202-205: "Peter
  *  Pan solo puede ser derrotado en el Jolly Roger"). Sin esto, jugar un Aliado en Jolly Roger
@@ -594,12 +622,23 @@ export function scoreAction(
     || structuralThreatBonus > 0;
   const uselessPenalty = candidate.isRepositioning && !openedNewOptions ? WEIGHTS.USELESS_MOVE_PENALTY : 0;
 
-  const total = progress + enemyImpact + economy + handSynergy + victoryPrep + intentionAlignment
+  const preliminaryTotal = progress + enemyImpact + economy + handSynergy + victoryPrep + intentionAlignment
     + pressureScore + allyPlacement + searchBonus + uselessPenalty;
+
+  // Ver isFutureOnlyStructuralItem: anula (no premia) el coste de jugar un Objeto puramente
+  // estructural cuyo beneficio real es demasiado futuro/especulativo para simular. Se suma al
+  // bucket de searchBonus (mismo cajón de ajustes estructurales que no encajan en las 7
+  // categorías) para que el desglose reportado siga sumando al total real.
+  const structuralUtilityFloor = preliminaryTotal < 0 && isFutureOnlyStructuralItem(ctxBefore, candidate)
+    ? -preliminaryTotal
+    : 0;
+  const searchBonusWithFloor = searchBonus + structuralUtilityFloor;
+
+  const total = preliminaryTotal + structuralUtilityFloor;
 
   const breakdown: ActionScoreBreakdown = {
     progress, enemyImpact, economy, handSynergy, victoryPrep, intentionAlignment,
-    pressureScore, allyPlacement, searchBonus, uselessPenalty, total,
+    pressureScore, allyPlacement, searchBonus: searchBonusWithFloor, uselessPenalty, total,
   };
   return { ...candidate, breakdown };
 }
