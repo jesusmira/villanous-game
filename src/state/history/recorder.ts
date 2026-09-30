@@ -5,6 +5,7 @@
 import type { GameState, PlayerId } from '../../core/types';
 import { buildActionRecord } from '../../core/history/buildActionRecord';
 import type { ActionKind, ActionRecord, GameRecord, GameRecordPlayer } from '../../core/history/types';
+import type { TurnAudit } from '../../core/ai/intent/types';
 import { saveGameRecord } from './db';
 
 function makeId(): string {
@@ -64,10 +65,11 @@ export function recordAction(
   actorPlayerId: PlayerId | undefined,
   kind: ActionKind,
   actionParams?: Record<string, unknown>,
+  audit?: TurnAudit,
 ): void {
   if (!session || !actorPlayerId || before === after) return;
   session.actions.push(buildActionRecord({
-    seq: session.seq++, before, after, actorPlayerId, kind, actionParams,
+    seq: session.seq++, before, after, actorPlayerId, kind, actionParams, audit,
   }));
   if (after.winner && !before.winner) {
     void persist(after, after.winner);
@@ -80,12 +82,20 @@ export function recordAction(
  * (mover el peón, cada acción de la fase ACTIVATE, robar cartas...), en vez de un único bloque
  * "AI_TURN" que solo mostraba el antes/después del turno completo. Sin esto era imposible ver,
  * a partir del historial, QUÉ hizo la IA en cada paso — solo el resultado final agregado.
+ *
+ * `audit` (si se pasa) es la auditoría COMPLETA de ese turno de IA — una por turno, no por paso
+ * interno — y se adjunta solo al ÚLTIMO ActionRecord generado aquí, como cierre del turno.
+ * Antes se calculaba en cada turno de IA y se descartaba tras solo mostrarse en consola (modo
+ * DEV): sin esto, entender POR QUÉ la IA hizo algo exigía reconstruirlo a mano a partir del log
+ * de acciones y del código — ver memoria project_queen_tiro_self_discard_fix.
  */
-export function recordAITurn(before: GameState, steps: GameState[], aiPlayerId: PlayerId): void {
+export function recordAITurn(before: GameState, steps: GameState[], aiPlayerId: PlayerId, audit?: TurnAudit): void {
   if (!session || steps.length === 0) return;
   let prev = before;
-  for (const step of steps) {
-    recordAction(prev, step, aiPlayerId, 'AI_TURN');
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    const isLastStep = i === steps.length - 1;
+    recordAction(prev, step, aiPlayerId, 'AI_TURN', undefined, isLastStep ? audit : undefined);
     prev = step;
   }
 }

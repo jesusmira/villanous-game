@@ -480,7 +480,7 @@ aiWorker.onmessage = (e: MessageEvent<AIWorkerResponse>) => {
   pendingAIInput = null;
   if (aiInput && e.data.steps.length > 0) {
     const aiPlayerId = aiInput.players[aiInput.currentPlayerIndex].id;
-    recordAITurn(aiInput, e.data.steps, aiPlayerId);
+    recordAITurn(aiInput, e.data.steps, aiPlayerId, e.data.audit);
     checkEmptyActivateTurn(aiInput, e.data.steps, aiPlayerId);
   }
   if (import.meta.env.DEV && e.data.audit) {

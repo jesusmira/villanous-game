@@ -3,6 +3,7 @@
 // registran durante una partida para poder persistirlos y, más adelante,
 // construir un perfil del jugador humano (ver evaluate.ts / AIPlayer.ts).
 import type { PlayerId, VillainId, LocationId, CardInstId, CardDefId } from '../types';
+import type { TurnAudit } from '../ai/intent/types';
 
 /** Tipo de acción registrada. Refleja 1:1 los `do*` de `useGameStore` + el turno de IA. */
 export const ActionKind = {
@@ -101,6 +102,15 @@ export interface ActionRecord {
   cards?: { self: PlayerCardSnapshot; opponent: PlayerCardSnapshot };
   /** Líneas de state.log generadas durante esta acción (mensajes reales del motor, no inferidos). */
   logMessages?: string[];
+  /**
+   * Auditoría completa del turno de IA (intención elegida, acciones tomadas, alternativas
+   * ignoradas con su puntuación, errores de reglas detectados...) — solo presente en el ÚLTIMO
+   * ActionRecord de un turno de IA (kind AI_TURN), nunca en los pasos intermedios ni en acciones
+   * de un jugador humano. Es el mismo objeto que `runAIStep()` ya calcula para cada turno; antes
+   * se descartaba tras solo mostrarlo en consola (modo DEV) — sin esto, explicar por qué la IA
+   * hizo algo exigía reconstruirlo a mano leyendo el código y el log de acciones.
+   */
+  audit?: TurnAudit;
 }
 
 export interface GameRecordPlayer {

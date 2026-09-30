@@ -3,6 +3,7 @@ import type { GameState, PlayerId } from '../types';
 import { getPlayer } from '../engine/stateHelpers';
 import { snapshotPlayer, snapshotPlayerCards } from './snapshot';
 import type { ActionKind, ActionRecord } from './types';
+import type { TurnAudit } from '../ai/intent/types';
 
 export function buildActionRecord(params: {
   seq: number;
@@ -11,8 +12,9 @@ export function buildActionRecord(params: {
   actorPlayerId: PlayerId;
   kind: ActionKind;
   actionParams?: Record<string, unknown>;
+  audit?: TurnAudit;
 }): ActionRecord {
-  const { seq, before, after, actorPlayerId, kind, actionParams } = params;
+  const { seq, before, after, actorPlayerId, kind, actionParams, audit } = params;
   const opponentId = after.players.find(p => p.id !== actorPlayerId)?.id;
   return {
     seq,
@@ -35,5 +37,6 @@ export function buildActionRecord(params: {
     // Mensajes que el propio motor ya generó para esta acción (ver addLog en stateHelpers.ts) —
     // más fiable que intentar re-describir la acción a partir del diff de estados.
     logMessages: after.log.slice(before.log.length),
+    audit,
   };
 }
