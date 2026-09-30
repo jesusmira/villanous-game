@@ -146,9 +146,19 @@ export const intentions: IntentionDef[] = [coverLocationsIntention, takeTheShotI
 
 /**
  * Cartas de mano muertas: Menguar/Cabeza sin ningún Héroe rival en el reino, Lanza sin ningún
- * Aliado al que unirse, Por orden de la Reina/Gato Risón sin ningún Soldado sin convertir, y
- * Efectúa el tiro mientras aún falte cubrir alguna ubicación (evita el bug ya documentado de mano
- * congelada — ver memoria project_ai_frozen_hand_deadlock_fix).
+ * Aliado al que unirse, Por orden de la Reina/Gato Risón sin ningún Soldado sin convertir.
+ *
+ * OJO: Efectúa el tiro NUNCA se marca muerta aquí, aunque falte cubrir alguna ubicación — es la
+ * carta que GANA la partida, y solo hay 3 copias en todo el mazo (30 cartas). Marcarla "muerta"
+ * mientras no está lista empuja al motor genérico a descartarla en cuanto compite por hueco de
+ * mano con cualquier otra cosa — confirmado con una partida real (historial de 17 rondas): la
+ * Reina descartó sus 3 copias (2 en la ronda 1, la 3ª en la ronda 9, siempre con el Reino aún sin
+ * cubrir del todo) y CUBRIÓ LAS 4 UBICACIONES en la ronda 13 sin ninguna copia en mano ni en las
+ * 4 rondas restantes de partida — perdió por no poder jugar su propia carta de victoria, no por
+ * fallar el objetivo. `takeTheShotIntention` (arriba) ya evita jugarla demasiado pronto (evalúa
+ * 0 mientras no esté fullyCovered); el problema era específicamente forzar su DESCARTE, no solo
+ * despriorizar jugarla. Coste 4, sin urgencia por soltarla: el peor caso de guardarla es un hueco
+ * de mano perdido, mucho más barato que perder el único camino a ganar.
  */
 export function deadCards(state: GameState, p: PlayerState): CardInstId[] {
   const out: CardInstId[] = [];
@@ -159,11 +169,6 @@ export function deadCards(state: GameState, p: PlayerState): CardInstId[] {
     .some(ls => ls.villainCardInstIds.some(
       id => state.allCards[id]?.effectIds.includes('queen_soldado_toggle') && !state.allCards[id]?.isWicket,
     ));
-  const totalLocs = Object.keys(p.locationStates).length;
-  const coveredLocs = Object.values(p.locationStates)
-    .filter(ls => ls.villainCardInstIds.some(id => state.allCards[id]?.isWicket)).length;
-  const fullyCovered = coveredLocs >= totalLocs;
-
   const seenCondNames = new Set<string>();
   for (const id of p.handInstIds) {
     const c = state.allCards[id];
@@ -182,7 +187,6 @@ export function deadCards(state: GameState, p: PlayerState): CardInstId[] {
     // si no queda ningún Soldado sin convertir en el reino — mismo desperdicio de coste que
     // Lanza sin Aliado, ver `queen_por_orden` en effects.ts.
     if (!hasSoldadoToConvert && c.effectIds.includes('queen_por_orden')) { out.push(id); continue; }
-    if (!fullyCovered && c.effectIds.includes('queen_efectua_el_tiro')) { out.push(id); continue; }
     if (c.cardType === CardType.CONDITION) {
       if (seenCondNames.has(c.name)) { out.push(id); continue; }
       seenCondNames.add(c.name);
