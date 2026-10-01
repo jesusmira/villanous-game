@@ -1,5 +1,5 @@
 import { CardDeck } from '../core/types';
-import type { LocationDef, LocationState, GameState, CardInstId } from '../core/types';
+import type { LocationDef, LocationState, GameState, CardInstId, CardInst } from '../core/types';
 import { CardComponent } from './CardComponent';
 import { useDropTarget } from '../hooks/dragCore';
 import { Crown } from 'lucide-react';
@@ -50,6 +50,15 @@ interface Props {
   availableSlotIndices: number[];
   /** Casillas tapadas que Sir Hiss permite elegir (clicables aunque estén tapadas). */
   hissChoiceSlotIndices?: number[];
+  /**
+   * Casillas tapadas aquí por un Héroe Agrandado (Reina de Corazones) que FÍSICAMENTE está en
+   * OTRA ubicación — ver `enlargedTargetLocationId`/`enlargedTargetSlotIndex` en CardInst y
+   * `getCoveredSlotIndices` (slotHelpers.ts), que ya las cuenta como tapadas pero sin indicar de
+   * dónde viene el bloqueo. Sin esto, una casilla tapada por un Agrandado remoto se veía igual
+   * que una tapada por un Héroe que sí está aquí, perdiendo la pista visual de que el origen del
+   * bloqueo está en otro sitio.
+   */
+  remoteEnlargedCoverage?: { slotIndex: number; card: CardInst }[];
   selectedCardId: CardInstId | null;
   onSlotClick?: (slotIndex: number) => void;
   onCardClick: (cardInstId: CardInstId) => void;
@@ -85,7 +94,7 @@ interface Props {
 
 export function LocationTile({
   locDef, locState, state, villainColor, isCurrentPawn,
-  coveredSlotIndices, availableSlotIndices, hissChoiceSlotIndices = [], selectedCardId,
+  coveredSlotIndices, availableSlotIndices, hissChoiceSlotIndices = [], remoteEnlargedCoverage = [], selectedCardId,
   onSlotClick, onCardClick,
   onLocationClick, isMovableTarget, playHighlight, onCardDrop,
   boardImageUrl, locationIndex = 0,
@@ -316,6 +325,7 @@ export function LocationTile({
                 covered={locState.isLocked || coveredSlotIndices.includes(idx)}
                 available={!locState.isLocked && availableSlotIndices.includes(idx)}
                 hissChoice={!locState.isLocked && hissChoiceSlotIndices.includes(idx)}
+                remoteCoverageBy={remoteEnlargedCoverage.find(r => r.slotIndex === idx)?.card}
                 onClick={() => onSlotClick?.(idx)}
               />
             ))}
@@ -329,6 +339,7 @@ export function LocationTile({
                 covered={locState.isLocked || coveredSlotIndices.includes(idx)}
                 available={!locState.isLocked && availableSlotIndices.includes(idx)}
                 hissChoice={!locState.isLocked && hissChoiceSlotIndices.includes(idx)}
+                remoteCoverageBy={remoteEnlargedCoverage.find(r => r.slotIndex === idx)?.card}
                 onClick={() => onSlotClick?.(idx)}
               />
             ))}
@@ -390,10 +401,13 @@ interface ActionTokenProps {
   available: boolean;
   /** Casilla tapada que Sir Hiss permite elegir: clicable y resaltada pese a estar tapada. */
   hissChoice?: boolean;
+  /** Si esta casilla está tapada por un Héroe Agrandado que está FÍSICAMENTE en otra ubicación
+   *  (ver prop gemela en LocationTile), la carta de ese Héroe — para la miniatura + tooltip. */
+  remoteCoverageBy?: CardInst;
   onClick: () => void;
 }
 
-function ActionToken({ slotType, slotValue, covered, available, hissChoice = false, onClick }: ActionTokenProps) {
+function ActionToken({ slotType, slotValue, covered, available, hissChoice = false, remoteCoverageBy, onClick }: ActionTokenProps) {
   const borderClass  = ACTION_BORDER[slotType] ?? 'border-primary';
   const textClass    = ACTION_TEXT_COLOR[slotType] ?? 'text-primary';
   const imgSrc       = ACTION_IMG[slotType];
@@ -401,8 +415,13 @@ function ActionToken({ slotType, slotValue, covered, available, hissChoice = fal
   const blocked      = covered && !hissChoice;
   const label        = hissChoice
     ? `Sir Hiss: ${ACTION_LABELS[slotType] ?? slotType}`
-    : (blocked ? 'Tapado por un Héroe' : (ACTION_LABELS[slotType] ?? slotType));
+    : remoteCoverageBy
+      ? `Agrandado por ${remoteCoverageBy.name} (en otra ubicación)`
+      : (blocked ? 'Tapado por un Héroe' : (ACTION_LABELS[slotType] ?? slotType));
   const isGainPower  = slotType === 'GAIN_POWER';
+  const remoteImgSrc = remoteCoverageBy?.imageFile
+    ? assetUrl(`cards/${remoteCoverageBy.villainId}/${remoteCoverageBy.imageFile}.webp`)
+    : undefined;
 
   return (
     /* group wrapper: hosts both the corner badge and the tooltip */
@@ -417,7 +436,9 @@ function ActionToken({ slotType, slotValue, covered, available, hissChoice = fal
           ${blocked ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-110 hover:brightness-110 active:scale-95'}
           ${hissChoice
             ? 'border-tertiary ring-2 ring-tertiary/70 shadow-[0_0_14px_rgba(211,188,249,0.6)] animate-pulse'
-            : available && !covered ? borderClass : 'border-outline-variant/40'}
+            : remoteCoverageBy
+              ? 'border-tertiary ring-2 ring-tertiary/50'
+              : available && !covered ? borderClass : 'border-outline-variant/40'}
         `}
       >
         {/* Image fills the entire circle */}
@@ -463,6 +484,16 @@ function ActionToken({ slotType, slotValue, covered, available, hissChoice = fal
         <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-tertiary text-on-tertiary font-stats font-bold text-[8px] flex items-center justify-center shadow-md z-10">
           {slotValue}
         </span>
+      )}
+
+      {/* Miniatura del Héroe Agrandado remoto que tapa esta casilla (esquina opuesta al badge de
+          valor, para no solaparse) — outside overflow-hidden, igual que el badge de arriba. */}
+      {remoteCoverageBy && (
+        <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-tertiary overflow-hidden shadow-md z-10 bg-surface-container-highest">
+          {remoteImgSrc
+            ? <img src={remoteImgSrc} alt={remoteCoverageBy.name} className="w-full h-full object-cover" />
+            : <span className="w-full h-full flex items-center justify-center font-stats text-[7px] text-tertiary">A</span>}
+        </div>
       )}
     </div>
   );

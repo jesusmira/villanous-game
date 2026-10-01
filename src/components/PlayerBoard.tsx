@@ -83,6 +83,32 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
   const progressLabel = plugin.getWinProgress?.(state, player) ?? null;
   const progressItems = parseProgress(progressLabel);
 
+  // Héroes Agrandados (Reina de Corazones) de este Reino, indexados por la ubicación VECINA que
+  // tapan — ver `isEnlarged`/`enlargedTargetLocationId`/`enlargedTargetSlotIndex` en CardInst y
+  // `getCoveredSlotIndices` (slotHelpers.ts), que ya cuenta esa casilla como tapada. Se calcula
+  // una vez aquí (recorre TODO el Reino) en vez de dentro de cada LocationTile, que solo conoce
+  // su propia ubicación.
+  const enlargedByTargetLoc = new Map<string, { slotIndex: number; card: typeof state.allCards[string] }[]>();
+  // Para el puente visual de escritorio (grid nativo, ver más abajo): mismos datos, pero con el
+  // índice de columna de la ubicación DE ORIGEN del Héroe y de la ubicación tapada, para poder
+  // calcular el `gridColumn` que abarca ambas. Solo tiene sentido en el layout de grid (landscape).
+  const enlargeBridges: { homeIndex: number; targetIndex: number; card: typeof state.allCards[string] }[] = [];
+  for (const ls of Object.values(player.locationStates)) {
+    for (const heroId of ls.heroCardInstIds) {
+      const hero = state.allCards[heroId];
+      if (!hero?.isEnlarged || !hero.enlargedTargetLocationId || hero.enlargedTargetSlotIndex === undefined) continue;
+      const list = enlargedByTargetLoc.get(hero.enlargedTargetLocationId) ?? [];
+      list.push({ slotIndex: hero.enlargedTargetSlotIndex, card: hero });
+      enlargedByTargetLoc.set(hero.enlargedTargetLocationId, list);
+
+      const homeIndex   = plugin.locations.findIndex(l => l.id === hero.locationId);
+      const targetIndex = plugin.locations.findIndex(l => l.id === hero.enlargedTargetLocationId);
+      if (homeIndex !== -1 && targetIndex !== -1) {
+        enlargeBridges.push({ homeIndex, targetIndex, card: hero });
+      }
+    }
+  }
+
   return (
     <article className="space-y-2 sm:space-y-5">
 
@@ -235,7 +261,42 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
                 onSherifDragEnd={onSherifDragEnd}
                 boardImageUrl={boardImageUrl}
                 locationIndex={locIndex}
+                remoteEnlargedCoverage={enlargedByTargetLoc.get(locDef.id)}
               />
+              </div>
+            );
+          })}
+
+          {/* ── Puente visual de "Agrandar" (solo escritorio/landscape) ──────────────
+              La carta del Héroe se estira literalmente desde su ubicación de origen hasta la
+              casilla vecina que tapa, usando el solapamiento nativo de CSS Grid: este elemento
+              es un hijo MÁS del mismo contenedor `grid-cols-4` que las 4 ubicaciones, con
+              `gridColumn`/`gridRow` explícitos que abarcan ambas columnas — no se mide nada con
+              getBoundingClientRect (fragil, y sin sentido en el carrusel vertical de móvil,
+              donde las ubicaciones no están visibles a la vez). Por eso se oculta fuera de
+              `landscape` con `hidden landscape:flex`; en móvil ya existe el indicador de la
+              Parte A (badge en LocationTile) para la misma información. */}
+          {enlargeBridges.map(({ homeIndex, targetIndex, card }) => {
+            const imgSrc = card.imageFile
+              ? assetUrl(`cards/${card.villainId}/${card.imageFile}.webp`)
+              : null;
+            if (!imgSrc) return null;
+            const fromCol    = Math.min(homeIndex, targetIndex) + 1;
+            const toCol      = Math.max(homeIndex, targetIndex) + 2;
+            const leansRight = targetIndex > homeIndex;
+            return (
+              <div
+                key={card.instId}
+                aria-hidden="true"
+                className="hidden landscape:flex pointer-events-none items-start z-40"
+                style={{ gridRow: 1, gridColumn: `${fromCol} / ${toCol}`, justifyContent: leansRight ? 'flex-end' : 'flex-start' }}
+              >
+                <img
+                  src={imgSrc}
+                  alt=""
+                  className="w-2/5 rounded-lg shadow-[0_15px_35px_rgba(0,0,0,0.85)] opacity-90 ring-2 ring-tertiary/70"
+                  style={{ transform: `rotate(${leansRight ? 6 : -6}deg)`, marginTop: '4%' }}
+                />
               </div>
             );
           })}
