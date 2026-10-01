@@ -90,8 +90,13 @@ function genVanquish(state: GameState, playerId: PlayerId, slotIdx: number): Act
     if (hero.defId === CardDefId.HOOK_PETER_PAN && locId !== HookLocationId.JOLLY_ROGER) continue;
 
     const heroLocDef = getPlugin(player.villainId).locations.find(l => l.id === locId);
+    // Un Postigo (Reina) no puede Vencer (RuleEngine.ts lo rechaza explícitamente) aunque su
+    // cardType siga siendo ALLY. Sin excluirlo aquí, el orden greedy por Fuerza podía escoger un
+    // Postigo "inflado" con Objetos (ver context.ts:allyStrength) ANTES que Aliados de verdad,
+    // y como luego canVanquish() rechaza TODO el conjunto por llevar un Postigo, se perdía la
+    // oportunidad de Vencer aunque hubiera Aliados reales suficientes para lograrlo sin él.
     const sameLocAllies = (player.locationStates[locId]?.villainCardInstIds ?? []).filter(
-      id => state.allCards[id]?.cardType === CardType.ALLY,
+      id => state.allCards[id]?.cardType === CardType.ALLY && !state.allCards[id]?.isWicket,
     );
     const adjAllies: CardInstId[] = (heroLocDef?.adjacentIds ?? []).flatMap(adjId =>
       (player.locationStates[adjId]?.villainCardInstIds ?? []).filter(id => {

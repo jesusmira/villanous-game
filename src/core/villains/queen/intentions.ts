@@ -165,6 +165,14 @@ export function deadCards(state: GameState, p: PlayerState): CardInstId[] {
   const hasHeroInKingdom = Object.values(p.locationStates).some(ls => ls.heroCardInstIds.length > 0);
   const hasAllyInKingdom = Object.values(p.locationStates)
     .some(ls => ls.villainCardInstIds.some(id => state.allCards[id]?.cardType === CardType.ALLY));
+  // Para Lanza (+Fuerza) un Postigo NO cuenta: "Un Postigo no puede Vencer" (RuleEngine.ts), así
+  // que adjuntarle Fuerza no sirve de nada aunque su cardType siga siendo ALLY — a diferencia de
+  // `hasAllyInKingdom` (usado también por Feliz No Cumpleaños, que da Poder por cada Aliado sin
+  // importar si pelea o no: ahí SÍ cuenta un Postigo, igual que en su propio `execute()`).
+  const hasCombatAllyInKingdom = Object.values(p.locationStates)
+    .some(ls => ls.villainCardInstIds.some(
+      id => state.allCards[id]?.cardType === CardType.ALLY && !state.allCards[id]?.isWicket,
+    ));
   const hasSoldadoToConvert = Object.values(p.locationStates)
     .some(ls => ls.villainCardInstIds.some(
       id => state.allCards[id]?.effectIds.includes('queen_soldado_toggle') && !state.allCards[id]?.isWicket,
@@ -176,7 +184,7 @@ export function deadCards(state: GameState, p: PlayerState): CardInstId[] {
     if (!hasHeroInKingdom && (c.effectIds.includes('queen_menguar') || c.effectIds.includes('queen_cabeza'))) {
       out.push(id); continue;
     }
-    if (!hasAllyInKingdom && c.effectIds.includes('queen_lanza_attach')) { out.push(id); continue; }
+    if (!hasCombatAllyInKingdom && c.effectIds.includes('queen_lanza_attach')) { out.push(id); continue; }
     // Feliz No Cumpleaños da 1 Poder por Aliado en el Reino (ver queen_no_cumple en effects.ts) —
     // sin ningún Aliado, jugarla es literalmente 0 Poder por el coste de la ranura de Jugar Carta
     // Y la propia carta (es EFFECT: se descarta al resolverse, gane o no gane nada). Mismo hueco

@@ -24,7 +24,9 @@ export function getAttachCandidates(
   const player = getPlayer(state, playerId);
   let candidates = Object.values(player.locationStates).flatMap(ls =>
     reqTarget === 'ALLY'
-      ? ls.villainCardInstIds.filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+      // Un Postigo (Reina) sigue siendo cardType ALLY pero no puede Vencer — adjuntarle +Fuerza
+      // (Lanza, Sable...) no sirve para nada. Ver comentario gemelo en context.ts:allyStrength.
+      ? ls.villainCardInstIds.filter(id => state.allCards[id]?.cardType === CardType.ALLY && !state.allCards[id]?.isWicket)
       : ls.heroCardInstIds,
   );
   // Espada de la Verdad: solo Héroes sin Objeto adjunto todavía.
@@ -73,11 +75,14 @@ export function buildPlayCtx(
     const player = getPlayer(state, playerId);
     const locState = player.locationStates[_targetLocId];
     if (reqTarget === 'ALLY') {
-      // Primero buscar en la ubicación de juego; si no hay aliado, buscar en todo el reino.
-      const allyId = locState?.villainCardInstIds.find(id => state.allCards[id]?.cardType === CardType.ALLY)
+      // Primero buscar en la ubicación de juego; si no hay aliado, buscar en todo el reino. Un
+      // Postigo no cuenta (ver comentario en getAttachCandidates más arriba).
+      const isUsableAlly = (id: CardInstId) =>
+        state.allCards[id]?.cardType === CardType.ALLY && !state.allCards[id]?.isWicket;
+      const allyId = locState?.villainCardInstIds.find(isUsableAlly)
         ?? Object.values(player.locationStates)
              .flatMap(ls => ls.villainCardInstIds)
-             .find(id => state.allCards[id]?.cardType === CardType.ALLY);
+             .find(isUsableAlly);
       if (allyId) ctx.targetCardInstId = allyId;
     } else if (reqTarget === 'HERO') {
       const heroId = locState?.heroCardInstIds[0];

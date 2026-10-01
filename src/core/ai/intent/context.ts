@@ -27,8 +27,16 @@ function buildLocationSnapshots(state: GameState, player: PlayerState): Location
       heroCardInstIds: ls.heroCardInstIds,
       villainCardInstIds: ls.villainCardInstIds,
       heroStrength: ls.heroCardInstIds.reduce((sum, id) => sum + getEffectiveStrength(state, id), 0),
+      // Un Postigo (Reina de Corazones) NO puede Vencer (ver RuleEngine.ts: "Un Postigo no puede
+      // Vencer") aunque su `cardType` siga siendo ALLY — es un marcador de cobertura, no una
+      // Fuerza de combate. Sin excluirlo aquí, el motor genérico cuenta su Fuerza (incluida la de
+      // Objetos como Lanza adjuntos) como si fuera lista para luchar, lo que a su vez empuja a
+      // adjuntarle Objetos de +Fuerza inútiles (ver getAttachCandidates/buildPlayCtx en
+      // contextBuilder.ts) y corrompe la selección de Aliados para Vencer (ver genVanquish en
+      // legalMoves.ts) — confirmado con una partida real: la IA adjuntó 2 copias de Lanza a un
+      // Soldado ya convertido en Postigo.
       allyStrength: ls.villainCardInstIds
-        .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+        .filter(id => state.allCards[id]?.cardType === CardType.ALLY && !state.allCards[id]?.isWicket)
         .reduce((sum, id) => sum + getEffectiveStrength(state, id), 0),
       blocksSlots: !loc.heroesNeverCoverSlots,
     };

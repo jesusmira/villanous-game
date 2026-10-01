@@ -45,9 +45,11 @@ const ASSUMED_PROGRESS_PER_TURN = 8;
 export function buildOppThreatSummary(state: GameState, opponent: PlayerState | null, oppProgress: number): OppThreatSummary {
   if (!opponent) return { turnsToWinEstimate: null, alliesAvailableStrength: 0, keyCardsInPlay: [] };
 
+  // Un Postigo del rival (Reina) no puede Vencer, así que su Fuerza no es una amenaza de combate
+  // real — contarla aquí sobreestima lo "preparado" que está el rival para pelear.
   const alliesAvailableStrength = Object.values(opponent.locationStates)
     .flatMap(ls => ls.villainCardInstIds)
-    .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+    .filter(id => state.allCards[id]?.cardType === CardType.ALLY && !state.allCards[id]?.isWicket)
     .reduce((sum, id) => sum + (state.allCards[id]?.baseStrength ?? 0) + (state.allCards[id]?.strengthModifier ?? 0), 0);
 
   const keyCardsInPlay = Object.values(opponent.locationStates)
