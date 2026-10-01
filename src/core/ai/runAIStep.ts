@@ -4,9 +4,10 @@
 import { runAITurnWithAudit, chooseCuervoAction, resolveTrampaForAI, bestTrampaVanquish } from './AIPlayer';
 import {
   resolveCondition, resolveCuervo, resolveDemosles, resolveJaqueca,
-  resolveWicketPick, resolveShrinkPick, resolveEnlargeTarget, resolveShrinkSlotChoice,
+  resolveShrinkPick, resolveEnlargeTarget, resolveShrinkSlotChoice,
   resolveShotReveal,
 } from '../engine/PendingStateResolver';
+import { resolveWicketPickHeuristic } from './intent/legalMoves';
 import { chooseDemoslesResolution } from '../villains/hook/aiHelpers';
 import { chooseConditionResolution } from './conditionAI';
 import { CardDefPrefix } from '../villains/effectIds';
@@ -99,28 +100,13 @@ function maybeAutoResolveJaqueca(state: GameState): GameState {
 
 // Reina de Corazones: alterna hasta `max` cartas propias. Prioriza, al convertir en Postigo,
 // las que están en ubicaciones del Reino que todavía no tienen ninguno (progreso hacia el
-// objetivo); al revertir a Soldado (Gato Risón) el orden es indiferente.
+// objetivo); al revertir a Soldado (Gato Risón) el orden es indiferente. Lógica compartida con
+// la puntuación de "Por orden de la Reina" en legalMoves.ts — ver `resolveWicketPickHeuristic`.
 function maybeAutoResolveWicketPick(state: GameState): GameState {
   return maybeAutoResolve(
     state, state.pendingWicketPick,
     pending => pending.actingPlayerId,
-    (s, pending) => {
-      const candidates = [...pending.eligibleInstIds];
-      if (pending.kind === 'TO_WICKET') {
-        const player = s.players.find(p => p.id === pending.actingPlayerId)!;
-        const uncoveredLocIds = new Set(
-          Object.values(player.locationStates)
-            .filter(ls => !ls.villainCardInstIds.some(id => s.allCards[id]?.isWicket))
-            .map(ls => ls.id),
-        );
-        candidates.sort((a, b) => {
-          const aPri = uncoveredLocIds.has(s.allCards[a]?.locationId ?? '') ? 0 : 1;
-          const bPri = uncoveredLocIds.has(s.allCards[b]?.locationId ?? '') ? 0 : 1;
-          return aPri - bPri;
-        });
-      }
-      return resolveWicketPick(s, candidates.slice(0, pending.max));
-    },
+    s => resolveWicketPickHeuristic(s),
   );
 }
 

@@ -19,7 +19,7 @@ import {
   gainPower, playCard, vanquish, moveItemAlly, moveHero, startFate, resolveFate,
   activateCard, discardFromHand, payToDiscardItem,
 } from '../../engine/GameEngine';
-import { resolveCuervo } from '../../engine/PendingStateResolver';
+import { resolveCuervo, resolveWicketPick } from '../../engine/PendingStateResolver';
 import type { CuervoResolutionParams } from '../../engine/PendingStateResolver';
 import { buildPlayCtx } from '../contextBuilder';
 import { getDeadHandCards } from './context';
@@ -47,6 +47,34 @@ function genGainPower(state: GameState, playerId: PlayerId, slotIdx: number): Ac
 // aquí se enumeran TODAS las ubicaciones legales por carta — el planificador decide cuál sirve
 // mejor a la intención del turno.
 
+/**
+ * Resuelve un `pendingWicketPick` (Por orden de la Reina, Gato Risón...) con la MISMA heurística
+ * que ya usa `runAIStep.ts` al final del turno: prioriza convertir a Postigo las que están en
+ * ubicaciones del Reino aún sin cubrir (progreso real hacia el objetivo); al revertir a Soldado
+ * el orden es indiferente. Exportada para que `runAIStep.ts` reutilice esta MISMA lógica en vez
+ * de mantener dos copias — ver también el comentario en `genPlayCard` sobre por qué hace falta
+ * aquí, no solo al final del turno.
+ */
+export function resolveWicketPickHeuristic(state: GameState): GameState {
+  const pending = state.pendingWicketPick;
+  if (!pending) return state;
+  const candidates = [...pending.eligibleInstIds];
+  if (pending.kind === 'TO_WICKET') {
+    const player = getPlayer(state, pending.actingPlayerId);
+    const uncoveredLocIds = new Set(
+      Object.values(player.locationStates)
+        .filter(ls => !ls.villainCardInstIds.some(id => state.allCards[id]?.isWicket))
+        .map(ls => ls.id),
+    );
+    candidates.sort((a, b) => {
+      const aPri = uncoveredLocIds.has(state.allCards[a]?.locationId ?? '') ? 0 : 1;
+      const bPri = uncoveredLocIds.has(state.allCards[b]?.locationId ?? '') ? 0 : 1;
+      return aPri - bPri;
+    });
+  }
+  return resolveWicketPick(state, candidates.slice(0, pending.max));
+}
+
 function genPlayCard(state: GameState, playerId: PlayerId, slotIdx: number): ActionCandidate[] {
   const player = getPlayer(state, playerId);
   const plugin = getPlugin(player.villainId);
@@ -57,7 +85,17 @@ function genPlayCard(state: GameState, playerId: PlayerId, slotIdx: number): Act
     for (const loc of plugin.locations) {
       if (!canPlayCard(state, playerId, cardId, slotIdx, loc.id).valid) continue;
       const ctx = buildPlayCtx(state, playerId, cardId, loc.id);
-      const resultState = playCard(state, playerId, cardId, slotIdx, loc.id, ctx);
+      let resultState = playCard(state, playerId, cardId, slotIdx, loc.id, ctx);
+      // Cartas cuyo ON_PLAY deja una elección pendiente (Por orden de la Reina → a qué Soldados
+      // convertir) deben resolverse YA para que scoreAction() vea el efecto REAL, no solo el
+      // coste pagado — sin esto, `resultState` no muestra ningún progreso (los Soldados elegibles
+      // siguen sin convertir) y la carta puntúa como una pérdida pura de Poder, aunque en la
+      // práctica convierta 2 ubicaciones a la vez. Confirmado con una partida real + prueba
+      // directa contra el motor: "Jugar Por orden de la Reina" puntuaba negativo SIEMPRE, incluso
+      // con 2 Soldados listos para convertir.
+      if (resultState.pendingWicketPick?.actingPlayerId === playerId) {
+        resultState = resolveWicketPickHeuristic(resultState);
+      }
       out.push({
         kind: ActionType.PLAY_CARD,
         slotIdx,
