@@ -7,6 +7,7 @@ import {
 } from '../../engine/stateHelpers';
 import { getPlugin } from '../registry';
 import { shuffle } from '../../utils/shuffle';
+import { getCoveredSlotIndices } from '../../engine/slotHelpers';
 
 /** Prefijos de defId de los 4 Soldados Naipe — El Rey descuenta el Precio de cualquiera de ellos. */
 const SOLDADO_PREFIXES = ['queen_v_treboles', 'queen_v_rombos', 'queen_v_corazones', 'queen_v_picas'];
@@ -237,9 +238,15 @@ export const effects: EffectDef[] = [
       // Si no, agranda: hay que elegir a qué ubicación adyacente y casilla también tapará.
       const plugin = getPlugin(hero.villainId);
       const locDef = plugin.locations.find(l => l.id === hero.locationId);
+      // Solo casillas REALMENTE disponibles: las ya tapadas (por otro Héroe o por otro Agrandar)
+      // no tendrían ningún efecto nuevo y no deben ofrecerse como opción.
       const eligible = (locDef?.adjacentIds ?? []).flatMap(adjLocId => {
         const adjDef = plugin.locations.find(l => l.id === adjLocId);
-        return (adjDef?.actions ?? []).map((_, slotIndex) => ({ locationId: adjLocId, slotIndex }));
+        const covered = getCoveredSlotIndices(state, hero.ownerId, adjLocId);
+        return (adjDef?.actions ?? [])
+          .map((_, slotIndex) => slotIndex)
+          .filter(slotIndex => !covered.includes(slotIndex))
+          .map(slotIndex => ({ locationId: adjLocId, slotIndex }));
       });
       if (eligible.length === 0) return addLog(state, `Agrandar: ${hero.name} no tiene ubicaciones adyacentes.`);
       return {

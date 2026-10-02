@@ -491,7 +491,16 @@ function ActionToken({ slotType, slotValue, covered, available, hissChoice = fal
       {remoteCoverageBy && (
         <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-tertiary overflow-hidden shadow-md z-10 bg-surface-container-highest">
           {remoteImgSrc
-            ? <img src={remoteImgSrc} alt={remoteCoverageBy.name} className="w-full h-full object-cover" />
+            // Las imágenes de carta son el escaneo COMPLETO (ilustración arriba + caja de texto
+            // color crema debajo, ver assets-src/cards/*/*.png) — no hay un recorte de solo-arte
+            // por separado. object-position top + un zoom extra recorta la caja de texto de abajo,
+            // dejando solo la ilustración visible en la insignia.
+            ? <img
+                src={remoteImgSrc}
+                alt={remoteCoverageBy.name}
+                className="w-full h-full object-cover object-top"
+                style={{ transform: 'scale(1.45)', transformOrigin: 'top' }}
+              />
             : <span className="w-full h-full flex items-center justify-center font-stats text-[7px] text-tertiary">A</span>}
         </div>
       )}
