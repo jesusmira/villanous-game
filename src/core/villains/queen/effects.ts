@@ -248,7 +248,20 @@ export const effects: EffectDef[] = [
           .filter(slotIndex => !covered.includes(slotIndex))
           .map(slotIndex => ({ locationId: adjLocId, slotIndex }));
       });
-      if (eligible.length === 0) return addLog(state, `Agrandar: ${hero.name} no tiene ubicaciones adyacentes.`);
+      if (eligible.length === 0) {
+        return addLog(state, (locDef?.adjacentIds ?? []).length === 0
+          ? `Agrandar: ${hero.name} no tiene ubicaciones adyacentes.`
+          : `Agrandar: no queda ninguna casilla libre que tapar junto a ${hero.name}.`);
+      }
+      // Con una única combinación posible no hace falta preguntar — se aplica directamente
+      // (p. ej. una ubicación de esquina, con un solo vecino y una sola casilla libre ahí).
+      if (eligible.length === 1) {
+        const { locationId, slotIndex } = eligible[0];
+        const s = updateCard(state, ctx.targetCardInstId, {
+          isEnlarged: true, enlargedTargetLocationId: locationId, enlargedTargetSlotIndex: slotIndex,
+        });
+        return addLog(s, `Agrandar: ${hero.name} también tapa una casilla en ${locationId}.`);
+      }
       return {
         ...addLog(state, `Agrandar: elige a qué ubicación adyacente y casilla tapará ${hero.name}.`),
         pendingEnlargeTarget: { actingPlayerId: ctx.actingPlayerId, heroInstId: ctx.targetCardInstId, eligible },
