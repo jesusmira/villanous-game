@@ -238,15 +238,19 @@ export const effects: EffectDef[] = [
       // Si no, agranda: hay que elegir a qué ubicación adyacente y casilla también tapará.
       const plugin = getPlugin(hero.villainId);
       const locDef = plugin.locations.find(l => l.id === hero.locationId);
-      // Solo casillas REALMENTE disponibles: las ya tapadas (por otro Héroe o por otro Agrandar)
-      // no tendrían ningún efecto nuevo y no deben ofrecerse como opción.
+      const myIndex = plugin.locations.findIndex(l => l.id === hero.locationId);
+      // El Héroe tapa la casilla de acción MÁS CERCANA (la que toca el borde) de la ubicación
+      // adyacente elegida — nunca cualquiera de sus 4. En el tablero (ubicaciones en fila) esa
+      // casilla es siempre la del "lado" que da a la ubicación de origen: casilla 1 (arriba-dcha)
+      // si la vecina está a la izquierda, casilla 0 (arriba-izda) si está a la derecha.
       const eligible = (locDef?.adjacentIds ?? []).flatMap(adjLocId => {
+        const adjIndex = plugin.locations.findIndex(l => l.id === adjLocId);
         const adjDef = plugin.locations.find(l => l.id === adjLocId);
+        const slotIndex = adjIndex < myIndex ? 1 : 0;
+        if (!adjDef || slotIndex >= adjDef.actions.length) return [];
         const covered = getCoveredSlotIndices(state, hero.ownerId, adjLocId);
-        return (adjDef?.actions ?? [])
-          .map((_, slotIndex) => slotIndex)
-          .filter(slotIndex => !covered.includes(slotIndex))
-          .map(slotIndex => ({ locationId: adjLocId, slotIndex }));
+        if (covered.includes(slotIndex)) return [];
+        return [{ locationId: adjLocId, slotIndex }];
       });
       if (eligible.length === 0) {
         return addLog(state, (locDef?.adjacentIds ?? []).length === 0

@@ -185,8 +185,13 @@ describe('Menguar / Agrandar', () => {
 
     s = queenAgrandar.execute(s, { actingPlayerId: 'rival', cardInstId: 'x', targetCardInstId: dodo });
     expect(s.pendingEnlargeTarget?.heroInstId).toBe(dodo);
-    const locIds = new Set(s.pendingEnlargeTarget?.eligible.map(e => e.locationId));
-    expect(locIds).toEqual(new Set(['queen_patio', 'queen_tulgey']));
+    // Solo la casilla MÁS CERCANA al borde compartido, nunca las 4 de cada vecina: casilla 1
+    // (arriba-dcha) de la vecina a la izquierda (Patio), casilla 0 (arriba-izda) de la vecina a
+    // la derecha (Tulgey) — según la Guía de Villano física.
+    expect(s.pendingEnlargeTarget?.eligible).toEqual([
+      { locationId: 'queen_patio', slotIndex: 1 },
+      { locationId: 'queen_tulgey', slotIndex: 0 },
+    ]);
 
     // Resolver: Héroe agrandado también tapa esa casilla en la ubicación adyacente elegida.
     const target = s.pendingEnlargeTarget!.eligible[0];
