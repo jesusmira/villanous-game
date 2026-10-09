@@ -66,15 +66,17 @@ export const locations: LocationDef[] = [
 
 const SOLDADO_BASE = {
   type: CardType.ALLY, deck: CardDeck.VILLAIN, villainId: 'queen' as const,
-  cost: 2, strength: 3, activationCost: 1, effectIds: ['queen_soldado_toggle'],
+  strength: 3, activationCost: 1, effectIds: ['queen_soldado_toggle'],
   description: 'ACTIVAR (1 Moneda): convierte este Soldado Naipe en un Postigo, o de Postigo en Soldado Naipe.',
 };
 
 export const villainCardDefs: CardDef[] = [
-  ...copies(2, { ...SOLDADO_BASE, id: 'queen_v_treboles', name: 'Soldados Naipe: Tréboles', imageFile: 'treboles' }),
-  ...copies(2, { ...SOLDADO_BASE, id: 'queen_v_rombos',   name: 'Soldados Naipe: Diamantes', imageFile: 'rombos' }),
-  ...copies(2, { ...SOLDADO_BASE, id: 'queen_v_corazones', name: 'Soldados Naipe: Corazones', imageFile: 'corazones' }),
-  ...copies(2, { ...SOLDADO_BASE, id: 'queen_v_picas',    name: 'Soldados Naipe: Picas', imageFile: 'picas' }),
+  // Precio asimétrico entre palos, según la carta física: Tréboles y Diamantes cuestan 1,
+  // Corazones y Picas cuestan 2.
+  ...copies(2, { ...SOLDADO_BASE, cost: 1, id: 'queen_v_treboles', name: 'Soldados Naipe: Tréboles', imageFile: 'treboles' }),
+  ...copies(2, { ...SOLDADO_BASE, cost: 1, id: 'queen_v_rombos',   name: 'Soldados Naipe: Diamantes', imageFile: 'rombos' }),
+  ...copies(2, { ...SOLDADO_BASE, cost: 2, id: 'queen_v_corazones', name: 'Soldados Naipe: Corazones', imageFile: 'corazones' }),
+  ...copies(2, { ...SOLDADO_BASE, cost: 2, id: 'queen_v_picas',    name: 'Soldados Naipe: Picas', imageFile: 'picas' }),
 
   { id: 'queen_v_rey', name: 'El Rey', type: CardType.ALLY, deck: CardDeck.VILLAIN, villainId: 'queen', cost: 2, strength: 2, effectIds: ['queen_el_rey_discount'], description: 'El Precio para jugar los Soldados Naipe se reduce en -1 Moneda de Poder.', imageFile: 'rey' },
   { id: 'queen_v_deedum', name: 'Tweedle Dee y Tweedle Dum', type: CardType.ALLY, deck: CardDeck.VILLAIN, villainId: 'queen', cost: 3, strength: 2, effectIds: ['queen_tweedle_survives'], description: 'No se descartan cuando son utilizados para derrotar a un Héroe.', imageFile: 'deedum' },

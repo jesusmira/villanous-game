@@ -578,7 +578,7 @@
       {
         "nombre": "Soldados Naipe: Tréboles",
         "tipo": "Aliado",
-        "coste": 2,
+        "coste": 1,
         "fuerza": 3,
         "texto": "Paga 1 Moneda de Poder. Convierte este Soldado Naipe en un Postigo, o de Postigo en Soldado Naipe.",
         "cantidad": 2
@@ -586,7 +586,7 @@
       {
         "nombre": "Soldados Naipe: Diamantes",
         "tipo": "Aliado",
-        "coste": 2,
+        "coste": 1,
         "fuerza": 3,
         "texto": "Paga 1 Moneda de Poder. Convierte este Soldado Naipe en un Postigo, o de Postigo en Soldado Naipe.",
         "cantidad": 2
