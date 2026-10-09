@@ -97,7 +97,9 @@ const movePeterPanIntention: IntentionDef = {
  *  Aliados/turnos hacia vencer protectores a costa de buscar/escoltar a Peter Pan, su cuello de
  *  botella real contra Jhon. Revertido a 0 (comportamiento idéntico al de antes del refactor).
  *  Calibrar esto para Garfio necesita su propia investigación dedicada, no heredar el número de
- *  otro villano — pendiente como tarea aparte. */
+ *  otro villano — pendiente como tarea aparte (sigue pendiente: lo de abajo es un contrapeso
+ *  distinto, dentro de eliminateProtectorsIntention, no un cambio de vanquishBonus/
+ *  approachBonusPerUnit). */
 const protectorThreat: StructuralThreatDef = {
   id: 'hook-protector',
   isThreatHero: (state, heroId) => heroHasBurla(state, heroId),
@@ -109,13 +111,34 @@ export const structuralThreats: StructuralThreatDef[] = [protectorThreat];
 /** Eliminar protectores con Burla: mientras vivan, bloquean CUALQUIER otro Vencer — máxima
  *  prioridad estructural, no solo disrupción genérica. Urgencia CONTINUA (el hueco de Fuerza que
  *  falta por cubrir, no un salto de golpe) para que cada Aliado invertido rebaje la urgencia un
- *  poco — y con polarity −1, rebajarla puntúa como logro al puntuar la acción. */
+ *  poco — y con polarity −1, rebajarla puntúa como logro al puntuar la acción.
+ *
+ *  Contrapeso a "Preparar combo" (2026-10-09): "Preparar combo" es universal, sin techo, y suma
+ *  remaining×6 por CADA ubicación con un héroe presente, no solo las que tienen Burla — con
+ *  varios héroes normales repartidos por el Reino rival, su magnitud total solía superar a la
+ *  de las 3 intenciones propias de Garfio juntas (scripts/_trace_hook_protector.ts, ver nota de
+ *  comboWeight más arriba), arrastrando Aliados hacia construir Fuerza contra CUALQUIER héroe en
+ *  vez de hacia buscar/escoltar a Peter Pan — su cuello de botella real. Mismo patrón ya
+ *  validado para Maléfica (MAL_PLAY_CURSES) y el Príncipe Juan: sube JUNTO con el mismo hueco
+ *  heroStrength−allyStrength que usa "Preparar combo" (sumado sobre TODAS las ubicaciones, no
+ *  solo las de Burla) para que esta intención no se quede atrás cuando esa urgencia crece.
+ *  Calibrado con el simulador (scripts/simulate.ts): 0.6 sube hook-vs-jhon de 10% (2/20, baseline
+ *  sin este término) a 16.7% (5/30) sin tocar hook-vs-maleficent (70%→70%, 14/20 y 21/30).
+ *  Probado también 1.2 (doblar): NO mejora más — 13.3% (4/30), dentro del mismo ruido que 0.6, y
+ *  hook-vs-maleficent baja un poco (66.7%, 20/30) aunque sin confirmar si es ruido o coste real.
+ *  Mismo patrón de sobrecorrección ya visto al calibrar MAL_PLAY_CURSES (2.5 fue peor que 0.6
+ *  también ahí) — 0.6 es el valor final, no un punto de partida. */
 const eliminateProtectorsIntention: IntentionDef = {
   id: 'HOOK_ELIMINATE_PROTECTORS',
   name: 'Eliminar protectores con Burla',
   polarity: -1,
   category: 'heroRemoval',
-  evaluate: (ctx: AIContext) => evaluateStrengthGapPenalty(ctx, protectorThreat),
+  evaluate: (ctx: AIContext) => {
+    let v = evaluateStrengthGapPenalty(ctx, protectorThreat);
+    const heroGap = ctx.locations.reduce((sum, l) => sum + Math.max(0, l.heroStrength - l.allyStrength), 0);
+    v += Math.min(heroGap, 20) * 0.6;
+    return v;
+  },
 };
 
 export const intentions: IntentionDef[] = [findPeterPanIntention, movePeterPanIntention, eliminateProtectorsIntention];

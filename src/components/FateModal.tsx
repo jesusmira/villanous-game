@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { CardType } from '../core/types';
-import type { GameState, LocationId, CardInstId } from '../core/types';
+import type { GameState } from '../core/types';
 import { getEffectDef } from '../core/villains/registry';
-import { useGameStore as _useGameStore } from '../state/gameStore';
 import { CardComponent } from './CardComponent';
 
 interface Props {
@@ -17,8 +16,6 @@ interface Props {
 export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect }: Props) {
   const { pendingFate } = state;
   const [chosenId,      setChosenId]     = useState<string | null>(null);
-  const [_targetLocId,   setTargetLocId]  = useState<LocationId | null>(null);
-  const [_targetCardId,  setTargetCardId] = useState<CardInstId | null>(null);
   const [hoveredFateId, setHoveredFateId] = useState<string | null>(null);
   // Móvil, paso 1 (elegir carta): el panel tapa el tablero entero — permite ocultarlo
   // temporalmente para ver las ubicaciones antes de decidir qué carta jugar, sin tener que
@@ -81,7 +78,7 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
                 key={card.instId}
                 onMouseEnter={() => setHoveredFateId(card.instId)}
                 onMouseLeave={() => setHoveredFateId(null)}
-                onClick={() => { setChosenId(card.instId); setTargetLocId(null); setTargetCardId(null); }}
+                onClick={() => setChosenId(card.instId)}
                 onDragStart={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -174,7 +171,7 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
             {revealedCards.map(card => (
               <div
                 key={card.instId}
-                onClick={() => { setChosenId(card.instId); setTargetLocId(null); setTargetCardId(null); onFateSelect?.(card.instId); }}
+                onClick={() => { setChosenId(card.instId); onFateSelect?.(card.instId); }}
                 className="relative shrink-0 cursor-pointer select-none transition-transform active:scale-95"
               >
                 <CardComponent card={card} state={state} sizeClassName="card-size-hand" />
@@ -201,7 +198,7 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
           </span>
         )}
         <button
-          onClick={() => { setChosenId(null); setTargetLocId(null); setTargetCardId(null); onFateSelect?.(null); }}
+          onClick={() => { setChosenId(null); onFateSelect?.(null); }}
           className="shrink-0 font-stats text-[11px] uppercase tracking-wider text-on-surface-variant/70 hover:text-on-surface px-3 py-1 rounded border border-outline-variant/40 active:scale-95 transition-transform"
         >
           Cancelar

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import type { PlayerState } from '../core/types';
 import { getPlugin } from '../core/villains/registry';
 
@@ -10,11 +10,6 @@ interface Props {
 
 export function TurnIndicatorModal({ player, isOpen, onClose }: Props) {
   const plugin = getPlugin(player.villainId);
-  const [displayName, setDisplayName] = useState(player.name);
-
-  useEffect(() => {
-    setDisplayName(player.name);
-  }, [player.name]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -51,7 +46,7 @@ export function TurnIndicatorModal({ player, isOpen, onClose }: Props) {
             className="font-serif text-6xl sm:text-7xl leading-none font-bold drop-shadow-lg"
             style={{ color: '#ffffff', textShadow: `2px 2px 8px ${plugin.color}80` }}
           >
-            {displayName}
+            {player.name}
           </h1>
           <button
             onClick={onClose}
