@@ -98,6 +98,28 @@ export function GameBoard({ state }: Props) {
     preloadGameImages(villainKey.split(',') as VillainId[]);
   }, [villainKey]);
 
+  // Botón/gesto "atrás" del navegador (o del móvil, en PWA instalada): sin esto, al no haber
+  // ningún router, simplemente abandona la app. Se añade una entrada de historial al entrar en
+  // la partida para poder interceptar el "atrás" y mostrar el mismo modal de confirmación que el
+  // botón de "Nueva partida" de la barra superior, en vez de perder la partida sin avisar.
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; });
+  useEffect(() => {
+    window.history.pushState({ villanosGame: true }, '');
+    const handlePopState = () => {
+      if (stateRef.current.winner) {
+        resetGame();
+        return;
+      }
+      // Repone la entrada que el navegador acaba de consumir: el abandono real solo ocurre
+      // si el jugador confirma en el modal, no por el simple gesto/clic de "atrás".
+      window.history.pushState({ villanosGame: true }, '');
+      setShowLeaveConfirm(true);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [resetGame]);
+
   // Swipe gesture for closing hand drawer
   const handDrawerSwipe = useSwipe({
     onSwipeRight: () => {
