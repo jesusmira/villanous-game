@@ -205,7 +205,7 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, detailCardOpe
   if (state.turnPhase === TurnPhase.MOVE) {
     const currentLocName = ap.plugin.locations.find(l => l.id === ap.player.pawnLocationId)?.name ?? '';
     return (
-      <div className="bg-surface-container-low/95 backdrop-blur-md border-t border-tertiary/30 px-4 py-3 flex flex-row items-center gap-2 sm:gap-4">
+      <div className="cine-dock px-4 py-3 flex flex-row items-center gap-2 sm:gap-4">
         <div className="flex items-center gap-2 text-tertiary/70 text-xs sm:text-[10px] min-w-0 flex-1">
           <MousePointerClick className="w-4 h-4 shrink-0" />
           <p className="font-stats uppercase tracking-wider">
@@ -229,7 +229,7 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, detailCardOpe
     const deckSize   = ap.player.villainDeckInstIds.length;
     const drawCount  = Math.min(ap.plugin.handSize - ap.player.handInstIds.length, deckSize);
     return (
-      <div className="bg-surface-container-low/95 backdrop-blur-md border-t border-outline-variant/30 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+      <div className="cine-dock px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
         <button
           onClick={() => ap.store.doRevertToActivate()}
           className="flex items-center gap-1.5 text-on-surface-variant/60 hover:text-on-surface transition-colors font-stats text-xs sm:text-[10px] uppercase tracking-wider shrink-0"
@@ -256,7 +256,7 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, detailCardOpe
   const selectedCard = selectedCardId ? state.allCards[selectedCardId] : null;
 
   return (
-    <div className="bg-surface-container-low/95 backdrop-blur-md border-t border-secondary-container/30 px-4 sm:px-4 py-3 sm:py-3 flex flex-col gap-3 sm:gap-2">
+    <div className="cine-dock px-4 sm:px-4 py-3 sm:py-3 flex flex-col gap-3 sm:gap-2">
 
       {/* Header — texto + mano + extras + poder + botón terminar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">

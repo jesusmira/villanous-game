@@ -46,14 +46,7 @@ export function CardComponent({ card, state, selected, onClick, draggable: isDra
 
   return (
     <div
-      className={`villainous-card ${sizeClassName ?? ''} ${isHero ? 'hero-card' : ''} ${rotationClass} ${onClick ? 'cursor-pointer hover:scale-110 hover:-translate-y-1' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
-      style={{
-        outline: selected ? '2px solid #e9c349' : undefined,
-        outlineOffset: selected ? '2px' : undefined,
-        boxShadow: selected
-          ? '0 0 12px rgba(233,195,73,0.45), 0 10px 20px rgba(0,0,0,0.5)'
-          : undefined,
-      }}
+      className={`villainous-card ${sizeClassName ?? ''} ${isHero ? 'hero-card' : ''} ${rotationClass} ${selected ? 'is-selected' : ''} ${onClick ? 'is-interactive cursor-pointer' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
       onClick={onClick}
       title={card.name}
       onPointerDown={isDraggable ? onPointerDown : undefined}

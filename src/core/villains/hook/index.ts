@@ -33,16 +33,12 @@ function checkWinCondition(state: GameState, playerId: PlayerId): boolean {
   return player.completedObjectiveSteps.includes(HookObjectiveStep.PETER_PAN_DEFEATED);
 }
 
-function getWinProgress(state: GameState, player: ReturnType<typeof getPlayer>): string {
-  const steps = player.completedObjectiveSteps;
-  const ppInKingdom = Object.values(player.locationStates).some(ls =>
-    ls.heroCardInstIds.some(id => state.allCards[id]?.defId === CardDefId.HOOK_PETER_PAN),
-  );
-  return [
-    steps.includes(HookObjectiveStep.HANGMAN_UNLOCKED)   ? '✅ Árbol desbloqueado'    : '❌ Árbol bloqueado',
-    ppInKingdom                                           ? '✅ Peter Pan en el Reino' : '❌ Peter Pan no encontrado',
-    steps.includes(HookObjectiveStep.PETER_PAN_DEFEATED)  ? '✅ Peter Pan derrotado'   : '❌ Peter Pan no derrotado',
-  ].join(' | ');
+function getWinProgress(_state: GameState, player: ReturnType<typeof getPlayer>): string {
+  // Solo la condición de victoria real; los pasos intermedios (Árbol, Peter Pan en el Reino)
+  // se ven ya en el tablero y ocupaban demasiado sitio en la placa.
+  return player.completedObjectiveSteps.includes(HookObjectiveStep.PETER_PAN_DEFEATED)
+    ? '✅ Peter Pan derrotado'
+    : '❌ Peter Pan no derrotado';
 }
 
 export const hookPlugin: VillainPlugin = {

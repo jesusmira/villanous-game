@@ -48,6 +48,8 @@ interface Props {
   isCurrentPawn: boolean;
   coveredSlotIndices: number[];
   availableSlotIndices: number[];
+  /** Casillas ya usadas este turno (solo en la ubicación del peón del jugador activo). */
+  usedSlotIndices?: number[];
   /** Casillas tapadas que Sir Hiss permite elegir (clicables aunque estén tapadas). */
   hissChoiceSlotIndices?: number[];
   /**
@@ -94,7 +96,7 @@ interface Props {
 
 export function LocationTile({
   locDef, locState, state, villainColor, isCurrentPawn,
-  coveredSlotIndices, availableSlotIndices, hissChoiceSlotIndices = [], remoteEnlargedCoverage = [], selectedCardId,
+  coveredSlotIndices, availableSlotIndices, usedSlotIndices = [], hissChoiceSlotIndices = [], remoteEnlargedCoverage = [], selectedCardId,
   onSlotClick, onCardClick,
   onLocationClick, isMovableTarget, playHighlight, onCardDrop,
   boardImageUrl, locationIndex = 0,
@@ -150,7 +152,7 @@ export function LocationTile({
               const isHero = heroCards.includes(card);
               return (
                 <div key={card.instId}
-                  className="pointer-events-auto hover:z-10 hover:-translate-y-2 transition-transform duration-200 shrink-0 drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)]"
+                  className="pointer-events-auto hover:z-10 shrink-0"
                   style={{ marginLeft: idx === 0 ? '0px' : '-40px' }}
                 >
                   <CardComponent
@@ -193,34 +195,22 @@ export function LocationTile({
         {/* ── Visual background — starts at 15% to leave room for hero overlay ── */}
         <div
           onClick={onFateLocationClick && playHighlight?.playState === 'valid' ? onFateLocationClick : onLocationClick ? () => onLocationClick(locDef.id) : undefined}
-          className={`absolute inset-x-0 bottom-0 rounded-xl overflow-hidden transition-all duration-150 pointer-events-auto
+          className={`loc-frame absolute inset-x-0 bottom-0 rounded-xl overflow-hidden pointer-events-auto
             ${locState.isLocked
-              ? 'border border-outline-variant/30 cursor-not-allowed'
+              ? 'is-locked cursor-not-allowed'
               : isMovableTarget
-                ? 'border-2 border-secondary-container cursor-pointer scale-[1.02] shadow-[0_0_18px_rgba(117,253,0,0.35)]'
+                ? 'is-target'
                 : isDragOver && playHighlight?.playState === 'valid'
-                  ? 'border-2 border-green-300 scale-[1.04]'
+                  ? 'is-target-hot'
                   : playHighlight?.playState === 'valid'
-                    ? 'border-2 border-green-400 scale-[1.02]'
+                    ? 'is-target'
                     : playHighlight?.playState === 'cant-afford'
-                      ? 'border-2 border-amber-400'
+                      ? 'is-cant-afford'
                       : playHighlight?.playState === 'blocked'
-                        ? 'border-2 border-red-500/60'
-                        : 'gold-border hover:scale-[1.01]'}
-            ${isCurrentPawn ? 'pawn-glow' : 'location-glow'}
+                        ? 'is-blocked-target'
+                        : isCurrentPawn ? 'is-pawn' : 'is-idle'}
           `}
-          style={{
-            top: '15%', height: '85%',
-            boxShadow: isDragOver && playHighlight?.playState === 'valid'
-              ? '0 0 30px rgba(74,222,128,0.7), 0 0 8px rgba(74,222,128,0.4)'
-              : playHighlight?.playState === 'valid'
-                ? '0 0 20px rgba(74,222,128,0.45)'
-                : playHighlight?.playState === 'cant-afford'
-                  ? '0 0 16px rgba(251,191,36,0.35)'
-                  : playHighlight?.playState === 'blocked'
-                    ? '0 0 12px rgba(239,68,68,0.25)'
-                    : undefined,
-          }}
+          style={{ top: '15%', height: '85%' }}
         >
           {/* Board artwork image */}
           {boardImageUrl && (
@@ -260,14 +250,16 @@ export function LocationTile({
 
           {/* Pawn indicator */}
           {isCurrentPawn && !locState.isLocked && (
-            <div className="absolute top-2 right-2 z-20 animate-pulse">
+            <div className="absolute top-2.5 right-2.5 z-20 w-9 h-9 rounded-full flex items-center justify-center
+              bg-[radial-gradient(circle_at_35%_30%,#3a2c14_0%,#140f08_75%)] border border-gold-bright/80
+              shadow-[0_0_0_1px_rgba(0,0,0,0.7),0_0_16px_rgba(230,196,106,0.55),0_4px_10px_rgba(0,0,0,0.7)]">
               <Crown
-                className="w-7 h-7"
-                strokeWidth={1.5}
+                className="w-5 h-5"
+                strokeWidth={1.75}
                 style={{
-                  color: 'rgba(255,255,255,0.95)',
-                  fill: 'rgba(255,255,255,0.12)',
-                  filter: 'drop-shadow(0 0 5px rgba(255,255,255,0.9)) drop-shadow(0 0 12px rgba(255,255,255,0.5))',
+                  color: '#f6dd94',
+                  fill: 'rgba(246,221,148,0.18)',
+                  filter: 'drop-shadow(0 0 4px rgba(246,221,148,0.7))',
                 }}
               />
             </div>
@@ -276,12 +268,12 @@ export function LocationTile({
           {/* Location name + coste badge */}
           <div className="absolute inset-0 flex flex-col justify-end items-center p-3 gap-1.5">
             {playHighlight && (
-              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full font-stats text-[10px] font-bold border ${
+              <div className={`relative z-20 flex items-center gap-1 px-2.5 py-0.5 rounded-full font-stats text-[10px] font-bold border backdrop-blur-sm shadow-[0_4px_10px_rgba(0,0,0,0.6)] ${
                 playHighlight.playState === 'valid'
-                  ? 'bg-green-900/70 border-green-400/60 text-green-300'
+                  ? 'bg-[#2a1f0a]/85 border-gold-bright/70 text-gold-bright'
                   : playHighlight.playState === 'cant-afford'
-                    ? 'bg-amber-900/70 border-amber-400/60 text-amber-300'
-                    : 'bg-red-900/50 border-red-500/40 text-red-400'
+                    ? 'bg-[#2b160b]/85 border-[#d68c50]/70 text-[#f0b483]'
+                    : 'bg-[#2a0d12]/80 border-red-400/40 text-red-300'
               }`}>
                 {playHighlight.playState === 'valid'        && '✓'}
                 {playHighlight.playState === 'cant-afford'  && '✗'}
@@ -290,8 +282,11 @@ export function LocationTile({
               </div>
             )}
             {/* Desktop: título normal */}
-            <h3 className="hidden lg:block font-serif text-[10px] md:text-xs uppercase tracking-[0.18em] text-center"
-              style={{ color: locState.isLocked ? '#948e99' : '#d3bcf9' }}>
+            <h3 className="loc-nameplate relative z-20 hidden lg:block font-serif font-semibold text-[10px] md:text-xs uppercase tracking-[0.16em] text-center"
+              style={{
+                color: locState.isLocked ? '#958c9e' : '#f3e2b3',
+                textShadow: '0 1px 2px rgba(0,0,0,0.9), 0 0 12px rgba(230,196,106,0.25)',
+              }}>
               {locDef.name}
             </h3>
 
@@ -302,11 +297,12 @@ export function LocationTile({
                 onLocationClick?.(locDef.id);
               }}
               disabled={!onLocationClick && !onCardDrop}
-              className="lg:hidden font-serif text-[10px] uppercase tracking-[0.18em] px-2 py-1 rounded border transition-all active:scale-95 min-h-8 w-full"
+              className="relative z-20 lg:hidden font-serif font-semibold text-[10px] uppercase tracking-[0.14em] px-2 py-1 rounded-md border transition-all duration-200 active:scale-95 min-h-8 w-full backdrop-blur-sm"
               style={{
-                color: locState.isLocked ? '#948e99' : '#d3bcf9',
-                borderColor: !onLocationClick && !onCardDrop ? '#948e9955' : '#d3bcf9',
-                background: !onLocationClick && !onCardDrop ? '#0000' : '#d3bcf922',
+                color: locState.isLocked ? '#958c9e' : '#f3e2b3',
+                borderColor: !onLocationClick && !onCardDrop ? 'rgba(149,140,158,0.3)' : 'rgba(246,221,148,0.6)',
+                background: !onLocationClick && !onCardDrop ? 'rgba(10,8,16,0.55)' : 'linear-gradient(180deg, rgba(60,44,18,0.75), rgba(20,15,10,0.8))',
+                textShadow: '0 1px 2px rgba(0,0,0,0.9)',
               }}>
               {locDef.name}
             </button>
@@ -324,6 +320,7 @@ export function LocationTile({
                 slotValue={slot.value}
                 covered={locState.isLocked || coveredSlotIndices.includes(idx)}
                 available={!locState.isLocked && availableSlotIndices.includes(idx)}
+                used={usedSlotIndices.includes(idx)}
                 hissChoice={!locState.isLocked && hissChoiceSlotIndices.includes(idx)}
                 remoteCoverageBy={remoteEnlargedCoverage.find(r => r.slotIndex === idx)?.card}
                 onClick={() => onSlotClick?.(idx)}
@@ -338,6 +335,7 @@ export function LocationTile({
                 slotValue={slot.value}
                 covered={locState.isLocked || coveredSlotIndices.includes(idx)}
                 available={!locState.isLocked && availableSlotIndices.includes(idx)}
+                used={usedSlotIndices.includes(idx)}
                 hissChoice={!locState.isLocked && hissChoiceSlotIndices.includes(idx)}
                 remoteCoverageBy={remoteEnlargedCoverage.find(r => r.slotIndex === idx)?.card}
                 onClick={() => onSlotClick?.(idx)}
@@ -350,7 +348,7 @@ export function LocationTile({
       {/* ── Ally / villain card zone — heroes NOT here ──────── */}
       <div className="card-slot ally-zone group hover:border-secondary-container/40 transition-colors min-h-30 md:min-h-40">
         {allyZoneCards.length === 0 ? (
-          <span className="absolute bottom-1 left-2 font-stats text-[7px] text-secondary-container/50 uppercase tracking-wider group-hover:text-secondary-container/70 transition-colors">
+          <span className="absolute bottom-1 left-2 font-serif text-[7px] font-semibold text-gold/35 uppercase tracking-[0.2em] group-hover:text-gold/60 transition-colors">
             Aliados y objetos
           </span>
         ) : (
@@ -366,7 +364,7 @@ export function LocationTile({
               const isSherif = card.instId === sherifInstId && !!onSherifDragStart;
               return (
               <div key={card.instId}
-                className="hover:z-10 hover:-translate-y-2 transition-transform duration-200 shrink-0"
+                className="hover:z-10 shrink-0"
                 style={{ marginLeft: idx === 0 ? '0px' : '-40px' }}>
                 <CardComponent
                   card={card}
@@ -399,6 +397,8 @@ interface ActionTokenProps {
   slotValue?: number;
   covered: boolean;
   available: boolean;
+  /** Ya usada este turno: apagada, sin brillo. */
+  used?: boolean;
   /** Casilla tapada que Sir Hiss permite elegir: clicable y resaltada pese a estar tapada. */
   hissChoice?: boolean;
   /** Si esta casilla está tapada por un Héroe Agrandado que está FÍSICAMENTE en otra ubicación
@@ -407,7 +407,7 @@ interface ActionTokenProps {
   onClick: () => void;
 }
 
-function ActionToken({ slotType, slotValue, covered, available, hissChoice = false, remoteCoverageBy, onClick }: ActionTokenProps) {
+function ActionToken({ slotType, slotValue, covered, available, used = false, hissChoice = false, remoteCoverageBy, onClick }: ActionTokenProps) {
   const borderClass  = ACTION_BORDER[slotType] ?? 'border-primary';
   const textClass    = ACTION_TEXT_COLOR[slotType] ?? 'text-primary';
   const imgSrc       = ACTION_IMG[slotType];
@@ -417,7 +417,11 @@ function ActionToken({ slotType, slotValue, covered, available, hissChoice = fal
     ? `Sir Hiss: ${ACTION_LABELS[slotType] ?? slotType}`
     : remoteCoverageBy
       ? `Agrandado por ${remoteCoverageBy.name} (en otra ubicación)`
-      : (blocked ? 'Tapado por un Héroe' : (ACTION_LABELS[slotType] ?? slotType));
+      : blocked
+        ? 'Tapado por un Héroe'
+        : used ? `${ACTION_LABELS[slotType] ?? slotType} · usada` : (ACTION_LABELS[slotType] ?? slotType);
+  const isAvailable  = (available && !covered) || hissChoice;
+  const stateClass   = blocked ? 'is-blocked' : isAvailable ? 'is-available' : used ? 'is-used' : '';
   const isGainPower  = slotType === 'GAIN_POWER';
   const remoteImgSrc = remoteCoverageBy?.imageFile
     ? assetUrl(`cards/${remoteCoverageBy.villainId}/${remoteCoverageBy.imageFile}.webp`)
@@ -430,15 +434,15 @@ function ActionToken({ slotType, slotValue, covered, available, hissChoice = fal
         disabled={blocked || !available}
         onClick={onClick}
         className={`
+          action-token ${stateClass}
           relative w-12 h-12 md:w-14 md:h-14 rounded-full border-2
-          overflow-hidden shadow-lg
-          transition-all duration-150
-          ${blocked ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-110 hover:brightness-110 active:scale-95'}
+          overflow-hidden
+          ${blocked || !available ? 'cursor-not-allowed' : 'cursor-pointer'}
           ${hissChoice
-            ? 'border-tertiary ring-2 ring-tertiary/70 shadow-[0_0_14px_rgba(211,188,249,0.6)] animate-pulse'
+            ? 'border-tertiary ring-2 ring-tertiary/70 animate-pulse'
             : remoteCoverageBy
               ? 'border-tertiary ring-2 ring-tertiary/50'
-              : available && !covered ? borderClass : 'border-outline-variant/40'}
+              : isAvailable ? borderClass : 'border-black/40'}
         `}
       >
         {/* Image fills the entire circle */}
@@ -453,7 +457,7 @@ function ActionToken({ slotType, slotValue, covered, available, hissChoice = fal
         )}
 
         {/* GAIN_POWER: value number centered on top of the image — gold color */}
-        {isGainPower && slotValue !== undefined && (
+        {isGainPower && slotValue !== undefined && !used && (
           <span
             className="absolute inset-0 flex items-center justify-center font-stats font-bold text-lg md:text-xl leading-none"
             style={{
@@ -466,17 +470,23 @@ function ActionToken({ slotType, slotValue, covered, available, hissChoice = fal
         )}
       </button>
 
+      {/* Usada: sello fuera del botón para que no lo apague su filtro */}
+      {used && !blocked && (
+        <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-gold-bright/85 text-lg font-bold"
+          style={{ textShadow: '0 1px 3px rgba(0,0,0,1), 0 0 8px rgba(0,0,0,0.8)' }}>✓</span>
+      )}
+
       {/* Tooltip — appears above the token on hover */}
       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none
         opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0
         transition-all duration-150">
-        <div className="bg-surface-container-highest border border-outline-variant/60 rounded px-2 py-1 whitespace-nowrap shadow-xl">
-          <span className="font-stats text-[9px] text-on-surface uppercase tracking-wider">
+        <div className="bg-[#120e1a]/95 backdrop-blur-sm border border-gold/40 rounded-md px-2 py-1 whitespace-nowrap shadow-[0_8px_20px_rgba(0,0,0,0.7)]">
+          <span className="font-stats text-[9px] font-semibold text-[#f3e2b3] uppercase tracking-wider">
             {label}
           </span>
         </div>
         {/* Arrow */}
-        <div className="w-2 h-2 bg-surface-container-highest border-b border-r border-outline-variant/60 rotate-45 mx-auto -mt-1" />
+        <div className="w-2 h-2 bg-[#120e1a] border-b border-r border-gold/40 rotate-45 mx-auto -mt-1" />
       </div>
 
       {/* Corner badge for non-GAIN_POWER slots with a value (outside overflow-hidden) */}

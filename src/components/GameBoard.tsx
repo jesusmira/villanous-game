@@ -209,11 +209,7 @@ export function GameBoard({ state }: Props) {
     [TurnPhase.DRAW]:     'ROBAR',
   };
 
-  const phaseColors: Record<TurnPhase, string> = {
-    [TurnPhase.MOVE]:     'text-tertiary border-tertiary/50 bg-tertiary/10',
-    [TurnPhase.ACTIVATE]: 'text-secondary-container border-secondary-container/50 bg-secondary-container/10',
-    [TurnPhase.DRAW]:     'text-primary border-primary/50 bg-primary/10',
-  };
+  const phaseOrder: TurnPhase[] = [TurnPhase.MOVE, TurnPhase.ACTIVATE, TurnPhase.DRAW];
 
   const handCards = currentPlayer.handInstIds
     .map(id => displayedState.allCards[id])
@@ -645,23 +641,44 @@ export function GameBoard({ state }: Props) {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background" key={isReplaying ? 'replay' : 'live'}>
+    <div className="flex flex-col min-h-screen" key={isReplaying ? 'replay' : 'live'}>
 
-      {/* ── Fixed Nav ───────────────────────────────────────── */}
-      <nav className="fixed top-0 inset-x-0 z-100 h-12 bg-surface-container-low/95 backdrop-blur-md border-b border-outline-variant/30 flex items-center justify-between px-4 md:px-6 shadow-md">
-        <div className="flex items-center gap-3 md:gap-5">
+      {/* ── Banda cinematográfica ───────────────────────────── */}
+      <nav className="cine-band fixed top-0 inset-x-0 z-100 h-12 flex items-center justify-between gap-2 px-3 sm:px-4 md:px-6">
+        <div className="flex items-center gap-3 md:gap-5 min-w-0 shrink-0">
           <div className="flex items-center gap-2">
-            <LayoutGrid className="w-4 h-4 text-primary-fixed-dim" />
-            <span className="font-serif italic text-base text-on-surface leading-none tracking-tight">
+            <LayoutGrid className="w-4 h-4 text-gold/80" />
+            <span className="hidden sm:inline font-serif font-bold text-sm md:text-base leading-none tracking-[0.18em] uppercase text-gold-bright"
+              style={{ textShadow: '0 0 14px rgba(230,196,106,0.35)' }}>
               Villainous
             </span>
           </div>
-          <div className="hidden sm:block h-4 w-px bg-outline-variant/40" />
-          <span className="hidden sm:inline font-stats text-[10px] text-on-surface-variant uppercase tracking-[0.15em]">
-            Turno activo: {currentPlayer.name}
-          </span>
         </div>
-        <div className="flex items-center gap-3">
+
+        {/* Centro: ronda · villano activo · fases del turno */}
+        <div className="min-w-0 flex items-center gap-2 md:gap-3 md:absolute md:left-1/2 md:-translate-x-1/2">
+          <span className="hidden md:inline font-serif text-[11px] font-semibold tracking-[0.2em] uppercase text-[#e8dcc4]/70">
+            Ronda <span className="font-stats text-gold-bright">{state.roundNumber}</span>
+          </span>
+          <span className="hidden md:block w-1 h-1 rotate-45 bg-gold/70" />
+          <span className="hidden sm:inline max-w-40 truncate font-narrative italic text-sm text-[#f3e2b3]">
+            {currentPlayer.name}
+          </span>
+          {!state.winner && (
+            <div className="flex items-center gap-0.5 p-0.5 rounded-full bg-black/40 border border-gold/25 shadow-[inset_0_1px_3px_rgba(0,0,0,0.6)]">
+              {phaseOrder.map(ph => (
+                <span key={ph}
+                  className={`phase-step px-1.5 sm:px-2 md:px-2.5 py-0.5 rounded-full font-stats text-[8px] sm:text-[9px] md:text-[10px] font-semibold uppercase tracking-[0.08em] sm:tracking-[0.14em] ${
+                    state.turnPhase === ph ? 'is-current' : 'text-on-surface-variant/45'
+                  }`}>
+                  {phaseLabels[ph]}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
           {floraVictim && (
             <button
               onClick={() => setFloraOpen(true)}
@@ -671,16 +688,11 @@ export function GameBoard({ state }: Props) {
               ✦ Cartas de {floraVictim.name}
             </button>
           )}
-          {!state.winner && (
-            <span className={`font-stats text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border ${phaseColors[state.turnPhase]}`}>
-              {phaseLabels[state.turnPhase]}
-            </span>
-          )}
-          <span className="font-stats text-xs text-on-surface-variant">R{state.roundNumber}</span>
+          <span className="hidden sm:inline md:hidden font-stats text-xs text-gold/80">R{state.roundNumber}</span>
           <button
             onClick={() => setHistoryOpen(true)}
             title="Ver histórico"
-            className="text-on-surface-variant hover:text-primary transition-colors"
+            className="text-on-surface-variant/80 hover:text-gold-bright transition-colors duration-200"
           >
             <ScrollText className="w-4 h-4" />
           </button>
@@ -692,14 +704,14 @@ export function GameBoard({ state }: Props) {
               <button
                 onClick={() => setShowHookDeck(true)}
                 title="Cartas de Garfio"
-                className="text-on-surface-variant hover:text-primary transition-colors"
+                className="text-on-surface-variant/80 hover:text-gold-bright transition-colors duration-200"
               >
                 <BookOpen className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setShowTests(true)}
                 title="Pruebas de modales"
-                className="text-on-surface-variant hover:text-primary transition-colors"
+                className="text-on-surface-variant/80 hover:text-gold-bright transition-colors duration-200"
               >
                 <Beaker className="w-4 h-4" />
               </button>
@@ -708,7 +720,7 @@ export function GameBoard({ state }: Props) {
           <button
             onClick={() => (state.winner ? resetGame() : setShowLeaveConfirm(true))}
             title="Nueva partida"
-            className="text-on-surface-variant hover:text-primary transition-colors"
+            className="text-on-surface-variant/80 hover:text-gold-bright transition-colors duration-200"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -717,7 +729,7 @@ export function GameBoard({ state }: Props) {
 
       {/* ── AI replay banner ────────────────────────────────── */}
       {isReplaying && (
-        <div className="fixed top-12 inset-x-0 z-90 flex items-center justify-center gap-3 px-6 py-2.5 bg-surface-container-low/95 backdrop-blur-md border-b border-tertiary/30">
+        <div className="fixed top-12 inset-x-0 z-90 flex items-center justify-center gap-3 px-6 py-2.5 bg-[#120e1a]/80 backdrop-blur-xl border-b border-gold/25 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.8)]">
           <span className="flex gap-1">
             {[0,1,2].map(i => (
               <span key={i} className="w-1.5 h-1.5 rounded-full bg-tertiary animate-bounce"
@@ -844,8 +856,8 @@ export function GameBoard({ state }: Props) {
       {/* ── AI indicator ────────────────────────────────────── */}
       {!state.winner && currentPlayer.isAI && (
         <div className="fixed bottom-0 inset-x-0 z-40 flex justify-center">
-          <div className="bg-surface-container-low/90 backdrop-blur-md border-t border-tertiary/40 px-6 py-2 text-tertiary font-stats text-xs italic tracking-widest uppercase">
-            La IA ({currentPlayer.name}) está jugando…
+          <div className="mb-3 rounded-full bg-[#120e1a]/85 backdrop-blur-xl border border-gold/35 px-6 py-2 text-gold-bright font-narrative italic text-sm tracking-wide shadow-[0_0_24px_rgba(230,196,106,0.15),0_10px_30px_rgba(0,0,0,0.7)]">
+            {currentPlayer.name} trama su jugada…
           </div>
         </div>
       )}
