@@ -507,16 +507,54 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 
 /* ── Modo Enfoque (CardFocus) ─────────────────────────────────── */
-/* Carta grande: ~300 px de ancho en escritorio, siempre dentro del alto visible. */
+/* Carta grande. El alto disponible se reparte según orientación para no necesitar scroll nunca:
+   ver .focus-layout más abajo. Los márgenes (32/48 px) cubren el padding del overlay. */
 .card-size-focus {
-  height: clamp(240px, calc(100svh - 170px), 480px) !important;
+  height: clamp(160px, calc(100svh - 32px), 480px) !important;
   width: auto !important;
   aspect-ratio: 2 / 3;
   border-radius: 12px !important;
   animation: none !important;
 }
+@media (orientation: portrait) {
+  /* Reserva 274 px para ficha + botones (+24 de padding y 12 de hueco) y que la carta no supere
+     el ancho de pantalla. iPhone 6 (375×667): carta de 357 px de alto. */
+  .card-size-focus { height: clamp(150px, min(calc(100svh - 310px), calc((100vw - 32px) * 1.5)), 480px) !important; }
+}
+.focus-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  max-width: 100%;
+  max-height: 100%;
+}
+.focus-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-height: 0;
+}
+.focus-rules { padding: 16px 20px; gap: 12px; min-height: 0; }
+.focus-title { font-size: 1.25rem; }
+.focus-text  { font-size: 16px; }
 @media (orientation: landscape) {
-  .card-size-focus { height: clamp(220px, calc(100svh - 110px), 480px) !important; }
+  .focus-layout { flex-direction: row; }
+  .focus-side {
+    width: min(360px, calc(100vw - (100svh - 32px) * 0.667 - 64px));
+    max-height: calc(100svh - 32px);
+  }
+}
+@media (orientation: portrait) {
+  .focus-layout { flex-direction: column; gap: 12px; }
+  .focus-side { width: min(360px, calc(100vw - 24px)); max-height: 274px; }
+}
+/* Pantallas bajas o estrechas (móviles): ficha más compacta. */
+@media (max-height: 520px), (max-width: 480px) {
+  .focus-rules { padding: 10px 14px; gap: 8px; }
+  .focus-title { font-size: 1rem; }
+  .focus-text  { font-size: 14px; line-height: 1.45; }
 }
 .card-size-peek {
   height: clamp(220px, 50vh, 400px) !important;

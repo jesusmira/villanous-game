@@ -480,9 +480,9 @@ function ActionToken({ slotType, slotValue, covered, available, used = false, hi
       )}
 
       {/* Tooltip — appears above the token on hover */}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none
-        opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0
-        transition-all duration-150">
+      {/* hidden (no solo opacity-0): oculto pero presente ensanchaba la página en móviles estrechos
+          cuando la ficha estaba pegada al borde derecho. */}
+      <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none">
         <div className="bg-[#120e1a]/95 backdrop-blur-sm border border-gold/40 rounded-md px-2 py-1 whitespace-nowrap shadow-[0_8px_20px_rgba(0,0,0,0.7)]">
           <span className="font-stats text-[9px] font-semibold text-[#f3e2b3] uppercase tracking-wider">
             {label}
