@@ -15,6 +15,8 @@ interface Props {
   onDragEnd?: () => void;
   /** Clases extra que sobreescriben el tamaño por defecto (mano móvil, vista de detalle). */
   sizeClassName?: string;
+  /** Marca la carta para el Modo Enfoque por hover prolongado (ver GameBoard). Solo tablero y mano. */
+  inspectable?: boolean;
 }
 
 const CARD_GRADIENTS: Record<string, string> = {
@@ -27,7 +29,7 @@ const CARD_GRADIENTS: Record<string, string> = {
 };
 
 
-export function CardComponent({ card, state, selected, onClick, draggable: isDraggable, onDragStart, onDragEnd, sizeClassName }: Props) {
+export function CardComponent({ card, state, selected, onClick, draggable: isDraggable, onDragStart, onDragEnd, sizeClassName, inspectable }: Props) {
   const { onPointerDown } = useDragSource({ disabled: !isDraggable, onStart: onDragStart, onEnd: onDragEnd });
   const effectiveStr = card.baseStrength !== undefined ? getEffectiveStrength(state, card.instId) : undefined;
   const baseStr      = card.baseStrength ?? 0;
@@ -48,7 +50,8 @@ export function CardComponent({ card, state, selected, onClick, draggable: isDra
     <div
       className={`villainous-card ${sizeClassName ?? ''} ${isHero ? 'hero-card' : ''} ${rotationClass} ${selected ? 'is-selected' : ''} ${onClick ? 'is-interactive cursor-pointer' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
       onClick={onClick}
-      title={card.name}
+      title={inspectable ? undefined : card.name}
+      data-inspect-id={inspectable ? card.instId : undefined}
       onPointerDown={isDraggable ? onPointerDown : undefined}
       onDragStart={(e) => e.preventDefault()}
     >

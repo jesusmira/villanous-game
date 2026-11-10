@@ -158,6 +158,7 @@ export function LocationTile({
                   <CardComponent
                     card={card}
                     state={state}
+                    inspectable
                     selected={selectedCardId === card.instId}
                     onClick={() => onCardClick(card.instId)}
                     draggable={isHero && !!onHeroCardDragStart}
@@ -181,6 +182,7 @@ export function LocationTile({
               <CardComponent
                 card={card}
                 state={state}
+                inspectable
                 selected={selectedCardId === card.instId}
                 onClick={() => onCardClick(card.instId)}
                 sizeClassName="card-size-shrunk-slot"
@@ -369,6 +371,7 @@ export function LocationTile({
                 <CardComponent
                   card={card}
                   state={state}
+                  inspectable
                   selected={selectedCardId === card.instId}
                   onClick={() => onCardClick(card.instId)}
                   draggable={isRaven || isSherif || !!onVillainCardDragStart}

@@ -4,6 +4,7 @@ import type { GameState, CardInstId, LocationId } from '../core/types';
 import { getPlugin } from '../core/villains/registry';
 import { getPlayer, getEffectiveStrength } from '../core/engine/stateHelpers';
 import { getCoveredSlotIndices } from '../core/engine/slotHelpers';
+import { canPlaceCardFromHand } from '../core/engine/RuleEngine';
 import { useGameStore } from '../state/gameStore';
 import { modalStyles } from '../styles/modalStyles';
 import { ACTION_IMG } from './shared/actionImages';
@@ -126,10 +127,12 @@ export function CuervoModal({ state }: Props) {
                 const c = state.allCards[id];
                 if (!c) return null;
                 const cost = Math.max(0, c.baseCost + c.costModifier);
+                // Misma regla que la jugada normal: solo cartas que quepan en alguna ubicación.
+                const placeable = allUnlockedLocs.some(l => canPlaceCardFromHand(state, player.id, id, l.id).valid);
                 return (
                   <CardPickButton key={id} card={c} state={state}
                     selected={selectedCardId === id}
-                    disabled={player.power < cost}
+                    disabled={!placeable}
                     caption={`${cost}⚡`}
                     onClick={() => setSelectedCardId(id)}
                   />
@@ -140,12 +143,17 @@ export function CuervoModal({ state }: Props) {
               <>
                 <p className="text-xs text-on-surface-variant">Elige ubicación de destino:</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {allUnlockedLocs.map(l => (
-                    <button key={l.id} className={SEL}
-                      onClick={() => doResolveCuervo(ActionType.PLAY_CARD, { cardInstId: selectedCardId, targetLocationId: l.id as LocationId })}>
-                      {l.name}
-                    </button>
-                  ))}
+                  {allUnlockedLocs.map(l => {
+                    const check = canPlaceCardFromHand(state, player.id, selectedCardId, l.id);
+                    return (
+                      <button key={l.id} className={check.valid ? SEL : `${SEL} opacity-35`}
+                        disabled={!check.valid}
+                        title={check.valid ? undefined : check.reason}
+                        onClick={() => doResolveCuervo(ActionType.PLAY_CARD, { cardInstId: selectedCardId, targetLocationId: l.id as LocationId })}>
+                        {l.name}
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             )}

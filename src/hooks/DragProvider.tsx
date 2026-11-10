@@ -8,11 +8,19 @@ interface ActiveDrag {
   offsetX: number; offsetY: number;
   el: HTMLElement;
   started: boolean;
+  /** El auto-scroll de cada borde solo se arma tras salir una vez de esa franja: un arrastre que
+   *  EMPIEZA pegado al borde (la mano en abanico vive en el inferior) no debe desplazar la página
+   *  nada más cogerse la carta. */
+  armedTop: boolean;
+  armedBottom: boolean;
+  scale: number;
   onStart?: () => void;
   onEnd?: () => void;
 }
 
-interface Ghost { html: string; width: number; height: number; x: number; y: number }
+/** `scale`: escala visual del origen (p. ej. carta de la mano agrandada al pasar el ratón), para
+ *  que la copia flotante no encoja al empezar el arrastre. */
+interface Ghost { html: string; width: number; height: number; x: number; y: number; scale: number }
 
 export function DragProvider({ children }: { children: ReactNode }) {
   const zones = useRef<Map<number, DropZone>>(new Map());
@@ -37,7 +45,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
     drag.current = {
       startX: e.clientX, startY: e.clientY,
       offsetX: e.clientX - r.left, offsetY: e.clientY - r.top,
-      el: opts.el, started: false, onStart: opts.onStart, onEnd: opts.onEnd,
+      el: opts.el, started: false, armedTop: false, armedBottom: false, scale: 1, onStart: opts.onStart, onEnd: opts.onEnd,
     };
   }, []);
 
@@ -66,8 +74,10 @@ export function DragProvider({ children }: { children: ReactNode }) {
       const { x, y } = ptr.current;
       const vh = window.innerHeight;
       let dy = 0;
-      if (y < EDGE) dy = -MAX_SPEED * (1 - y / EDGE);
-      else if (y > vh - EDGE) dy = MAX_SPEED * (1 - (vh - y) / EDGE);
+      if (y >= EDGE) a.armedTop = true;
+      if (y <= vh - EDGE) a.armedBottom = true;
+      if (y < EDGE && a.armedTop) dy = -MAX_SPEED * (1 - y / EDGE);
+      else if (y > vh - EDGE && a.armedBottom) dy = MAX_SPEED * (1 - (vh - y) / EDGE);
       if (dy !== 0) {
         window.scrollBy(0, dy);
         updateOver(x, y); // las posiciones cambian al scrollear
@@ -83,13 +93,15 @@ export function DragProvider({ children }: { children: ReactNode }) {
         if (Math.hypot(ev.clientX - a.startX, ev.clientY - a.startY) < DRAG_THRESHOLD) return;
         a.started = true;
         const r = a.el.getBoundingClientRect();
-        setGhost({ html: a.el.outerHTML, width: r.width, height: r.height, x: ev.clientX - a.offsetX, y: ev.clientY - a.offsetY });
+        const scale = a.el.offsetWidth > 0 ? r.width / a.el.offsetWidth : 1;
+        a.scale = scale;
+        setGhost({ html: a.el.outerHTML, width: a.el.offsetWidth, height: a.el.offsetHeight, x: ev.clientX - a.offsetX, y: ev.clientY - a.offsetY, scale });
         setDragging(true);
         document.body.style.userSelect = 'none';
         a.onStart?.();
         if (!rafId.current) rafId.current = requestAnimationFrame(autoScroll);
       } else if (ghostEl.current) {
-        ghostEl.current.style.transform = `translate(${ev.clientX - a.offsetX}px, ${ev.clientY - a.offsetY}px)`;
+        ghostEl.current.style.transform = `translate(${ev.clientX - a.offsetX}px, ${ev.clientY - a.offsetY}px) scale(${a.scale})`;
       }
       ev.preventDefault();
       updateOver(ev.clientX, ev.clientY);
@@ -129,7 +141,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
         <div
           ref={ghostEl}
           className="fixed top-0 left-0 z-9999 pointer-events-none opacity-80"
-          style={{ width: ghost.width, height: ghost.height, transform: `translate(${ghost.x}px, ${ghost.y}px)`, willChange: 'transform' }}
+          style={{ width: ghost.width, height: ghost.height, transform: `translate(${ghost.x}px, ${ghost.y}px) scale(${ghost.scale})`, transformOrigin: '0 0', willChange: 'transform' }}
           dangerouslySetInnerHTML={{ __html: ghost.html }}
         />
       )}
@@ -139,9 +151,11 @@ export function DragProvider({ children }: { children: ReactNode }) {
 
 /** Envoltorio arrastrable para elementos que no son CardComponent (filas de mano, etc.). */
 export function DragSource({
-  disabled, onStart, onEnd, className, style, onClick, onMouseEnter, onMouseLeave, dataCardId, children,
+  disabled, onStart, onEnd, className, style, onClick, onMouseEnter, onMouseLeave, dataCardId, ghostSelector, children,
 }: {
   disabled?: boolean;
+  /** Ver useDragSource: descendiente que hace de copia flotante. */
+  ghostSelector?: string;
   onStart?: () => void;
   onEnd?: () => void;
   className?: string;
@@ -153,7 +167,7 @@ export function DragSource({
   dataCardId?: string;
   children: ReactNode;
 }) {
-  const { onPointerDown } = useDragSource({ disabled, onStart, onEnd });
+  const { onPointerDown } = useDragSource({ disabled, onStart, onEnd, ghostSelector });
   return (
     <div
       className={className}

@@ -42,6 +42,9 @@ export function useDragSource(opts: {
   disabled?: boolean;
   onStart?: () => void;
   onEnd?: () => void;
+  /** Descendiente que se usa como copia flotante (y su posición) en vez del propio elemento:
+   *  útil cuando el elemento que recibe el puntero no coincide con lo que se ve (mano en abanico). */
+  ghostSelector?: string;
 }) {
   const ctx = useContext(DragContext);
   const optsRef = useRef(opts);
@@ -49,8 +52,10 @@ export function useDragSource(opts: {
 
   const onPointerDown = useCallback((e: ReactPointerEvent) => {
     if (optsRef.current.disabled) return;
+    const source = e.currentTarget as HTMLElement;
+    const sel = optsRef.current.ghostSelector;
     ctx.startDrag(e, {
-      el: e.currentTarget as HTMLElement,
+      el: (sel ? source.querySelector<HTMLElement>(sel) : null) ?? source,
       onStart: () => optsRef.current.onStart?.(),
       onEnd: () => optsRef.current.onEnd?.(),
     });

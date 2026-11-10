@@ -228,6 +228,34 @@ describe('Alicia', () => {
   });
 });
 
+describe('Conejo Blanco', () => {
+  it('suma +1 al Precio de Activación y nunca deja el Poder en negativo', () => {
+    // Caso real: Reina con 1 de Poder, Conejo Blanco en su Reino, activa un Soldado (1+1 = 2).
+    let s = makeQueenState();
+    const q = queenId(s);
+    const soldado = findCard(s, 'queen_v_picas')!;
+    s = placeVillainCard(s, q, 'queen_tulgey', soldado);
+    const conejo = findCard(s, 'queen_f_conejo')!;
+    s = placeHeroInLoc(s, q, 'queen_conejoblanco', conejo);
+    s = setPawn(s, q, 'queen_conejoblanco');
+    s = setPhase(s, TurnPhase.ACTIVATE);
+    s = setPower(s, q, 1);
+
+    expect(canActivateCard(s, q, soldado, 2).valid).toBe(false);
+
+    // Aunque una ruta llame directamente al motor sin validar, no se cobra ni se activa.
+    s = activateCard(s, q, soldado, 2);
+    expect(s.players.find(p => p.id === q)!.power).toBe(1);
+    expect(s.allCards[soldado].isWicket).toBeFalsy();
+
+    s = setPower(s, q, 2);
+    expect(canActivateCard(s, q, soldado, 2).valid).toBe(true);
+    s = activateCard(s, q, soldado, 2);
+    expect(s.players.find(p => p.id === q)!.power).toBe(0);
+    expect(s.allCards[soldado].isWicket).toBe(true);
+  });
+});
+
 describe('Dodo', () => {
   it('bloquea convertir Soldado↔Postigo solo en su propia ubicación', () => {
     let s = makeQueenState();

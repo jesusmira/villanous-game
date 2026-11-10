@@ -100,7 +100,7 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
   }
 
   return (
-    <article className="space-y-2 sm:space-y-5">
+    <article className="space-y-2 sm:space-y-5" data-player-board={player.id}>
 
       {/* ── Placa del villano: avatar, nombre, objetivo y recursos en una sola banda ── */}
       <header

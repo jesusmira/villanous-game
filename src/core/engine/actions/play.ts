@@ -254,6 +254,11 @@ export function activateCard(
   const player = getPlayer(state, playerId);
   const card = state.allCards[cardInstId];
   const effectiveCost = Math.max(0, (card.activationCost ?? 0) + computeActivationCostMod(state, playerId, card));
+  // Guardia defensiva (la validación completa vive en canActivateCard): el Poder nunca puede
+  // quedar en negativo aunque una ruta de la UI no haya validado el coste con modificadores.
+  if (player.power < effectiveCost) {
+    return addLog(state, `${player.name} no tiene Poder suficiente para activar ${card.name} (necesita ${effectiveCost}).`);
+  }
   let s = updatePlayer(state, playerId, { power: player.power - effectiveCost });
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
   s = runEffects(s, cardInstId, 'ACTIVATED', { actingPlayerId: playerId, cardInstId, ...ctx });

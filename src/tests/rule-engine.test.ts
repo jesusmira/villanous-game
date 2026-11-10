@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { canMovePawn, canPlayCard, canVanquish, canMoveItemAlly } from '../core/engine/RuleEngine';
-import { TurnPhase } from '../core/types';
+import { ActionType, TurnPhase } from '../core/types';
+import { resolveCuervo } from '../core/villains/maleficent/resolvers';
 import {
   makeState, malId, findCard,
   putInHand, placeVillainCard, placeHeroInLoc,
@@ -68,6 +69,15 @@ describe('canPlayCard', () => {
     s = setPower(s, id, 5);
     // slot 1 = PLAY_CARD en bosque, targetLocation = bosque
     expect(canPlayCard(s, id, selvaId, 1, 'bosque').valid).toBe(true);
+  });
+
+  it('rechaza las Condiciones aunque haya Poder (solo se juegan en el turno de otro jugador)', () => {
+    let s = activateAt('bosque');
+    const id = malId(s);
+    const maliciaId = findCard(s, 'mal_v_malicia')!;
+    s = putInHand(s, id, maliciaId);
+    s = setPower(s, id, 10);
+    expect(canPlayCard(s, id, maliciaId, 1, 'bosque').valid).toBe(false);
   });
 
   it('rechaza si no hay suficiente Poder', () => {
@@ -215,5 +225,44 @@ describe('canMoveItemAlly', () => {
     s = placeVillainCard(s, id, 'montanas', selvaId);
     const res = canMoveItemAlly(s, id, selvaId, 'cabana', 0);
     expect(res.valid).toBe(false);
+  });
+});
+
+// ─── El Cuervo: Jugar Carta con las mismas reglas que la jugada normal ────────
+
+describe('El Cuervo → Jugar Carta', () => {
+  it('no puede poner una Maldición en la ubicación de Primavera', () => {
+    // Caso real: El Cuervo vuela a bosque y usa su Jugar Carta para poner Fuego Verde en cabana,
+    // donde está Primavera ("No se pueden jugar Maldiciones en la ubicación de Primavera").
+    let s = activateAt('montanas');
+    const id = malId(s);
+    const fuego = findCard(s, 'mal_v_fuego')!;
+    const primavera = findCard(s, 'mal_f_primavera')!;
+    s = putInHand(s, id, fuego);
+    s = placeHeroInLoc(s, id, 'cabana', primavera);
+    s = setPower(s, id, 10);
+    s = { ...s, pendingCuervo: { playerId: id, locationId: 'bosque' } };
+
+    const after = resolveCuervo(s, ActionType.PLAY_CARD, { cardInstId: fuego, targetLocationId: 'cabana' });
+    const me = after.players.find(p => p.id === id)!;
+    expect(me.handInstIds).toContain(fuego);
+    expect(me.locationStates['cabana'].villainCardInstIds).not.toContain(fuego);
+    expect(me.power).toBe(10);
+  });
+
+  it('sí puede ponerla en una ubicación sin Primavera', () => {
+    let s = activateAt('montanas');
+    const id = malId(s);
+    const fuego = findCard(s, 'mal_v_fuego')!;
+    const primavera = findCard(s, 'mal_f_primavera')!;
+    s = putInHand(s, id, fuego);
+    s = placeHeroInLoc(s, id, 'cabana', primavera);
+    s = setPower(s, id, 10);
+    s = { ...s, pendingCuervo: { playerId: id, locationId: 'bosque' } };
+
+    const after = resolveCuervo(s, ActionType.PLAY_CARD, { cardInstId: fuego, targetLocationId: 'bosque' });
+    const me = after.players.find(p => p.id === id)!;
+    expect(me.handInstIds).not.toContain(fuego);
+    expect(me.locationStates['bosque'].villainCardInstIds).toContain(fuego);
   });
 });

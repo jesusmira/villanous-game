@@ -61,10 +61,27 @@ export function canPlayCard(
   const slotCheck = canUseSlot(state, playerId, slotIndex);
   if (!slotCheck.valid) return slotCheck;
 
-  const player = getPlayer(state, playerId);
-  const plugin = getPlugin(player.villainId);
   const slot = getActionAtSlot(state, playerId, slotIndex);
   if (!slot || slot.type !== ActionType.PLAY_CARD) return fail('Esa ranura no es Jugar Carta.');
+
+  return canPlaceCardFromHand(state, playerId, cardInstId, targetLocationId);
+}
+
+/**
+ * Reglas de la CARTA y la UBICACIÓN DESTINO al jugar una carta de la mano, sin mirar qué casilla
+ * de acción se usa: Poder, ubicación bloqueada, Héroes/Condiciones, Primavera, Rey Ricardo,
+ * Efectúa el tiro… La usan canPlayCard (Jugar Carta normal) y El Cuervo, que juega la carta con
+ * la acción de SU ubicación — antes tenía su propia copia que solo miraba el Poder y dejaba, p.
+ * ej., poner una Maldición en la ubicación de Primavera.
+ */
+export function canPlaceCardFromHand(
+  state: GameState,
+  playerId: PlayerId,
+  cardInstId: CardInstId,
+  targetLocationId: LocationId,
+): ValidationResult {
+  const player = getPlayer(state, playerId);
+  const plugin = getPlugin(player.villainId);
 
   if (!player.handInstIds.includes(cardInstId)) return fail('Carta no está en tu mano.');
 
@@ -82,6 +99,13 @@ export function canPlayCard(
   // Heroes (fate cards) can only be played by opponents — handled in fate flow
   if (card.deck === 'FATE' && card.cardType === CardType.HERO) {
     return fail('Los Héroes se juegan mediante la acción Destino.');
+  }
+
+  // Las Condiciones no se juegan con Jugar Carta: solo durante el turno de OTRO jugador, cuando se
+  // cumple su condición (ver checkConditions/resolveCondition). Sin esto, Malicia & cía. se podían
+  // jugar en el propio turno ejecutando su efecto — tanto el humano como la IA (genPlayCard).
+  if (card.cardType === CardType.CONDITION) {
+    return fail('Las Condiciones solo se juegan en el turno de otro jugador, cuando se cumple su condición.');
   }
 
   // Special: Selva de Mortales Espinos — heroes need 4+ strength

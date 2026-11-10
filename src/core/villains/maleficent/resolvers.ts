@@ -12,6 +12,7 @@ import { getPlugin } from '../registry';
 import { EffectId } from '../effectIds';
 import { shuffle } from '../../utils/shuffle';
 import { getCoveredSlotIndices } from '../../engine/slotHelpers';
+import { canPlaceCardFromHand } from '../../engine/RuleEngine';
 
 // ─── CONDITION HANDLERS ───────────────────────────────────────────────────────
 
@@ -196,8 +197,13 @@ export function resolveCuervo(
       if (!params.cardInstId || !params.targetLocationId) break;
       const card = s.allCards[params.cardInstId];
       if (!card) break;
+      // Mismas reglas de carta/ubicación que Jugar Carta normal (Primavera, ubicación bloqueada…).
+      const placeCheck = canPlaceCardFromHand(s, playerId, params.cardInstId, params.targetLocationId);
+      if (!placeCheck.valid) {
+        s = addLog(s, `El Cuervo: no se puede jugar ${card.name} ahí — ${placeCheck.reason}`);
+        break;
+      }
       const cost = Math.max(0, card.baseCost + card.costModifier + computeKingdomCostMod(s, playerId, card, params.targetLocationId));
-      if (getPlayer(s, playerId).power < cost) break;
       s = updatePlayer(s, playerId, {
         power: getPlayer(s, playerId).power - cost,
         handInstIds: getPlayer(s, playerId).handInstIds.filter(id => id !== params.cardInstId),

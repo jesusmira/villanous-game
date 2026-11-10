@@ -26,7 +26,8 @@ import { VictoryModal } from './VictoryModal';
 import { ConfirmLeaveModal } from './ConfirmLeaveModal';
 import { AttachTargetModal } from './AttachTargetModal';
 import { StarkeyMoveModal } from './StarkeyMoveModal';
-import { CardComponent } from './CardComponent';
+import { HandFan } from './HandFan';
+import { CardFocus, FocusPrimaryButton, FocusSecondaryButton } from './CardFocus';
 import { TestPage } from './TestPage';
 import { useGameStore } from '../state/gameStore';
 import { useActionPanelState } from './useActionPanelState';
@@ -34,13 +35,11 @@ import { canMovePawn, canPlayCard, canMoveItemAlly, canMoveHero, canPayToDiscard
 import { computeKingdomCostMod } from '../core/engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../core/engine/slotHelpers';
 import { buildPlayCtx, getAttachCandidates } from '../core/ai/contextBuilder';
-import { LayoutGrid, RotateCcw, X, ScrollText, Beaker, BookOpen } from 'lucide-react';
-import { useSwipe } from '../hooks/useSwipe';
-import { DragSource } from '../hooks/DragProvider';
+import { LayoutGrid, RotateCcw, ScrollText, Beaker, BookOpen } from 'lucide-react';
 
-// Dispositivo cuyo puntero PRIMARIO es táctil (tablet/móvil). En estos, la lista lateral
-// de la mano usa "deslizar = vista previa" y "toque en dos pasos" en lugar del hover/clic
-// de ratón. Un portátil con pantalla táctil pero ratón sigue siendo puntero fino.
+// Dispositivo cuyo puntero PRIMARIO es táctil (tablet/móvil). En estos no hay hover
+// prolongado ni arrastre desde la mano: un toque abre el Modo Enfoque y "Jugar" selecciona.
+// Un portátil con pantalla táctil pero ratón sigue siendo puntero fino.
 const IS_COARSE_POINTER =
   typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 
@@ -57,14 +56,13 @@ export function GameBoard({ state }: Props) {
 
   // ─── UI State: Card selection & detail ────────────────────────────────────
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-  const [detailCard, setDetailCard]         = useState<CardInst | null>(null);
-  const [hoveredCardId, setHoveredCardId]   = useState<string | null>(null);
-  // Carta que estaba en vista previa ANTES del toque actual: permite el "toque en dos
-  // pasos" táctil (1º toque = vista previa, 2º toque sobre la misma carta = seleccionar).
-  const touchPrevHoveredRef = useRef<string | null>(null);
+  // Modo Enfoque: carta abierta en grande (clic). `from` decide los botones: Jugar/Volver
+  // desde la mano, Cerrar desde el tablero.
+  const [focusCard, setFocusCard]           = useState<{ card: CardInst; from: 'hand' | 'board' } | null>(null);
+  // Vista lateral por hover prolongado (solo ratón): no bloquea el tablero ni lleva botones.
+  const [peek, setPeek]                     = useState<{ id: string; side: 'left' | 'right' } | null>(null);
 
   // ─── UI State: Drawers & modals ───────────────────────────────────────────
-  const [handOpen, setHandOpen]             = useState(false);
   const [historyOpen, setHistoryOpen]       = useState(false);
   const [floraOpen, setFloraOpen]           = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
@@ -120,15 +118,40 @@ export function GameBoard({ state }: Props) {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [resetGame]);
 
-  // Swipe gesture for closing hand drawer
-  const handDrawerSwipe = useSwipe({
-    onSwipeRight: () => {
-      if (handOpen) {
-        setHandOpen(false);
-        setHoveredCardId(null);
-      }
-    },
-  });
+  // Esc cancela la carta elegida para jugar (si no hay un Modo Enfoque abierto, que ya usa Esc).
+  useEffect(() => {
+    if (!selectedCardId || focusCard) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedCardId(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedCardId, focusCard]);
+
+  // Hover prolongado (450 ms) sobre cualquier carta marcada con data-inspect-id → vista lateral
+  // anclada al lado contrario del puntero. Delegado en document: no hace falta cablear cada carta.
+  useEffect(() => {
+    if (IS_COARSE_POINTER) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let currentId: string | null = null;
+    const onOver = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return;
+      const id = (e.target as Element | null)?.closest?.('[data-inspect-id]')?.getAttribute('data-inspect-id') ?? null;
+      if (id === currentId) return;
+      currentId = id;
+      clearTimeout(timer);
+      if (!id) { setPeek(null); return; }
+      const x = e.clientX;
+      timer = setTimeout(() => setPeek({ id, side: x > window.innerWidth / 2 ? 'left' : 'right' }), 450);
+    };
+    // Empezar a arrastrar o hacer clic cancela la vista lateral.
+    const onDown = () => { clearTimeout(timer); currentId = null; setPeek(null); };
+    document.addEventListener('pointerover', onOver);
+    document.addEventListener('pointerdown', onDown);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerover', onOver);
+      document.removeEventListener('pointerdown', onDown);
+    };
+  }, []);
 
   // ── AI replay ────────────────────────────────────────────────────────────
   const [replayIndex, setReplayIndex]       = useState(-1);
@@ -190,17 +213,22 @@ export function GameBoard({ state }: Props) {
   // Single shared action state — used by both tokens (LocationTile) and ActionPanel
   const ap = useActionPanelState(displayedState, currentPlayer.id);
 
-  // Auto-abrir cajón al activar modo descarte o jugar carta. Ajustado durante el render
+  // Al entrar o salir del modo Descartar se vacía la selección. Ajustado durante el render
   // (mismo motivo que el replay arriba) en vez de en un useEffect.
   const [prevPendingAction, setPrevPendingAction] = useState(ap.pendingAction);
   if (prevPendingAction !== ap.pendingAction) {
     setPrevPendingAction(ap.pendingAction);
-    if (ap.pendingAction === ActionType.DISCARD || ap.pendingAction === ActionType.PLAY_CARD) {
-      setHandOpen(true);
-      if (ap.pendingAction === ActionType.DISCARD) setDiscardIds([]);
-    } else {
-      setDiscardIds([]);
-    }
+    setDiscardIds([]);
+  }
+
+  // La carta elegida para jugar solo tiene sentido dentro de la fase de Acciones del turno en
+  // que se eligió. Antes solo se limpiaba al jugarla: si el turno terminaba sin poder colocarla
+  // (sin Poder o sin acción Jugar Carta), seguía marcada en los turnos siguientes.
+  const selectionScope = `${state.roundNumber}-${state.currentPlayerIndex}-${state.turnPhase}`;
+  const [prevSelectionScope, setPrevSelectionScope] = useState(selectionScope);
+  if (prevSelectionScope !== selectionScope) {
+    setPrevSelectionScope(selectionScope);
+    setSelectedCardId(null);
   }
 
   const phaseLabels: Record<TurnPhase, string> = {
@@ -227,6 +255,34 @@ export function GameBoard({ state }: Props) {
   ) ?? null;
 
   const isHumanTurn = !displayedState.winner && !currentPlayer.isAI && !isReplaying;
+
+  // Parte VISIBLE del abanico de la mano (las cartas asoman desde fuera de la pantalla) para
+  // que el final del tablero nunca quede tapado: el padding inferior de <main> la sigue.
+  const handFanRef = useRef<HTMLDivElement | null>(null);
+  const [bottomUiHeight, setBottomUiHeight] = useState(0);
+  useEffect(() => {
+    const el = handFanRef.current;
+    if (!el) { setBottomUiHeight(0); return; }
+    const measure = () => setBottomUiHeight(Math.max(0, window.innerHeight - el.getBoundingClientRect().top));
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener('resize', measure);
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
+  }, [isHumanTurn]);
+
+
+  // ── Cartas de la mano que se pueden jugar ahora en alguna ubicación (brillo "jugable") ─
+  const playableIds = ((): Set<string> => {
+    const ids = new Set<string>();
+    if (!isHumanTurn || displayedState.turnPhase !== TurnPhase.ACTIVATE) return ids;
+    const playSlotIdx = getAvailableSlotIndices(displayedState, currentPlayer.id, currentPlayer.pawnLocationId)
+      .find(i => getActionAtSlot(displayedState, currentPlayer.id, i)?.type === ActionType.PLAY_CARD);
+    if (playSlotIdx === undefined) return ids;
+    for (const id of currentPlayer.handInstIds) {
+      if (ap.plugin.locations.some(l => canPlayCard(displayedState, currentPlayer.id, id, playSlotIdx, l.id).valid)) ids.add(id);
+    }
+    return ids;
+  })();
 
   // ── Play highlights: resalta ubicaciones al seleccionar o arrastrar carta ─
   type PlayState = 'valid' | 'cant-afford' | 'blocked';
@@ -769,7 +825,7 @@ export function GameBoard({ state }: Props) {
       />
 
       {/* ── Main scrollable content ─────────────────────────── */}
-      <main className={`w-full px-4 md:px-8 pb-48 flex flex-col gap-12 md:gap-16 max-w-375 mx-auto ${isReplaying ? 'pt-24' : displayedState.winner ? 'pt-28' : 'pt-16'}`}>
+      <main style={{ paddingBottom: Math.max(bottomUiHeight + 24, 96) }} className={`w-full px-4 md:px-8 flex flex-col gap-12 md:gap-16 max-w-375 mx-auto ${isReplaying ? 'pt-24' : displayedState.winner ? 'pt-28' : 'pt-16'}`}>
         {displayedState.players.map((player, idx) => {
           const isActive  = isHumanTurn && displayedState.currentPlayerIndex === idx;
           const isFateTgt = state.pendingFate?.targetPlayerIndex === idx;
@@ -788,7 +844,7 @@ export function GameBoard({ state }: Props) {
               isActive={isActive}
               onCardClick={(id) => {
                 const card = displayedState.allCards[id];
-                if (card) setDetailCard(card);
+                if (card) setFocusCard({ card, from: 'board' });
               }}
               playHighlights={
                 dragRavenId       ? (isActive  ? ravenDropHighlights  : undefined) :
@@ -846,11 +902,46 @@ export function GameBoard({ state }: Props) {
         })}
       </main>
 
-      {/* ── Action panel (human player only) ───────────────── */}
+      {/* ── Mano en abanico + controles del turno flotantes (sin barra inferior) ── */}
       {isHumanTurn && (
-        <div className="fixed bottom-0 inset-x-0 z-40 max-w-375 mx-auto px-4 md:px-8">
-          <ActionPanel ap={ap} state={displayedState} playerId={currentPlayer.id} selectedCardId={selectedCardId} detailCardOpen={!!detailCard} handCount={handCards.length} handRevealed={handRevealed} onToggleHand={() => setHandOpen(o => !o)} />
-        </div>
+        <>
+          <div ref={handFanRef} className="hand-fan-anchor">
+            <HandFan
+              state={displayedState}
+              cards={handCards}
+              selectedCardId={selectedCardId}
+              dragCardId={dragCardId}
+              playableIds={playableIds}
+              revealed={handRevealed}
+              onInspect={card => setFocusCard({ card, from: 'hand' })}
+              dragEnabled={!IS_COARSE_POINTER}
+              onDragStart={cardId => { setDragCardId(cardId); setSelectedCardId(cardId); setPeek(null); }}
+              onDragEnd={() => setDragCardId(null)}
+              discardMode={ap.pendingAction === ActionType.DISCARD}
+              discardIds={discardIds}
+              onToggleDiscard={cardId => setDiscardIds(prev =>
+                prev.includes(cardId) ? prev.filter(id => id !== cardId) : [...prev, cardId])}
+            />
+          </div>
+          <ActionPanel
+            ap={ap}
+            state={displayedState}
+            playerId={currentPlayer.id}
+            selectedCardId={selectedCardId}
+            onCancelSelection={() => setSelectedCardId(null)}
+            discard={{
+              count: discardIds.length,
+              canConfirm: discardIds.length > 0 && ap.pendingSlot !== null,
+              onCancel: () => { ap.clearPending(); setDiscardIds([]); },
+              onConfirm: () => {
+                if (ap.pendingSlot === null || discardIds.length === 0) return;
+                ap.store.doDiscardFromHand(discardIds, ap.pendingSlot);
+                ap.clearPending();
+                setDiscardIds([]);
+              },
+            }}
+          />
+        </>
       )}
 
       {/* ── AI indicator ────────────────────────────────────── */}
@@ -862,301 +953,67 @@ export function GameBoard({ state }: Props) {
         </div>
       )}
 
-      {/* ── Hand drawer (human player only) ─────────────────── */}
-      {isHumanTurn && (
-        <>
-          {/* Pestaña disparadora — DESKTOP (lateral derecha) — siempre visible */}
-          <button
-            onClick={() => setHandOpen(o => !o)}
-            className="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 z-110 flex-col items-center justify-center gap-2 bg-surface-container-highest/95 backdrop-blur-md border border-r-0 border-outline-variant/40 rounded-l-xl px-2 py-4 hover:bg-surface-container/95 transition-colors shadow-xl"
-          >
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center font-stats text-[10px] font-bold ${handRevealed ? 'bg-error/20 text-error' : handCards.length === 0 ? 'bg-outline-variant/20 text-on-surface-variant/40' : 'bg-primary/15 text-primary'}`}>
-              {handCards.length}
-            </span>
-            <span
-              className="font-stats text-[9px] uppercase tracking-[0.2em] text-on-surface-variant"
-              style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-            >
-              MANO{handRevealed && <span className="text-error"> !</span>}
-            </span>
-          </button>
+      {/* ── Modo Enfoque: vista lateral por hover prolongado ─── */}
+      {peek && !focusCard && !dragCardId && (() => {
+        const pc = displayedState.allCards[peek.id];
+        if (!pc) return null;
+        return <CardFocus card={pc} state={displayedState} mode="peek" side={peek.side} />;
+      })()}
 
-          {/* Backdrop */}
-          {handOpen && (
-            <div
-              className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[1px]"
-              onClick={() => { setHandOpen(false); setHoveredCardId(null); }}
+      {/* ── Modo Enfoque: carta abierta (clic en mano o tablero) ── */}
+      {focusCard && (() => {
+        // Siempre la versión actual de la carta (puede haber cambiado desde que se abrió).
+        const fc = displayedState.allCards[focusCard.card.instId] ?? focusCard.card;
+        const close = () => setFocusCard(null);
+        const inHand = focusCard.from === 'hand' && currentPlayer.handInstIds.includes(fc.instId);
+
+        if (inHand) {
+          // "Jugar" reutiliza el flujo de siempre: deja la carta seleccionada, el tablero ilumina
+          // las ubicaciones válidas y un clic/toque en una de ellas la juega.
+          const hasPlaySlot = getAvailableSlotIndices(displayedState, currentPlayer.id, currentPlayer.pawnLocationId)
+            .some(i => getActionAtSlot(displayedState, currentPlayer.id, i)?.type === ActionType.PLAY_CARD);
+          const playBlocked =
+            !isHumanTurn ? 'No es tu turno'
+            : displayedState.turnPhase !== TurnPhase.ACTIVATE ? 'Solo puedes jugar cartas en la fase de Acciones'
+            : !hasPlaySlot ? 'No hay ninguna acción Jugar Carta disponible en tu ubicación'
+            : undefined;
+          return (
+            <CardFocus
+              card={fc} state={displayedState} mode="modal" onClose={close}
+              actions={<>
+                <FocusSecondaryButton onClick={close}>Volver</FocusSecondaryButton>
+                <FocusPrimaryButton
+                  disabled={!!playBlocked}
+                  title={playBlocked}
+                  onClick={() => { setSelectedCardId(fc.instId); close(); }}
+                >
+                  Jugar
+                </FocusPrimaryButton>
+              </>}
             />
-          )}
+          );
+        }
 
-
-          {/* Preview de carta al hover — aparece a la izquierda del cajón */}
-          {handOpen && hoveredCardId && (() => {
-            const hc = state.allCards[hoveredCardId];
-            if (!hc) return null;
-            return (
-              <div className="hidden lg:block fixed top-1/2 -translate-y-1/2 z-50 pointer-events-none" style={{ right: 'calc(16rem + 90px)' }}>
-                <div className="villainous-card-preview-wrap">
-                  <div className="villainous-card-preview">
-                    <CardComponent card={hc} state={state} />
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Cajón deslizante */}
-          <div
-            {...handDrawerSwipe}
-            className={`fixed top-12 bottom-0 left-0 right-0 lg:bottom-12 lg:right-0 lg:left-auto z-50 w-full lg:w-64 bg-surface-container-highest/98 backdrop-blur-xl border-t lg:border-t-0 lg:border-l border-outline-variant/40 shadow-2xl flex flex-col transition-transform duration-300 ${
-              handOpen ? 'translate-y-0 lg:translate-x-0' : 'translate-y-full lg:translate-y-0 lg:translate-x-full'
-            }`}
-          >
-            {/* Cabecera */}
-            <div className={`flex items-center justify-between px-4 py-3 border-b shrink-0 ${ap.pendingAction === ActionType.DISCARD ? 'border-error/30 bg-error/5' : 'border-outline-variant/20'}`}>
-              <div>
-                <h3 className={`font-serif text-sm ${ap.pendingAction === ActionType.DISCARD ? 'text-error' : 'text-on-surface'}`}>
-                  {ap.pendingAction === ActionType.DISCARD ? 'Selecciona cartas a descartar' : 'Tu mano'}
-                </h3>
-                <p className="font-stats text-[9px] uppercase tracking-widest text-on-surface-variant/55 mt-0.5">
-                  {ap.pendingAction === ActionType.DISCARD
-                    ? `${discardIds.length > 0 ? `${discardIds.length} seleccionada(s)` : 'ninguna seleccionada'}`
-                    : `${handCards.length} carta${handCards.length !== 1 ? 's' : ''}${handRevealed ? ' · Flora' : ''}`}
-                </p>
-              </div>
-              <button onClick={() => { setHandOpen(false); setHoveredCardId(null); ap.clearPending(); }} className="text-on-surface-variant hover:text-on-surface transition-colors">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* ── MÓVIL/TABLET: fila de cartas reales, centradas ── */}
-            <div className="lg:hidden flex-1 flex items-center overflow-x-auto overflow-y-hidden">
-              {handCards.length === 0 && (
-                <p className="text-[11px] text-on-surface-variant/40 italic px-6 w-full text-center">Mano vacía — roba en la fase siguiente</p>
-              )}
-              <div className="flex items-center gap-5 w-max max-w-full mx-auto px-6 py-4">
-                {handCards.map(card => {
-                  const isDiscardMode   = ap.pendingAction === ActionType.DISCARD;
-                  const isMarkedDiscard = discardIds.includes(card.instId);
-                  const isSelected = !isDiscardMode && selectedCardId === card.instId;
-
-                  return (
-                    <div
-                      key={card.instId}
-                      className={`relative shrink-0 transition-transform ${isMarkedDiscard ? 'opacity-50' : ''} ${isSelected ? '-translate-y-1.5' : ''}`}
-                      style={{ zIndex: isSelected ? 20 : 0 }}
-                    >
-                      <CardComponent
-                        card={card}
-                        state={state}
-                        selected={isSelected || isMarkedDiscard}
-                        sizeClassName={isSelected ? 'card-size-hand card-size-hand--selected' : 'card-size-hand'}
-                        onClick={() => {
-                          if (isDiscardMode) {
-                            setDiscardIds(prev =>
-                              prev.includes(card.instId) ? prev.filter(id => id !== card.instId) : [...prev, card.instId]
-                            );
-                          } else {
-                            setSelectedCardId(card.instId);
-                            setTimeout(() => setHandOpen(false), 120);
-                          }
-                        }}
-                      />
-
-                      {/* Marca de descarte */}
-                      {isDiscardMode && (
-                        <div className={`absolute top-1 left-1 w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${
-                          isMarkedDiscard ? 'border-error bg-error text-white' : 'border-white/60 bg-black/50 text-white/70'
-                        }`}>
-                          {isMarkedDiscard ? '✕' : ''}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ── DESKTOP: lista vertical compacta ── */}
-            {/* En táctil (tablets con layout de escritorio, p. ej. iPad horizontal), deslizar
-                el dedo por la lista muestra la vista previa grande como el hover del ratón. */}
-            <div
-              className="hidden lg:flex flex-1 overflow-y-auto py-1 flex-col"
-              onTouchStart={e => {
-                if (ap.pendingAction === ActionType.DISCARD) return;
-                touchPrevHoveredRef.current = hoveredCardId;
-                const t = e.touches[0];
-                const id = (document.elementFromPoint(t.clientX, t.clientY)
-                  ?.closest('[data-cardid]') as HTMLElement | null)?.dataset.cardid;
-                if (id) setHoveredCardId(id);
-              }}
-              onTouchMove={e => {
-                if (ap.pendingAction === ActionType.DISCARD) return;
-                const t = e.touches[0];
-                const id = (document.elementFromPoint(t.clientX, t.clientY)
-                  ?.closest('[data-cardid]') as HTMLElement | null)?.dataset.cardid;
-                if (id) setHoveredCardId(id);
-              }}
-            >
-              {handCards.length === 0 && (
-                <p className="text-[11px] text-on-surface-variant/40 italic px-4 pt-3">Mano vacía</p>
-              )}
-              {handCards.map(card => {
-                const isDiscardMode   = ap.pendingAction === ActionType.DISCARD;
-                const isMarkedDiscard = discardIds.includes(card.instId);
-                const cost       = Math.max(0, card.baseCost + card.costModifier);
-                const isSelected = !isDiscardMode && selectedCardId === card.instId;
-                const isHovered  = hoveredCardId === card.instId;
-                const isCurse    = card.cardType === CardType.CURSE;
-
-                return (
-                  <DragSource
-                    key={card.instId}
-                    dataCardId={card.instId}
-                    // En táctil el gesto de deslizar es "vista previa", no arrastre: sin esto,
-                    // cualquier movimiento del dedo iniciaría un drag y cerraría el cajón.
-                    disabled={isDiscardMode || IS_COARSE_POINTER}
-                    onStart={() => {
-                      setDragCardId(card.instId);
-                      setSelectedCardId(card.instId);
-                      setTimeout(() => setHandOpen(false), 0);
-                    }}
-                    onEnd={() => setDragCardId(null)}
-                    onMouseEnter={() => !isDiscardMode && setHoveredCardId(card.instId)}
-                    onMouseLeave={() => !IS_COARSE_POINTER && setHoveredCardId(null)}
-                    onClick={() => {
-                      if (isDiscardMode) {
-                        setDiscardIds(prev =>
-                          prev.includes(card.instId) ? prev.filter(id => id !== card.instId) : [...prev, card.instId]
-                        );
-                      } else if (IS_COARSE_POINTER && touchPrevHoveredRef.current !== card.instId) {
-                        // 1er toque en táctil: solo vista previa (el 2º toque selecciona).
-                        setHoveredCardId(card.instId);
-                      } else {
-                        setSelectedCardId(card.instId);
-                        setTimeout(() => setHandOpen(false), 100);
-                      }
-                    }}
-                    className={`relative flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-all border-b border-outline-variant/10 last:border-b-0 ${
-                      isDiscardMode
-                        ? isMarkedDiscard ? 'bg-error/10 opacity-60' : 'hover:bg-error/5'
-                        : dragCardId === card.instId ? 'opacity-40 cursor-grab touch-none select-none' : 'cursor-grab active:cursor-grabbing touch-none select-none'
-                    }`}
-                    style={!isDiscardMode ? {
-                      background: isHovered
-                        ? `${CARD_GRADIENTS[card.cardType]?.split(' ')[0].replace('linear-gradient(160deg,', '').trim().replace(',', '')}22`
-                        : isSelected ? 'rgba(233,195,73,0.06)' : 'transparent',
-                      borderLeft: isSelected ? '2px solid #e9c349' : isHovered ? `2px solid ${isCurse ? '#a855f7' : 'rgba(211,188,249,0.5)'}` : '2px solid transparent',
-                    } : {
-                      borderLeft: isMarkedDiscard ? '2px solid #ef4444' : '2px solid transparent',
-                    }}
-                  >
-                    {/* Checkbox de descarte o coste */}
-                    {isDiscardMode ? (
-                      <div className={`w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-all ${
-                        isMarkedDiscard ? 'border-error bg-error text-white' : 'border-outline-variant/40 text-on-surface-variant/30'
-                      }`}>
-                        {isMarkedDiscard ? '✕' : '○'}
-                      </div>
-                    ) : (
-                      <div
-                        className="w-6 h-6 shrink-0 rounded-full border flex items-center justify-center font-stats text-[10px] font-bold"
-                        style={{
-                          borderColor: isCurse ? '#a855f7' : '#6b7280',
-                          color:       isCurse ? '#e9d5ff' : '#d1d5db',
-                          background:  'rgba(0,0,0,0.4)',
-                        }}
-                      >
-                        {cost}
-                      </div>
-                    )}
-
-                    {/* Nombre + tipo */}
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-[12px] font-semibold leading-tight truncate ${
-                        isDiscardMode ? (isMarkedDiscard ? 'text-error/80 line-through' : 'text-on-surface/90') : isSelected ? 'text-[#e9c349]' : 'text-on-surface/90'
-                      }`}>
-                        {card.name}
-                      </div>
-                      <div className="font-stats text-[8px] uppercase tracking-widest text-on-surface-variant/45 mt-0.5">
-                        {TYPE_LABELS_ES[card.cardType] ?? card.cardType}
-                        {card.baseStrength !== undefined && (
-                          <span className="ml-1.5 text-yellow-400/60">⚔{card.baseStrength}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Botón detalle */}
-                    {!isDiscardMode && (
-                      <button
-                        className="shrink-0 w-4 h-4 rounded-full bg-white/5 border border-white/15 text-white/50 text-[8px] font-bold flex items-center justify-center hover:bg-white/10 transition-colors"
-                        onClick={e => { e.stopPropagation(); setDetailCard(card); }}
-                      >i</button>
-                    )}
-                  </DragSource>
-                );
-              })}
-            </div>
-
-            {/* Pie del cajón en modo descarte */}
-            {ap.pendingAction === ActionType.DISCARD && (
-              <div className="border-t border-error/20 px-4 py-3 flex items-center gap-3 shrink-0">
-                <button
-                  onClick={() => { ap.clearPending(); setDiscardIds([]); setHandOpen(false); }}
-                  className="text-on-surface-variant/50 hover:text-on-surface font-stats text-[10px] uppercase tracking-wider transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  disabled={discardIds.length === 0 || ap.pendingSlot === null}
-                  onClick={() => {
-                    if (ap.pendingSlot === null || discardIds.length === 0) return;
-                    ap.store.doDiscardFromHand(discardIds, ap.pendingSlot);
-                    ap.clearPending();
-                    setDiscardIds([]);
-                    setHandOpen(false);
-                  }}
-                  className="ml-auto px-4 py-1.5 rounded-xl border border-error/50 bg-error/10 text-error font-stats text-[10px] uppercase tracking-wider hover:bg-error/20 transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
-                >
-                  Descartar {discardIds.length > 0 ? discardIds.length : ''}
-                </button>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ── Card preview (click en tablero) ─────────────────── */}
-      {detailCard && (() => {
-        const dc = detailCard;
         // Objetos "pay to discard" (p. ej. Buen Disfraz): el dueño puede pagar su coste para
         // descartarlo en cualquier momento de su propio turno, sin gastar casilla de acción.
-        const payCost = dc.effectIds.map(id => getEffectDef(id)?.payToDiscardCost).find(Boolean);
-        const canPay = payCost ? canPayToDiscardItem(state, dc.ownerId, dc.instId) : null;
+        const payCost = fc.effectIds.map(id => getEffectDef(id)?.payToDiscardCost).find(Boolean);
+        const canPay  = payCost ? canPayToDiscardItem(state, fc.ownerId, fc.instId) : null;
         return (
-          <>
-            <div className="fixed inset-0 z-70 bg-black/40" onClick={() => setDetailCard(null)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-71 flex flex-col items-center gap-3">
-              {/* Mismo tamaño y proporciones que la vista previa al pasar el ratón sobre la
-                  mano (villainous-card-preview): antes usaba su propio tamaño (card-size-detail,
-                  con clamp + aspect-ratio propios) y no coincidía con el resto de vistas previas. */}
-              <div className="villainous-card-preview-wrap pointer-events-none">
-                <div className="villainous-card-preview">
-                  <CardComponent card={dc} state={state} />
-                </div>
-              </div>
+          <CardFocus
+            card={fc} state={displayedState} mode="modal" onClose={close}
+            actions={<>
               {payCost !== undefined && (
-                <button
+                <FocusSecondaryButton
                   disabled={!canPay?.valid}
-                  onClick={() => { ap.store.doPayToDiscardItem(dc.instId); setDetailCard(null); }}
                   title={canPay?.valid ? undefined : canPay?.reason}
-                  className="pointer-events-auto px-4 py-2 rounded-xl border border-tertiary/50 bg-tertiary/10 text-tertiary font-stats text-xs uppercase tracking-wider hover:bg-tertiary/20 transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
+                  onClick={() => { ap.store.doPayToDiscardItem(fc.instId); close(); }}
                 >
                   Pagar {payCost} Poder y descartar
-                </button>
+                </FocusSecondaryButton>
               )}
-            </div>
-          </>
+              <FocusPrimaryButton onClick={close}>Cerrar</FocusPrimaryButton>
+            </>}
+          />
         );
       })()}
 
@@ -1244,20 +1101,3 @@ export function GameBoard({ state }: Props) {
   );
 }
 
-const CARD_GRADIENTS: Record<string, string> = {
-  ALLY:      'linear-gradient(160deg, #1a3320 0%, #0f1a12 100%)',
-  ITEM:      'linear-gradient(160deg, #1a2b3a 0%, #0f1520 100%)',
-  EFFECT:    'linear-gradient(160deg, #2a1a35 0%, #15101f 100%)',
-  CURSE:     'linear-gradient(160deg, #1a1025 0%, #0e0c18 100%)',
-  HERO:      'linear-gradient(160deg, #3a2010 0%, #1f1008 100%)',
-  CONDITION: 'linear-gradient(160deg, #2a2a10 0%, #181808 100%)',
-};
-
-const TYPE_LABELS_ES: Record<string, string> = {
-  ALLY:      'Aliado',
-  ITEM:      'Objeto',
-  EFFECT:    'Efecto',
-  CURSE:     'Maldición',
-  HERO:      'Héroe',
-  CONDITION: 'Condición',
-};

@@ -1,41 +1,47 @@
 import { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, X } from 'lucide-react';
 import { CardType } from '../core/types';
 import type { GameState } from '../core/types';
-import { getEffectDef } from '../core/villains/registry';
+import { getCardDef, getEffectDef } from '../core/villains/registry';
 import { CardComponent } from './CardComponent';
+
+// En táctil no hay arrastre: el toque elige y el segundo toque (en la ubicación) coloca.
+const IS_COARSE_POINTER =
+  typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 
 interface Props {
   state: GameState;
   onFateDragStart?: (cardId: string) => void;
   onFateDragEnd?: () => void;
-  /** Móvil: notifica la carta elegida (o null al cancelar) para activar el tap-en-ubicación */
+  /** Notifica la carta elegida (o null al cancelar): activa el resaltado y el clic/toque en ubicación. */
   onFateSelect?: (cardId: string | null) => void;
 }
 
+/**
+ * Acción Destino, mismo flujo en escritorio y móvil (estilo "Descubrir"):
+ *  1. Elegir: las cartas reveladas aparecen grandes y centradas, con su texto legible debajo.
+ *     Clic/toque = elegir. En escritorio también se pueden arrastrar: al empezar el arrastre el
+ *     panel se oculta para ver el tablero del rival.
+ *  2. Colocar: el panel se reduce a una pastilla arriba; el tablero del rival se desplaza a la
+ *     vista con sus ubicaciones válidas iluminadas y un clic/toque en una resuelve la carta.
+ */
 export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect }: Props) {
   const { pendingFate } = state;
-  const [chosenId,      setChosenId]     = useState<string | null>(null);
-  const [hoveredFateId, setHoveredFateId] = useState<string | null>(null);
-  // Móvil, paso 1 (elegir carta): el panel tapa el tablero entero — permite ocultarlo
-  // temporalmente para ver las ubicaciones antes de decidir qué carta jugar, sin tener que
-  // comprometerse ya a una elección (el paso 2 ya se reduce solo a una barra fina).
-  const [cardsHidden, setCardsHidden]   = useState(false);
+  const [chosenId, setChosenId]       = useState<string | null>(null);
+  const [cardsHidden, setCardsHidden] = useState(false);
+  const [dragging, setDragging]       = useState(false);
 
   if (!pendingFate) return null;
 
-  const targetPlayer   = state.players[pendingFate.targetPlayerIndex];
-  const revealedCards  = pendingFate.revealedInstIds.map(id => state.allCards[id]).filter(Boolean);
+  const targetPlayer    = state.players[pendingFate.targetPlayerIndex];
+  const revealedCards   = pendingFate.revealedInstIds.map(id => state.allCards[id]).filter(Boolean);
   const autoPlayedCards = (pendingFate.autoPlayedInstIds ?? []).map(id => state.allCards[id]).filter(Boolean);
-  const chosenCard     = chosenId ? state.allCards[chosenId] : null;
+  const chosenCard      = chosenId ? state.allCards[chosenId] : null;
 
   const reqTarget = chosenCard?.effectIds.map(id => getEffectDef(id)?.requiresTargetCard).find(Boolean) ?? null;
-  // OJO: antes se asumía que ninguna carta EFFECT necesita elegir Héroe/Aliado objetivo, así que
-  // se saltaba siempre el aviso de "toca una ubicación de X" — pero cartas como Robar a los Ricos
-  // SÍ lo necesitan (requiresTargetCard: 'HERO') aunque sean EFFECT, no ITEM. Lo correcto es
-  // mirar si la carta declara un target, no su cardType.
+  // Mirar si la carta declara un objetivo, no su cardType: Robar a los Ricos es EFFECT y aun así
+  // necesita un Héroe (requiresTargetCard: 'HERO').
   const needsCardTarget = reqTarget === 'ALLY' || reqTarget === 'HERO';
-
   const hasAnyTarget = (reqTarget && reqTarget !== 'CURSE')
     ? Object.values(state.allCards).some(c =>
         c.ownerId === targetPlayer.id &&
@@ -43,168 +49,119 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
         !!c.locationId)
     : true;
 
-  // Desktop: puro drag & drop, sin selección manual
-  // Mobile: requiere selección de ubicación
+  const scrollToTarget = () => {
+    document.querySelector(`[data-player-board="${targetPlayer.id}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
+  const choose = (cardId: string) => {
+    setChosenId(cardId);
+    onFateSelect?.(cardId);
+    scrollToTarget();
+  };
+  const cancel = () => { setChosenId(null); onFateSelect?.(null); };
+
+  // ── Paso 2: carta elegida → pastilla arriba, se coloca tocando una ubicación ──
+  if (chosenCard && !dragging) {
+    return (
+      <div className="fate-pill">
+        <div className="shrink-0">
+          <CardComponent card={chosenCard} state={state} sizeClassName="card-size-fate-thumb" />
+        </div>
+        <div className="min-w-0 flex flex-col">
+          <span className="font-serif text-sm font-semibold text-[#ffc2b8] truncate">{chosenCard.name}</span>
+          <span className="font-narrative italic text-sm text-[#efe6d2]/85 leading-tight">
+            {!hasAnyTarget
+              ? `Sin ${reqTarget === 'ALLY' ? 'Aliados' : 'Héroes'}: elige cualquier ubicación de ${targetPlayer.name}`
+              : needsCardTarget
+                ? `Elige la ubicación iluminada de ${targetPlayer.name}`
+                : `Elige una ubicación de ${targetPlayer.name}`}
+          </span>
+        </div>
+        <button onClick={cancel} className="fate-pill-btn shrink-0" title="Elegir otra carta">
+          <X className="w-3.5 h-3.5" /> Cambiar
+        </button>
+      </div>
+    );
+  }
+
+  // ── Paso 1 oculto: solo un recordatorio para volver a mostrar las cartas ──
+  if (cardsHidden && !dragging) {
+    return (
+      <div className="fate-pill">
+        <span className="font-serif text-sm font-semibold text-[#ffc2b8]">Acción Destino</span>
+        <span className="font-narrative italic text-sm text-[#efe6d2]/80">
+          {revealedCards.length} carta{revealedCards.length !== 1 ? 's' : ''} contra {targetPlayer.name}
+        </span>
+        <button onClick={() => setCardsHidden(false)} className="fate-pill-btn shrink-0">
+          <Eye className="w-3.5 h-3.5" /> Ver cartas
+        </button>
+      </div>
+    );
+  }
+
+  // ── Paso 1: elegir carta ──
+  // Durante un arrastre el panel sigue montado (es el origen del arrastre) pero invisible,
+  // para que se vea el tablero del rival donde soltar la carta.
   return (
-    <>
-    {/* ════════ DESKTOP (lg+) — sin cambios respecto al original ════════ */}
-    <div className="hidden lg:block fixed top-12 inset-x-0 z-50 bg-surface-container-highest/97 backdrop-blur-xl border-b border-error/30 shadow-2xl animate-slide-down overflow-visible">
-
-      <div className="max-w-375 mx-auto px-4 py-3 flex flex-col gap-3 overflow-visible">
-
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="font-serif text-sm font-bold text-error">Acción Destino</span>
-            <span className="text-on-surface-variant/60 text-[11px] ml-2">
-              contra <strong className="text-on-surface">{targetPlayer.name}</strong>
-              {' '}· Arrastra una carta al tablero
-            </span>
-          </div>
+    <div className={`fixed inset-x-0 bottom-0 top-12 z-95 flex items-center justify-center p-3 sm:p-6 transition-opacity duration-200 ${dragging ? 'opacity-0 pointer-events-none' : ''}`}>
+      <div className="card-focus-backdrop absolute inset-0" />
+      <div className="card-focus-enter relative flex flex-col items-center gap-3 sm:gap-5 max-h-full overflow-y-auto scrollbar-hide">
+        <div className="flex flex-col items-center gap-1 text-center">
+          <span className="font-stats text-[10px] font-semibold uppercase tracking-[0.3em] text-[#ff9c90]/80">
+            Acción Destino contra {targetPlayer.name}
+          </span>
+          <h2 className="font-serif text-lg sm:text-2xl font-bold tracking-[0.06em] text-[#f6dd94]"
+            style={{ textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>
+            Elige una carta
+          </h2>
         </div>
 
-        {/* Cards — fila horizontal, arrastrables al tablero */}
-        <div className="flex gap-3 overflow-x-auto overflow-y-visible pb-1" style={{ overflowY: 'visible' }}>
-          {autoPlayedCards.map(card => (
-            <div key={card.instId} className="opacity-40 pointer-events-none shrink-0">
-              <CardComponent card={card} state={state} />
-            </div>
-          ))}
+        <div className="flex flex-wrap items-start justify-center gap-4 sm:gap-8">
           {revealedCards.map(card => {
-            const isChosen = chosenId === card.instId;
+            const description = getCardDef(card.defId)?.description;
             return (
-              <div
-                key={card.instId}
-                onMouseEnter={() => setHoveredFateId(card.instId)}
-                onMouseLeave={() => setHoveredFateId(null)}
-                onClick={() => setChosenId(card.instId)}
-                onDragStart={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  return false;
-                }}
-                className={`shrink-0 cursor-grab active:cursor-grabbing select-none transition-all rounded-xl ${
-                  isChosen ? 'ring-2 ring-tertiary scale-105' : 'opacity-75 hover:opacity-100 hover:scale-105'
-                }`}
-              >
-                <CardComponent
-                  card={card}
-                  state={state}
-                  selected={isChosen}
-                  draggable
-                  onDragStart={() => {
-                    setChosenId(card.instId);
-                    setHoveredFateId(null);
-                    onFateDragStart?.(card.instId);
-                  }}
-                  onDragEnd={() => onFateDragEnd?.()}
-                />
+              <div key={card.instId} className="fate-choice flex flex-col items-center gap-2">
+                <button onClick={() => choose(card.instId)} className="fate-choice-card" aria-label={`Elegir ${card.name}`}>
+                  <CardComponent
+                    card={card}
+                    state={state}
+                    sizeClassName="card-size-fate"
+                    // Arrastre directo a una ubicación del rival (ratón): el panel se oculta mientras.
+                    draggable={!IS_COARSE_POINTER}
+                    onDragStart={() => {
+                      setChosenId(card.instId);
+                      setDragging(true);
+                      onFateDragStart?.(card.instId);
+                    }}
+                    onDragEnd={() => {
+                      // Si se soltó fuera de una ubicación válida, se vuelve a elegir.
+                      setDragging(false);
+                      setChosenId(null);
+                      onFateDragEnd?.();
+                    }}
+                  />
+                </button>
+                {description && (
+                  <p className="fate-choice-text font-narrative text-[13px] sm:text-[15px] leading-snug text-[#efe6d2] text-center">
+                    {description}
+                  </p>
+                )}
               </div>
             );
           })}
         </div>
 
+        {autoPlayedCards.length > 0 && (
+          <p className="font-narrative italic text-sm text-on-surface-variant/70 text-center">
+            Ya resuelta{autoPlayedCards.length !== 1 ? 's' : ''} automáticamente: {autoPlayedCards.map(c => c.name).join(', ')}
+          </p>
+        )}
 
-        {/* En desktop: puro drag & drop, sin UI de selección. Se resuelve automáticamente al soltar. */}
+        <button onClick={() => setCardsHidden(true)} className="fate-pill-btn">
+          <EyeOff className="w-3.5 h-3.5" /> Ver tablero
+        </button>
       </div>
     </div>
-
-    {/* Preview carta al hover — solo desktop */}
-    {hoveredFateId && (() => {
-      const hc = state.allCards[hoveredFateId];
-      if (!hc) return null;
-      return (
-        <div className="hidden lg:block fixed left-1/2 -translate-x-1/2 z-49 pointer-events-none" style={{ top: '18rem' }}>
-          <div className="villainous-card-preview-wrap">
-            <div className="villainous-card-preview">
-              <CardComponent card={hc} state={state} />
-            </div>
-          </div>
-        </div>
-      );
-    })()}
-
-    {/* ════════ MÓVIL/TABLET (<lg) — flujo tipo mano ════════ */}
-    {/* Paso 1: elegir carta (panel arriba con cartas centradas/escaladas). Se puede ocultar
-        temporalmente (botón "Ver ubicaciones") para consultar el tablero sin perder las
-        cartas reveladas ni tener que elegir una todavía. */}
-    {!chosenId && cardsHidden && (
-      <div className="lg:hidden fixed top-12 inset-x-0 z-50 bg-surface-container-highest/97 backdrop-blur-xl border-b border-error/30 shadow-xl px-4 py-2 flex items-center gap-3">
-        <span className="flex-1 min-w-0 font-stats text-[11px] uppercase tracking-wider text-on-surface-variant/80 truncate">
-          Cartas ocultas · consulta el tablero
-        </span>
-        <button
-          onClick={() => setCardsHidden(false)}
-          className="shrink-0 flex items-center gap-1.5 font-stats text-[11px] uppercase tracking-wider text-primary hover:text-primary/80 px-3 py-1 rounded border border-primary/40 active:scale-95 transition-transform"
-        >
-          <Eye className="w-3.5 h-3.5" />
-          Ver cartas
-        </button>
-      </div>
-    )}
-    {!chosenId && !cardsHidden && (
-      <div className="lg:hidden fixed top-12 inset-x-0 bottom-0 z-50 bg-surface-container-highest/97 backdrop-blur-xl border-b border-error/30 shadow-2xl animate-slide-down flex flex-col">
-        <div className="px-4 py-2 shrink-0 flex items-center justify-between gap-2">
-          <div className="flex items-baseline gap-2 min-w-0">
-            <span className="font-serif text-sm font-bold text-error shrink-0">Acción Destino</span>
-            <span className="text-on-surface-variant/60 text-[11px] truncate">
-              contra <strong className="text-on-surface">{targetPlayer.name}</strong> · elige una carta
-            </span>
-          </div>
-          <button
-            onClick={() => setCardsHidden(true)}
-            className="shrink-0 flex items-center gap-1.5 font-stats text-[10px] uppercase tracking-wider text-on-surface-variant/70 hover:text-on-surface px-2.5 py-1 rounded border border-outline-variant/40 active:scale-95 transition-transform"
-            title="Ocultar cartas y ver el tablero"
-          >
-            <EyeOff className="w-3.5 h-3.5" />
-            Ocultar
-          </button>
-        </div>
-        <div className="flex-1 flex items-center overflow-x-auto overflow-y-hidden">
-          <div className="flex items-center gap-5 w-max max-w-full mx-auto px-6 py-4">
-            {autoPlayedCards.map(card => (
-              <div key={card.instId} className="opacity-40 pointer-events-none shrink-0">
-                <CardComponent card={card} state={state} sizeClassName="card-size-hand" />
-              </div>
-            ))}
-            {revealedCards.map(card => (
-              <div
-                key={card.instId}
-                onClick={() => { setChosenId(card.instId); onFateSelect?.(card.instId); }}
-                className="relative shrink-0 cursor-pointer select-none transition-transform active:scale-95"
-              >
-                <CardComponent card={card} state={state} sizeClassName="card-size-hand" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* Paso 2: carta elegida → barra fina; tocar ubicación del rival la coloca */}
-    {chosenId && (
-      <div className="lg:hidden fixed top-12 inset-x-0 z-50 bg-surface-container-highest/97 backdrop-blur-xl border-b border-error/30 shadow-xl px-4 py-2 flex items-center gap-3">
-        {!needsCardTarget || !hasAnyTarget ? (
-          /* No requiere elegir Héroe/Aliado, o no hay ninguno disponible: cualquier ubicación vale */
-          <span className="flex-1 min-w-0 font-stats text-[11px] uppercase tracking-wider text-on-surface-variant/80 truncate">
-            {!hasAnyTarget
-              ? `Sin ${reqTarget === 'ALLY' ? 'Aliados' : 'Héroes'} — toca cualquier ubicación`
-              : 'Toca cualquier ubicación de ' + targetPlayer.name}
-          </span>
-        ) : (
-          <span className="flex-1 min-w-0 font-stats text-[11px] uppercase tracking-wider text-error truncate">
-            Toca una ubicación de {targetPlayer.name}
-          </span>
-        )}
-        <button
-          onClick={() => { setChosenId(null); onFateSelect?.(null); }}
-          className="shrink-0 font-stats text-[11px] uppercase tracking-wider text-on-surface-variant/70 hover:text-on-surface px-3 py-1 rounded border border-outline-variant/40 active:scale-95 transition-transform"
-        >
-          Cancelar
-        </button>
-      </div>
-    )}
-    </>
   );
 }
