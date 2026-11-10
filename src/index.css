@@ -433,6 +433,148 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 @media (max-width: 639.98px) {
   .turn-corner { bottom: calc(var(--fan-h) * var(--fan-show) + 10px); }
 }
+/* Medallón de fin de fase: moneda de oro acuñada.
+   Capas: grosor (canto apilado con sombras sólidas) · metal torneado (surcos concéntricos) ·
+   brillo anisótropo (cónico) · canto estriado (::before) · grano (::after) · halo (span propio,
+   para que su animación no pise las sombras de profundidad). */
+.turn-medallion {
+  --edge: #6b4d1c;
+  --edge-dark: #3e2a0c;
+  position: relative;
+  width: 76px; height: 76px;
+  border-radius: 999px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1px;
+  color: #2a1c06;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255,250,228,0.9) 0%, rgba(255,250,228,0) 30%),
+    radial-gradient(circle at 70% 82%, rgba(60,38,8,0.35) 0%, rgba(60,38,8,0) 45%),
+    repeating-radial-gradient(circle at 50% 50%, rgba(255,246,214,0.10) 0 1px, rgba(90,60,14,0.10) 1px 2.2px),
+    conic-gradient(from 210deg, #b8862f, #f8e3a2 12%, #c9993f 26%, #f3d68a 42%, #9a7631 58%, #ecc96e 74%, #b8862f);
+  border: 1px solid #f8e3a2;
+  box-shadow:
+    inset 0 0 0 6px rgba(120,84,26,0.28),
+    inset 0 0 0 7px rgba(255,240,200,0.55),
+    inset 0 0 0 8px rgba(90,60,14,0.35),
+    inset 0 -6px 10px rgba(80,52,12,0.45),
+    inset 0 5px 8px rgba(255,248,220,0.45),
+    0 2px 0 var(--edge),
+    0 4px 0 var(--edge-dark),
+    0 0 0 1px rgba(0,0,0,0.55),
+    0 14px 24px -6px rgba(0,0,0,0.85);
+  transition: transform var(--dur-fast) var(--ease-premium), box-shadow var(--dur-fast) var(--ease-premium), filter var(--dur-fast) var(--ease-premium), background-position var(--dur-med) var(--ease-premium);
+}
+/* Canto estriado: anillo exterior de 5 px con muescas finas. */
+.turn-medallion::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: repeating-conic-gradient(rgba(70,46,10,0.55) 0deg 2.2deg, rgba(255,240,200,0.4) 2.2deg 4.5deg);
+  /* closest-side: el 100 % es el borde del círculo (con `circle` a secas se mide hasta la esquina
+     y las estrías invadían toda la cara). */
+  -webkit-mask: radial-gradient(circle closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+          mask: radial-gradient(circle closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  pointer-events: none;
+  z-index: 1;
+}
+/* Grano del metal. */
+.turn-medallion::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.25 0 0 0 0 0.17 0 0 0 0 0.04 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 1;
+}
+.turn-medallion > span { position: relative; z-index: 2; }
+/* Halo: en un contenedor propio, pintado ANTES que la moneda (siempre detrás, también cuando la
+   elevación del hover crea un contexto de apilamiento). Respira cuando está lista para pasar. */
+.turn-medallion-wrap { position: relative; display: inline-flex; }
+.turn-medallion-glow {
+  position: absolute; inset: -8px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(246,221,148,0.55) 0%, rgba(230,196,106,0.25) 45%, transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-med) var(--ease-premium);
+}
+.turn-medallion-wrap.is-ready .turn-medallion-glow { animation: medallion-breathe 2.2s var(--ease-premium) infinite; }
+@keyframes medallion-breathe {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.12); }
+}
+/* Hover: la moneda se levanta (más canto y sombra más larga) y el brillo gira. */
+.turn-medallion:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  box-shadow:
+    inset 0 0 0 6px rgba(120,84,26,0.28),
+    inset 0 0 0 7px rgba(255,240,200,0.55),
+    inset 0 0 0 8px rgba(90,60,14,0.35),
+    inset 0 -6px 10px rgba(80,52,12,0.45),
+    inset 0 5px 8px rgba(255,248,220,0.5),
+    0 2px 0 var(--edge),
+    0 4px 0 var(--edge),
+    0 6px 0 var(--edge-dark),
+    0 0 0 1px rgba(0,0,0,0.55),
+    0 20px 30px -8px rgba(0,0,0,0.85);
+}
+.turn-medallion-wrap:hover .turn-medallion-glow { opacity: 0.6; }
+/* Pulsado: se hunde hasta casi no tener canto. */
+.turn-medallion:active {
+  transform: translateY(3px);
+  filter: brightness(0.97);
+  box-shadow:
+    inset 0 0 0 6px rgba(120,84,26,0.3),
+    inset 0 0 0 7px rgba(255,240,200,0.45),
+    inset 0 0 0 8px rgba(90,60,14,0.35),
+    inset 0 -3px 6px rgba(80,52,12,0.4),
+    inset 0 4px 10px rgba(60,38,8,0.35),
+    0 1px 0 var(--edge-dark),
+    0 0 0 1px rgba(0,0,0,0.55),
+    0 6px 12px -4px rgba(0,0,0,0.8);
+}
+/* Texto acuñado: luz arriba, sombra abajo. */
+.turn-medallion-main {
+  font: 700 13px/1 'Cinzel', serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #3a2608;
+  text-shadow: 0 1px 0 rgba(255,244,210,0.75), 0 -1px 0 rgba(70,46,10,0.35);
+}
+.turn-medallion-sub {
+  font: 700 8px/1.1 'Inter', sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(58,38,8,0.8);
+  text-shadow: 0 1px 0 rgba(255,244,210,0.6);
+  max-width: 54px;
+  text-align: center;
+}
+@media (max-width: 1023.98px) {
+  .turn-medallion { width: 64px; height: 64px; }
+  .turn-medallion-main { font-size: 12px; }
+}
+/* Acción secundaria discreta sobre el medallón (Volver, Cancelar carta, Permanecer). */
+.turn-link {
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(230,196,106,0.35);
+  background: rgba(14,11,20,0.78);
+  backdrop-filter: blur(8px);
+  color: #f3e2b3;
+  font: 600 10px/1 'Inter', sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: border-color var(--dur-fast) var(--ease-premium), box-shadow var(--dur-fast) var(--ease-premium);
+}
+.turn-link:hover { border-color: rgba(246,221,148,0.8); box-shadow: 0 0 12px rgba(230,196,106,0.22); }
+/* Táctil: zona de pulsación cómoda aunque se vea pequeño. */
+@media (pointer: coarse) { .turn-link { min-height: 36px; } }
 .turn-hint {
   padding: 3px 12px;
   border-radius: 999px;
@@ -488,9 +630,12 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 /* Panel contextual (Activar / Vencer / Descartar): flota sobre la mano solo mientras se usa. */
 .turn-flow {
   position: fixed;
-  left: 50%;
+  /* Centrado con márgenes automáticos, NO con left:50% + translate: la animación de entrada
+     (focus-rise) anima `translate` y lo dejaba en 0 → el panel empezaba en el centro de la
+     pantalla y se salía por la derecha. */
+  left: 0; right: 0;
+  margin-inline: auto;
   bottom: calc(var(--fan-h) * var(--fan-show) + 14px);
-  translate: -50% 0;
   z-index: 46;
   width: min(92vw, 540px);
   max-height: 46vh;
@@ -504,6 +649,19 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   border: 1px solid rgba(230,196,106,0.4);
   box-shadow: 0 24px 60px -18px rgba(0,0,0,0.9), 0 0 40px -14px rgba(230,196,106,0.25);
   animation: focus-rise var(--dur-med) var(--ease-premium) both;
+}
+/* Descartar: las cartas de la mano suben enteras (y crecen al pasar el ratón), así que el panel
+   se coloca por encima de ellas en vez de a la altura del abanico en reposo. */
+.turn-flow.is-discard {
+  bottom: calc(var(--fan-h) * 1.18 + 12px);
+}
+/* Pantallas estrechas: los controles del turno suben por encima del abanico (ver .turn-corner),
+   así que el panel se coloca además por encima de ellos. */
+@media (max-width: 639.98px) {
+  /* Con un panel abierto (que ya trae su Cancelar) el botón de turno sobra y taparía las cartas. */
+  .turn-corner.is-flow-open { display: none; }
+  .turn-flow { bottom: calc(var(--fan-h) * var(--fan-show) + 112px); }
+  .turn-flow.is-discard { bottom: max(calc(var(--fan-h) * 1.18 + 12px), calc(var(--fan-h) * var(--fan-show) + 112px)); }
 }
 
 /* ── Modo Enfoque (CardFocus) ─────────────────────────────────── */
@@ -667,8 +825,10 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .fate-pill {
   position: fixed;
   top: 60px;
-  left: 50%;
-  translate: -50% 0;
+  /* Mismo motivo que .turn-flow: centrado sin translate (lo pisa la animación de entrada). */
+  left: 0; right: 0;
+  margin-inline: auto;
+  width: fit-content;
   z-index: 95;
   display: flex;
   align-items: center;

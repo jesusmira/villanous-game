@@ -198,23 +198,27 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, onCancelSelec
   const hasHandSelection = !!selectedCard && ap.player.handInstIds.includes(selectedCard.instId);
   const currentLocName = ap.plugin.locations.find(l => l.id === ap.player.pawnLocationId)?.name ?? '';
 
-  // ── Pista de la fase (sobre el botón de turno) ──
+  // ── Lo que hará el medallón de Robar (antes iba en una pastilla aparte) ──
+  const deckSize  = ap.player.villainDeckInstIds.length;
+  const drawCount = Math.min(ap.plugin.handSize - ap.player.handInstIds.length, deckSize);
+  const drawDetail = drawCount > 0
+    ? `${drawCount} carta${drawCount !== 1 ? 's' : ''}`
+    : deckSize === 0 ? 'baraja' : 'mano llena';
+  const drawTitle = drawCount > 0
+    ? `Robar ${drawCount} carta${drawCount !== 1 ? 's' : ''} y terminar el turno`
+    : deckSize === 0 ? 'Mazo vacío: se baraja el descarte. Terminar el turno' : 'Mano llena: terminar el turno';
+
+  // ── Pista (solo cuando aporta algo que el medallón no dice) ──
   const hint =
     phase === TurnPhase.MOVE
       ? ap.player.skipNextMove
         ? `Puedes quedarte en ${currentLocName} o moverte`
         : 'Elige dónde moverte'
-      : phase === TurnPhase.DRAW
-        ? (() => {
-            const deckSize  = ap.player.villainDeckInstIds.length;
-            const drawCount = Math.min(ap.plugin.handSize - ap.player.handInstIds.length, deckSize);
-            return drawCount > 0
-              ? `Robarás ${drawCount} carta${drawCount !== 1 ? 's' : ''}`
-              : deckSize === 0 ? 'Mazo vacío: se baraja el descarte' : 'Mano llena';
-          })()
-        : hasHandSelection
-          ? `${selectedCard!.name}: elige una ubicación iluminada`
-          : ap.locDef ? `Acciones en ${ap.locDef.name}` : '';
+      : phase === TurnPhase.ACTIVATE && hasHandSelection
+        ? `${selectedCard!.name}: elige una ubicación iluminada`
+        : '';
+  // Sin acciones disponibles, el medallón de Acciones invita a terminar (brillo suave).
+  const noActionsLeft = phase === TurnPhase.ACTIVATE && ap.availableSlots.length === 0 && ap.extraSlots.every(e => state.usedActionSlotIndices.includes(e.slotIndex));
 
   const flowOpen =
     phase === TurnPhase.ACTIVATE &&
@@ -251,44 +255,52 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, onCancelSelec
       )}
 
       {/* ── Abajo a la derecha: botón de turno ── */}
-      <div className="turn-corner turn-corner--right">
+      <div className={`turn-corner turn-corner--right ${flowOpen ? 'is-flow-open' : ''}`}>
         {hint && (
           <p className="turn-hint max-w-60 text-right font-narrative italic text-sm leading-snug text-[#f3e2b3]">
             {hint}
           </p>
         )}
-        <div className="flex items-center gap-2">
-          {phase === TurnPhase.MOVE && ap.player.skipNextMove && (
-            <button className="turn-btn turn-btn--secondary" onClick={() => ap.store.doSkipMove()}>
-              Permanecer
+        {/* Acciones secundarias: enlaces pequeños sobre el medallón */}
+        {phase === TurnPhase.MOVE && ap.player.skipNextMove && (
+          <button className="turn-link" onClick={() => ap.store.doSkipMove()}>Permanecer aquí</button>
+        )}
+        {phase === TurnPhase.ACTIVATE && hasHandSelection && onCancelSelection && (
+          <button className="turn-link" onClick={onCancelSelection}>✕ Cancelar carta</button>
+        )}
+        {phase === TurnPhase.DRAW && (
+          <button className="turn-link" onClick={() => ap.store.doRevertToActivate()}>↩ Volver</button>
+        )}
+
+        {/* Medallón de fin de fase (estilo "Fin de turno") */}
+        {phase === TurnPhase.ACTIVATE && (
+          <div className={`turn-medallion-wrap ${noActionsLeft ? 'is-ready' : ''}`}>
+            <span className="turn-medallion-glow" aria-hidden />
+            <button
+              className="turn-medallion"
+              onClick={() => ap.store.doEndActivate()}
+              title={noActionsLeft ? 'Terminar acciones' : `Terminar acciones (${ap.availableSlots.length} sin usar)`}
+              aria-label="Terminar acciones"
+            >
+              <span className="turn-medallion-main">Fin</span>
+              <span className="turn-medallion-sub">acciones</span>
             </button>
-          )}
-          {phase === TurnPhase.ACTIVATE && hasHandSelection && onCancelSelection && (
-            <button className="turn-btn turn-btn--secondary" onClick={onCancelSelection}>
-              Cancelar carta
+          </div>
+        )}
+        {phase === TurnPhase.DRAW && (
+          <div className="turn-medallion-wrap is-ready">
+            <span className="turn-medallion-glow" aria-hidden />
+            <button className="turn-medallion" onClick={() => ap.store.doDrawCards()} title={drawTitle} aria-label={drawTitle}>
+              <span className="turn-medallion-main">Robar</span>
+              <span className="turn-medallion-sub">{drawDetail}</span>
             </button>
-          )}
-          {phase === TurnPhase.ACTIVATE && (
-            <button className="turn-btn turn-btn--primary" onClick={() => ap.store.doEndActivate()}>
-              {ap.availableSlots.length === 0 ? 'Terminar' : 'Terminar acciones'}
-            </button>
-          )}
-          {phase === TurnPhase.DRAW && (
-            <>
-              <button className="turn-btn turn-btn--secondary" onClick={() => ap.store.doRevertToActivate()}>
-                ← Volver
-              </button>
-              <button className="turn-btn turn-btn--primary" onClick={() => ap.store.doDrawCards()}>
-                Robar y terminar
-              </button>
-            </>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ── Centro: panel contextual de subflujos ── */}
       {flowOpen && (
-        <div className="turn-flow">
+        <div className={`turn-flow ${ap.pendingAction === ActionType.DISCARD ? 'is-discard' : ''}`}>
           {ap.pendingAction === ActionType.ACTIVATE_CARD && <ActivateCardFlow ap={ap} state={state} />}
           {ap.pendingAction === ActionType.VANQUISH && <VanquishFlow ap={ap} state={state} />}
           {ap.pendingAction === ActionType.DISCARD && discard && (
