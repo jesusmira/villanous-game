@@ -252,11 +252,11 @@ export function LocationTile({
 
           {/* Pawn indicator */}
           {isCurrentPawn && !locState.isLocked && (
-            <div className="absolute top-2.5 right-2.5 z-20 w-9 h-9 rounded-full flex items-center justify-center
+            <div className="absolute top-2 right-2 lg:top-2.5 lg:right-2.5 z-20 w-7 h-7 lg:w-9 lg:h-9 rounded-full flex items-center justify-center
               bg-[radial-gradient(circle_at_35%_30%,#3a2c14_0%,#140f08_75%)] border border-gold-bright/80
               shadow-[0_0_0_1px_rgba(0,0,0,0.7),0_0_16px_rgba(230,196,106,0.55),0_4px_10px_rgba(0,0,0,0.7)]">
               <Crown
-                className="w-5 h-5"
+                className="w-4 h-4 lg:w-5 lg:h-5"
                 strokeWidth={1.75}
                 style={{
                   color: '#f6dd94',
@@ -314,7 +314,7 @@ export function LocationTile({
         {/* ── Action tokens — always visible; greyed out when locked ── */}
         <div className={`absolute inset-x-0 bottom-0 flex flex-col justify-between items-center py-4 px-2 pointer-events-none transition-opacity ${locState.isLocked ? 'opacity-30' : ''}`}
           style={{ top: '15%', height: '85%' }}>
-          <div className="flex justify-center gap-3 w-full pointer-events-auto">
+          <div className="flex justify-center gap-2 lg:gap-3 w-full pointer-events-auto">
             {row1.map((slot, idx) => (
               <ActionToken
                 key={idx}
@@ -329,7 +329,7 @@ export function LocationTile({
               />
             ))}
           </div>
-          <div className="flex justify-center gap-3 w-full mb-10 pointer-events-auto">
+          <div className="flex justify-center gap-2 lg:gap-3 w-full mb-10 pointer-events-auto">
             {row2Slots.map(({ slot, idx }) => (
               <ActionToken
                 key={idx}
@@ -438,7 +438,7 @@ function ActionToken({ slotType, slotValue, covered, available, used = false, hi
         onClick={onClick}
         className={`
           action-token ${stateClass}
-          relative w-12 h-12 md:w-14 md:h-14 rounded-full border-2
+          action-token-size relative rounded-full border-2
           overflow-hidden
           ${blocked || !available ? 'cursor-not-allowed' : 'cursor-pointer'}
           ${hissChoice
@@ -462,7 +462,7 @@ function ActionToken({ slotType, slotValue, covered, available, used = false, hi
         {/* GAIN_POWER: value number centered on top of the image — gold color */}
         {isGainPower && slotValue !== undefined && !used && (
           <span
-            className="absolute inset-0 flex items-center justify-center font-stats font-bold text-lg md:text-xl leading-none"
+            className="action-token-value absolute inset-0 flex items-center justify-center font-stats font-bold leading-none"
             style={{
               color: '#e9c349',
               textShadow: '0 0 8px rgba(0,0,0,1), 0 1px 4px rgba(0,0,0,0.9)',

@@ -229,6 +229,18 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .loc-nameplate::after  { right: -3px; }
 
 /* ── Fichas de acción: disponible / en reposo / usada / tapada ── */
+/* Tamaño: 56 px en escritorio, 40 px en móvil/tablet y 34 px en móvil horizontal (pantallas
+   bajas), donde las ubicaciones son estrechas y las fichas grandes lo llenaban todo. */
+.action-token-size { width: 40px; height: 40px; }
+.action-token-value { font-size: 16px; }
+@media (min-width: 1024px) {
+  .action-token-size { width: 56px; height: 56px; }
+  .action-token-value { font-size: 20px; }
+}
+@media (max-width: 1023.98px) and (max-height: 500px) {
+  .action-token-size { width: 34px; height: 34px; }
+  .action-token-value { font-size: 14px; }
+}
 .action-token {
   box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 3px 6px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.25);
   transition: transform var(--dur-fast) var(--ease-premium), box-shadow var(--dur-fast) var(--ease-premium), filter var(--dur-fast) var(--ease-premium), opacity var(--dur-fast) var(--ease-premium);
@@ -306,12 +318,12 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 /* ── Mano en abanico (HandFan) ───────────────────────────────── */
 /* --fan-h: alto de carta en la mano. --fan-show: fracción que asoma sobre el borde inferior. */
 :root {
-  --fan-h: clamp(92px, 30svh, 132px);
-  --fan-show: 0.56;
+  --fan-h: clamp(116px, 37svh, 172px);
+  --fan-show: 0.66;
   --fan-overlap: -0.3;
 }
 @media (min-width: 1024px) {
-  :root { --fan-h: clamp(150px, 24vh, 214px); --fan-overlap: -0.2; }
+  :root { --fan-h: clamp(196px, 30vh, 280px); --fan-overlap: -0.2; }
 }
 .card-size-fan {
   height: var(--fan-h) !important;
@@ -860,6 +872,252 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   transition: border-color var(--dur-fast) var(--ease-premium), box-shadow var(--dur-fast) var(--ease-premium);
 }
 .fate-pill-btn:hover { border-color: rgba(246,221,148,0.85); box-shadow: 0 0 14px rgba(230,196,106,0.22); }
+
+/* ── Escenario común de modales (ModalStage): mismo lenguaje que la Acción Destino ─────── */
+.modal-stage {
+  position: fixed;
+  left: 0; right: 0; bottom: 0; top: 48px; /* bajo la banda superior */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+@media (min-width: 640px) { .modal-stage { padding: 24px; } }
+.modal-stage-backdrop {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, rgba(14,10,22,0.6) 0%, rgba(4,3,8,0.88) 100%);
+  backdrop-filter: blur(4px);
+  animation: focus-fade var(--dur-med) var(--ease-premium) both;
+}
+.modal-stage-backdrop.is-pass-through {
+  /* Mismo oscurecido que la Acción Destino (para que el texto se lea igual de bien), pero sin
+     desenfoque y sin capturar el puntero: las cartas del tablero se pueden seguir consultando. */
+  backdrop-filter: none;
+  pointer-events: none;
+}
+.modal-stage-content {
+  position: relative;
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  scrollbar-width: none;
+  animation: focus-rise var(--dur-med) var(--ease-premium) both;
+}
+.modal-stage-content::-webkit-scrollbar { display: none; }
+@media (min-width: 640px) { .modal-stage-content { gap: 20px; } }
+.modal-stage-eyebrow {
+  font: 600 10px/1.3 'Inter', sans-serif;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(246,221,148,0.8);
+}
+.tone-fate   .modal-stage-eyebrow { color: rgba(255,156,144,0.85); }
+.tone-arcane .modal-stage-eyebrow { color: rgba(211,188,249,0.85); }
+.modal-stage-title {
+  font: 700 20px/1.15 'Cinzel', serif;
+  letter-spacing: 0.06em;
+  color: #f6dd94;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+}
+@media (min-width: 640px) { .modal-stage-title { font-size: 26px; } }
+.modal-stage-subtitle {
+  max-width: 34rem;
+  font: italic 400 15px/1.45 'EB Garamond', serif;
+  color: rgba(239,230,210,0.85);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+}
+/* Bloques de contenido (secciones con su propia etiqueta). */
+.modal-stage-section { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+.modal-stage-label {
+  font: 600 9px/1 'Inter', sans-serif;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(203,196,207,0.6);
+}
+.modal-stage-note {
+  font: italic 400 14px/1.4 'EB Garamond', serif;
+  color: rgba(239,230,210,0.75);
+  text-align: center;
+}
+
+/* Cartas a elegir dentro de un modal: grandes, con elevación y brillo al pasar el ratón. */
+/* Mismo tamaño que las cartas de la Acción Destino (--fate-h, que ya se adapta a pantallas bajas
+   y a móvil vertical): todos los modales muestran las cartas igual. */
+.card-size-stage {
+  height: var(--fate-h) !important;
+  width: auto !important;
+  aspect-ratio: 2 / 3;
+  border-radius: 12px !important;
+}
+.stage-pick {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  border-radius: 12px;
+  transition: transform var(--dur-med) var(--ease-premium), opacity var(--dur-fast) var(--ease-premium), filter var(--dur-fast) var(--ease-premium);
+}
+.stage-pick > .villainous-card, .stage-pick .villainous-card { transition: box-shadow var(--dur-med) var(--ease-premium), border-color var(--dur-fast) var(--ease-premium); }
+.stage-pick:hover:not(:disabled) { transform: translateY(-6px) scale(1.03); }
+.stage-pick:hover:not(:disabled) .villainous-card { border-color: rgba(246,221,148,0.75); box-shadow: 0 0 0 1px rgba(246,221,148,0.6), 0 0 28px rgba(230,196,106,0.4), var(--shadow-card-lift); }
+.stage-pick.is-chosen { transform: translateY(-6px); }
+.stage-pick.is-chosen .villainous-card { border-color: var(--color-gold-bright); box-shadow: var(--glow-gold), var(--shadow-card-lift); }
+.tone-fate .stage-pick:hover:not(:disabled) .villainous-card,
+.stage-pick.is-danger:hover:not(:disabled) .villainous-card { border-color: rgba(255,170,160,0.85); box-shadow: 0 0 0 1px rgba(255,170,160,0.7), 0 0 30px rgba(220,80,90,0.5), var(--shadow-card-lift); }
+.tone-fate .stage-pick.is-chosen .villainous-card { border-color: #ffb4ab; box-shadow: 0 0 0 2px rgba(255,170,160,0.85), 0 0 34px rgba(220,80,90,0.55), var(--shadow-card-lift); }
+.stage-pick:disabled { opacity: 0.35; cursor: not-allowed; }
+.stage-pick-caption {
+  font: 600 10px/1.2 'Inter', sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(239,230,210,0.75);
+  text-align: center;
+}
+
+/* Opción de acción (ficha redonda + etiqueta), p. ej. Menguar / Agrandar. */
+.stage-action {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  min-width: 120px;
+  padding: 14px 16px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(230,196,106,0.22);
+  background: linear-gradient(180deg, rgba(20,16,30,0.75) 0%, rgba(10,8,16,0.8) 100%);
+  transition: transform var(--dur-med) var(--ease-premium), border-color var(--dur-fast) var(--ease-premium), box-shadow var(--dur-fast) var(--ease-premium);
+}
+.stage-action:hover { transform: translateY(-4px); border-color: rgba(246,221,148,0.8); box-shadow: 0 0 22px rgba(230,196,106,0.3), 0 14px 26px -10px rgba(0,0,0,0.8); }
+.stage-action-token {
+  width: 64px; height: 64px;
+  border-radius: 999px;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px var(--color-gold-bright), 0 0 16px rgba(230,196,106,0.45), 0 6px 12px rgba(0,0,0,0.6);
+}
+/* Cifra destacada en una línea de resumen (p. ej. Precio total vs Fuerza). */
+.stage-stat {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  font: 600 10px/1 'Inter', sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(239,230,210,0.7);
+}
+.stage-stat b { font: 700 18px/1 'Inter', sans-serif; letter-spacing: 0; }
+
+/* Histórico: lista legible con separadores de turno. */
+.history-sheet {
+  max-height: min(60vh, 520px);
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(230,196,106,0.18);
+  background: linear-gradient(180deg, rgba(14,11,20,0.7) 0%, rgba(8,6,12,0.78) 100%);
+}
+.history-turn {
+  margin: 10px 0 4px;
+  font: 700 10px/1 'Cinzel', serif;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(246,221,148,0.75);
+}
+.history-turn:first-child { margin-top: 0; }
+.stage-chip.is-danger-chosen { border-color: rgba(255,150,140,0.75); color: #ffc9c2; background: rgba(90,16,24,0.55); }
+
+/* Variante más compacta para modales con dos filas de cartas (Vencer: Héroes + Aliados). */
+.card-size-stage-sm {
+  /* Vencer muestra dos filas (Héroes + Aliados): misma escala que Destino, reducida para que
+     quepan las dos a la vez. */
+  height: calc(var(--fate-h) * 0.6) !important;
+  width: auto !important;
+  aspect-ratio: 2 / 3;
+  border-radius: 9px !important;
+}
+.stage-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(230,196,106,0.6);
+  background: rgba(30,22,10,0.9);
+  color: #f6dd94;
+  font: 700 8px/1.4 'Inter', sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+/* Barra de cuenta atrás (cierre automático en 3 s). */
+.stage-countdown {
+  width: min(320px, 80%);
+  height: 3px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(230,196,106,0.15);
+}
+.stage-countdown > div {
+  height: 100%;
+  background: linear-gradient(90deg, #b98c34, #f6dd94);
+  animation: shrink 3s linear forwards;
+}
+
+/* Ficha de acción pulsable (El Cuervo): misma moneda que las del tablero. */
+.stage-action-btn {
+  position: relative;
+  width: 60px; height: 60px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid rgba(230,196,106,0.35);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 6px 12px rgba(0,0,0,0.6);
+  transition: transform var(--dur-fast) var(--ease-premium), box-shadow var(--dur-fast) var(--ease-premium), border-color var(--dur-fast) var(--ease-premium);
+}
+.stage-action-btn:hover { transform: translateY(-3px) scale(1.06); border-color: rgba(246,221,148,0.85); box-shadow: 0 0 18px rgba(230,196,106,0.45), 0 8px 14px rgba(0,0,0,0.7); }
+.stage-action-btn.is-chosen { border-color: var(--color-gold-bright); box-shadow: 0 0 0 2px var(--color-gold-bright), 0 0 22px rgba(230,196,106,0.6), 0 8px 14px rgba(0,0,0,0.7); transform: translateY(-3px); }
+
+/* Aviso de turno: el nombre a gran tamaño. */
+.turn-indicator-name { display: block; font-size: clamp(40px, 9vw, 76px); line-height: 1; letter-spacing: 0.04em; }
+
+/* Botones del escenario */
+.stage-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font: 700 12px/1 'Cinzel', serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: transform var(--dur-fast) var(--ease-premium), box-shadow var(--dur-fast) var(--ease-premium), filter var(--dur-fast) var(--ease-premium), border-color var(--dur-fast) var(--ease-premium);
+}
+.stage-btn:active:not(:disabled) { transform: scale(0.97); }
+.stage-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.stage-btn--primary {
+  color: #241806;
+  background: linear-gradient(180deg, #f8e3a2 0%, #e2bd63 48%, #b98c34 100%);
+  border: 1px solid #f6dd94;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 16px -4px rgba(0,0,0,0.7), 0 0 18px rgba(230,196,106,0.25);
+}
+.stage-btn--primary:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 0 0 1px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.6), 0 10px 22px -6px rgba(0,0,0,0.75), 0 0 28px rgba(230,196,106,0.45); }
+.stage-btn--secondary {
+  color: #f3e2b3;
+  background: rgba(14,11,20,0.85);
+  border: 1px solid rgba(230,196,106,0.45);
+}
+.stage-btn--secondary:hover:not(:disabled) { border-color: rgba(246,221,148,0.85); box-shadow: 0 0 14px rgba(230,196,106,0.25); }
+.stage-btn--danger {
+  color: #ffd2cc;
+  background: linear-gradient(180deg, rgba(130,24,36,0.85) 0%, rgba(70,12,20,0.9) 100%);
+  border: 1px solid rgba(255,150,140,0.6);
+}
+.stage-btn--danger:hover:not(:disabled) { border-color: rgba(255,180,170,0.95); box-shadow: 0 0 18px rgba(220,70,80,0.4); }
+/* Opción de texto (ubicaciones, acciones): pastilla seleccionable. */
+.stage-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(230,196,106,0.3);
+  background: rgba(14,11,20,0.75);
+  color: #efe6d2;
+  font: 600 11px/1.2 'Inter', sans-serif;
+  letter-spacing: 0.06em;
+  transition: border-color var(--dur-fast) var(--ease-premium), box-shadow var(--dur-fast) var(--ease-premium), color var(--dur-fast) var(--ease-premium);
+}
+.stage-chip:hover:not(:disabled) { border-color: rgba(246,221,148,0.8); color: #fff1c4; box-shadow: 0 0 12px rgba(230,196,106,0.22); }
+.stage-chip.is-chosen { border-color: var(--color-gold-bright); color: #f6dd94; background: rgba(60,44,18,0.6); box-shadow: 0 0 14px rgba(230,196,106,0.3); }
+.stage-chip:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* Separador de filigrana dorada */
 .gold-rule {

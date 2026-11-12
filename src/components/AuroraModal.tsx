@@ -4,6 +4,7 @@ import { getPlugin, getEffectDef } from '../core/villains/registry';
 import { getPlayer } from '../core/engine/stateHelpers';
 import { useGameStore } from '../state/gameStore';
 import { CardComponent } from './CardComponent';
+import { ModalStage } from './shared/ModalStage';
 
 interface Props { state: GameState }
 
@@ -77,74 +78,46 @@ export function AuroraModal({ state }: Props) {
   if (!pendingAuroraHero || !card) return null;
 
   return (
-    /* Sin backdrop — tablero visible al fondo */
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-2 sm:p-4 pointer-events-none">
-      <div className="bg-surface-container-highest/95 border border-primary/30 rounded-2xl shadow-2xl flex flex-col justify-between p-3 sm:p-6 w-full max-w-2xl max-h-[92vh] overflow-y-auto gap-4 pointer-events-auto backdrop-blur-sm">
+    <ModalStage
+      passThrough
+      tone="arcane"
+      eyebrow="Aurora · carta revelada"
+      title={card.name}
+      subtitle={isHero
+        ? (isAIActing ? 'La IA la coloca en el Reino de Maléfica.' : 'Es un Héroe: elige dónde colocarlo.')
+        : 'No es un Héroe: vuelve al mazo.'}
+      widthClass="max-w-2xl"
+    >
+      <CardComponent card={card} state={state} sizeClassName="card-size-stage" />
 
-        <div className="flex flex-col gap-4">
-          {/* Carta revelada */}
-          <div className="flex flex-col items-center gap-1">
-            <p className="font-stats text-[9px] uppercase tracking-widest text-primary/60 mb-2">
-              Carta encontrada
-            </p>
-            <div className="aurora-card-preview-wrap">
-              <div className="aurora-card-preview">
-                <CardComponent card={card} state={state} />
-              </div>
-            </div>
+      {/* IA + héroe: colocación automática */}
+      {isHero && isAIActing && aiPickedLoc && (
+        <div className="modal-stage-section">
+          <p className="modal-stage-note">
+            La IA coloca <span className="text-[#f6dd94] not-italic font-semibold">{card.name}</span> en{' '}
+            <span className="text-[#f6dd94] not-italic font-semibold">{aiPickedLoc.name}</span>
+          </p>
+          <div className="stage-countdown"><div /></div>
+        </div>
+      )}
+
+      {/* Héroe + jugador humano: elegir ubicación */}
+      {isHero && !isAIActing && (
+        <div className="modal-stage-section">
+          <span className="modal-stage-label">Elige dónde colocarlo</span>
+          <div className="flex flex-wrap justify-center gap-2">
+            {validLocs.map(loc => (
+              <button key={loc.id} onClick={() => doResolveAuroraHero(loc.id)} className="stage-chip">
+                <span className="font-serif font-semibold">{loc.name}</span>
+                <span className="text-[10px] opacity-60">· {targetPlayer?.locationStates[loc.id]?.heroCardInstIds.length ?? 0} héroes</span>
+              </button>
+            ))}
           </div>
         </div>
+      )}
 
-        {/* IA + héroe: notificación de colocación automática */}
-        {isHero && isAIActing && aiPickedLoc && (
-          <div className="flex flex-col items-center gap-4 pt-4 border-t border-primary/20">
-            <p className="text-[12px] text-on-surface text-center leading-snug">
-              La IA coloca <span className="text-primary font-semibold">{card.name}</span> en{' '}
-              <span className="text-secondary font-semibold">{aiPickedLoc.name}</span>
-            </p>
-            <div className="w-full h-1 rounded-full bg-outline-variant/20 overflow-hidden">
-              <div className="h-full bg-primary/50 animate-[shrink_3s_linear_forwards] rounded-full" />
-            </div>
-          </div>
-        )}
-
-        {/* Héroe + jugador humano: selector de ubicación */}
-        {isHero && !isAIActing && (
-          <div className="pt-4 border-t border-primary/20">
-            <p className="font-stats text-[9px] uppercase tracking-wider text-on-surface-variant/60 mb-3">
-              Elige dónde colocarlo:
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {validLocs.map(loc => (
-                <button
-                  key={loc.id}
-                  onClick={() => doResolveAuroraHero(loc.id)}
-                  className="px-3 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container hover:border-primary hover:bg-primary/10 active:scale-95 text-left transition-all group"
-                >
-                  <div className="font-serif text-[11px] text-on-surface group-hover:text-primary leading-tight">
-                    {loc.name}
-                  </div>
-                  <div className="font-stats text-[8px] uppercase tracking-widest text-on-surface-variant/50 mt-0.5">
-                    {targetPlayer?.locationStates[loc.id]?.heroCardInstIds.length ?? 0} héroes
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* No-héroe: mensaje + barra de cuenta atrás */}
-        {!isHero && (
-          <div className="flex flex-col items-center gap-4 pt-4 border-t border-primary/20">
-            <p className="text-[11px] text-on-surface-variant/70 text-center">
-              No es un Héroe — vuelve al mazo
-            </p>
-            <div className="w-full h-1 rounded-full bg-outline-variant/20 overflow-hidden">
-              <div className="h-full bg-primary/50 animate-[shrink_3s_linear_forwards] rounded-full" />
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      {/* No-héroe: cuenta atrás */}
+      {!isHero && <div className="stage-countdown"><div /></div>}
+    </ModalStage>
   );
 }

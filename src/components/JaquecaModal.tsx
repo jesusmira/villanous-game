@@ -1,6 +1,7 @@
 import type { GameState } from '../core/types';
 import { useGameStore } from '../state/gameStore';
 import { CardComponent } from './CardComponent';
+import { ModalStage } from './shared/ModalStage';
 
 interface Props { state: GameState }
 
@@ -14,35 +15,22 @@ export function JaquecaModal({ state }: Props) {
   const items = itemInstIds.map(id => state.allCards[id]).filter(Boolean);
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 pointer-events-none">
-      <div className="bg-surface-container-highest/95 border border-error/30 rounded-2xl shadow-2xl flex flex-col gap-5 p-6 w-full max-w-xl pointer-events-auto">
-        <div>
-          <h2 className="font-serif text-base text-on-surface">Gran Jaqueca</h2>
-          <p className="text-[11px] text-on-surface-variant/70 mt-1 leading-snug">
-            Elige qué Objeto descartar del Reino de Garfio:
-          </p>
-        </div>
-
-        <div className="flex flex-wrap justify-center gap-6">
-          {items.map(card => (
-            <button
-              key={card.instId}
-              onClick={() => doResolveJaqueca(card.instId)}
-              className="flex flex-col items-center gap-2 group focus:outline-none"
-              title={`Descartar ${card.name}`}
-            >
-              <div className="aurora-card-preview-wrap ring-2 ring-transparent group-hover:ring-error/60 group-focus:ring-error rounded-[9px] transition-all">
-                <div className="aurora-card-preview">
-                  <CardComponent card={card} state={state} />
-                </div>
-              </div>
-              <span className="font-stats text-[9px] uppercase tracking-widest text-error/70 group-hover:text-error transition-colors">
-                Descartar
-              </span>
-            </button>
-          ))}
-        </div>
+    <ModalStage
+      passThrough
+      tone="fate"
+      eyebrow="Gran Jaqueca"
+      title="Elige qué Objeto descartar"
+      subtitle="Se descartará del Reino de Garfio."
+    >
+      <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
+        {items.map(card => (
+          <button key={card.instId} onClick={() => doResolveJaqueca(card.instId)}
+            className="stage-pick is-danger" title={`Descartar ${card.name}`}>
+            <CardComponent card={card} state={state} sizeClassName="card-size-stage" />
+            <span className="stage-pick-caption">Descartar</span>
+          </button>
+        ))}
       </div>
-    </div>
+    </ModalStage>
   );
 }

@@ -9,8 +9,8 @@ import { useGameStore } from '../state/gameStore';
 import { modalStyles } from '../styles/modalStyles';
 import { ACTION_IMG } from './shared/actionImages';
 import { CardPickButton } from './CardPickButton';
+import { ModalStage } from './shared/ModalStage';
 
-const OVL  = modalStyles.overlay;
 const SEL  = modalStyles.buttonSelect;
 const BTN  = modalStyles.buttonPrimary;
 const PANEL = modalStyles.panel;
@@ -80,15 +80,23 @@ export function CuervoModal({ state }: Props) {
   const gainPowerValue = locDef.actions.find(a => a.type === ActionType.GAIN_POWER)?.value ?? 2;
 
   return (
-    <div className={`${OVL} pointer-events-none`}>
-      <div className={modalStyles.container}>
-        <h2 className={`${modalStyles.title} text-primary`}>El Cuervo</h2>
-        <p className={`${modalStyles.description} text-on-surface-variant`}>
-          Elige una acción en <strong className="text-on-surface">{locDef.name}</strong>:
-        </p>
+    <ModalStage
+      passThrough
+      tone="arcane"
+      eyebrow="El Cuervo"
+      title={`Acción en ${locDef.name}`}
+      subtitle="Elige una de las acciones disponibles en su ubicación (sin Destino)."
+      widthClass="max-w-4xl"
+      actions={
+        <button className="stage-btn stage-btn--secondary"
+          onClick={() => doResolveCuervo(ActionType.GAIN_POWER, { amountOverride: 0 })}>
+          Omitir acción
+        </button>
+      }
+    >
 
         {/* Action image buttons */}
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
           {availableActions.map((a, idx) => {
             const tooltip = ACTION_TOOLTIP[a.type] ?? a.type;
             const isGain  = a.type === ActionType.GAIN_POWER;
@@ -96,11 +104,7 @@ export function CuervoModal({ state }: Props) {
               <button
                 key={idx}
                 title={isGain ? `${tooltip} (+${gainPowerValue}⚡)` : tooltip}
-                className={`relative w-14 h-14 rounded-xl overflow-hidden border-2 transition-all active:scale-95 ${
-                  selectedAction === a.type
-                    ? 'border-primary scale-105 shadow-[0_0_14px_rgba(208,188,255,0.4)]'
-                    : 'border-outline-variant/40 hover:border-primary/50 hover:scale-105'
-                }`}
+                className={`stage-action-btn ${selectedAction === a.type ? 'is-chosen' : ''}`}
                 onClick={() => selectAction(a.type)}
               >
                 <img
@@ -109,7 +113,7 @@ export function CuervoModal({ state }: Props) {
                   className="w-full h-full object-cover"
                 />
                 {isGain && (
-                  <div className="absolute inset-x-0 bottom-0 py-0.5 bg-black/65 font-stats text-[8px] text-center text-primary uppercase tracking-wide">
+                  <div className="absolute inset-x-0 bottom-0 py-0.5 bg-black/70 font-stats text-[9px] font-bold text-center text-[#f6dd94] uppercase tracking-wide">
                     +{gainPowerValue}⚡
                   </div>
                 )}
@@ -121,7 +125,7 @@ export function CuervoModal({ state }: Props) {
         {/* PLAY CARD */}
         {selectedAction === ActionType.PLAY_CARD && (
           <div className={PANEL}>
-            <p className="text-xs text-on-surface-variant">Selecciona una carta de tu mano:</p>
+            <p className="modal-stage-label">Selecciona una carta de tu mano:</p>
             <div className="flex flex-wrap gap-3 justify-center">
               {player.handInstIds.map(id => {
                 const c = state.allCards[id];
@@ -141,8 +145,8 @@ export function CuervoModal({ state }: Props) {
             </div>
             {selectedCardId && (
               <>
-                <p className="text-xs text-on-surface-variant">Elige ubicación de destino:</p>
-                <div className="flex flex-wrap gap-1.5">
+                <p className="modal-stage-label">Elige ubicación de destino:</p>
+                <div className="flex flex-wrap justify-center gap-2">
                   {allUnlockedLocs.map(l => {
                     const check = canPlaceCardFromHand(state, player.id, selectedCardId, l.id);
                     return (
@@ -165,7 +169,7 @@ export function CuervoModal({ state }: Props) {
           <div className={PANEL}>
             {!selectedCardId ? (
               <>
-                <p className="text-xs text-on-surface-variant">Selecciona el Héroe a derrotar:</p>
+                <p className="modal-stage-label">Selecciona el Héroe a derrotar:</p>
                 <div className="flex flex-wrap gap-3 justify-center">
                   {heroesInKingdom.map(c => (
                     <CardPickButton key={c.instId} card={c} state={state}
@@ -177,11 +181,11 @@ export function CuervoModal({ state }: Props) {
               </>
             ) : (
               <>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-3 w-full">
                   <button onClick={() => { setSelectedCardId(null); setSelectedAllyIds([]); }}
-                    className="text-xs text-on-surface-variant/60 hover:text-on-surface transition-colors">← Cambiar</button>
-                  <span className="font-stats text-xs text-on-surface-variant flex-1">
-                    Vencer: <span className="text-primary font-bold">{state.allCards[selectedCardId]?.name}</span>
+                    className="stage-chip">← Cambiar</button>
+                  <span className="modal-stage-note not-italic flex-1">
+                    Vencer: <span className="text-[#f6dd94] font-bold">{state.allCards[selectedCardId]?.name}</span>
                   </span>
                   <span className={`font-stats text-sm font-bold ${
                     selectedAllyIds.reduce((s, id) => s + getEffectiveStrength(state, id), 0) >= getEffectiveStrength(state, selectedCardId)
@@ -191,7 +195,7 @@ export function CuervoModal({ state }: Props) {
                     <span className="text-on-surface-variant/40 text-xs"> / {getEffectiveStrength(state, selectedCardId)}</span>
                   </span>
                 </div>
-                <p className="text-xs text-on-surface-variant">Selecciona Aliados:</p>
+                <p className="modal-stage-label">Selecciona Aliados:</p>
                 <div className="flex flex-wrap gap-3 justify-center">
                   {alliesInKingdom
                     .filter(c => c.locationId === state.allCards[selectedCardId]?.locationId)
@@ -228,7 +232,7 @@ export function CuervoModal({ state }: Props) {
           <div className={PANEL}>
             {!selectedCardId ? (
               <>
-                <p className="text-xs text-on-surface-variant">
+                <p className="modal-stage-label">
                   Selecciona {selectedAction === ActionType.MOVE_HERO ? 'el Héroe' : 'Objeto, Aliado o Maldición'} a mover:
                 </p>
                 <div className="flex flex-wrap gap-3 justify-center">
@@ -242,15 +246,15 @@ export function CuervoModal({ state }: Props) {
               </>
             ) : (
               <>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-3 w-full">
                   <button onClick={() => setSelectedCardId(null)}
-                    className="text-xs text-on-surface-variant/60 hover:text-on-surface transition-colors">← Cambiar</button>
-                  <span className="font-stats text-xs text-on-surface-variant flex-1">
-                    Mover: <span className="text-primary font-bold">{state.allCards[selectedCardId]?.name}</span>
+                    className="stage-chip">← Cambiar</button>
+                  <span className="modal-stage-note not-italic flex-1">
+                    Mover: <span className="text-[#f6dd94] font-bold">{state.allCards[selectedCardId]?.name}</span>
                   </span>
                 </div>
-                <p className="text-xs text-on-surface-variant">Elige ubicación de destino:</p>
-                <div className="flex flex-wrap gap-1.5">
+                <p className="modal-stage-label">Elige ubicación de destino:</p>
+                <div className="flex flex-wrap justify-center gap-2">
                   {allUnlockedLocs.map(l => (
                     <button key={l.id} className={SEL}
                       onClick={() => doResolveCuervo(selectedAction, { cardInstId: selectedCardId, targetLocationId: l.id as LocationId })}>
@@ -266,7 +270,7 @@ export function CuervoModal({ state }: Props) {
         {/* DISCARD */}
         {selectedAction === ActionType.DISCARD && (
           <div className={PANEL}>
-            <p className="text-xs text-on-surface-variant">Selecciona cartas a descartar de la mano:</p>
+            <p className="modal-stage-label">Selecciona cartas a descartar de la mano:</p>
             <div className="flex flex-wrap gap-3 justify-center">
               {player.handInstIds.map(id => {
                 const c = state.allCards[id];
@@ -290,16 +294,6 @@ export function CuervoModal({ state }: Props) {
           </div>
         )}
 
-        {/* Footer */}
-        <div className="flex justify-end border-t border-outline-variant/20 pt-3">
-          <button
-            className="px-3 py-1.5 rounded border border-outline-variant/50 text-on-surface-variant text-xs font-stats hover:border-outline hover:text-on-surface transition-all"
-            onClick={() => doResolveCuervo(ActionType.GAIN_POWER, { amountOverride: 0 })}
-          >
-            Omitir acción
-          </button>
-        </div>
-      </div>
-    </div>
+    </ModalStage>
   );
 }

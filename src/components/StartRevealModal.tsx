@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { GameState } from '../core/types';
-import { modalStyles } from '../styles/modalStyles';
 import { assetUrl } from '../lib/assets';
+import { ModalStage } from './shared/ModalStage';
 
 interface Props {
   state: GameState;
@@ -24,73 +24,47 @@ export function StartRevealModal({ state, startingPlayerIndex, onContinue }: Pro
   const other     = state.players[startingPlayerIndex === 0 ? 1 : 0];
 
   return (
-    <div className={`${modalStyles.overlay} pointer-events-none`}>
-      <div className="bg-surface-container-highest/98 border-2 border-tertiary/40 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col items-center gap-3 sm:gap-6 p-4 sm:p-8 w-11/12 sm:w-full sm:max-w-sm pointer-events-auto backdrop-blur-sm max-h-[90vh] overflow-y-auto">
-
-        <p className="font-stats text-[9px] sm:text-xs uppercase tracking-widest text-on-surface-variant/60">
-          {revealed ? 'Sorteo del turno' : 'Lanzando la moneda…'}
-        </p>
-
-        {/* Moneda */}
-        <div style={{ perspective: '600px' }} className="flex items-center justify-center h-20 sm:h-28 shrink-0">
-          <div
-            className={`relative w-20 sm:w-24 h-20 sm:h-24 rounded-full ${revealed ? '' : 'coin-spin'}`}
-            style={{ transformStyle: 'preserve-3d' }}
-          >
-            {revealed ? (
-              <div
-                className="w-20 sm:w-24 h-20 sm:h-24 rounded-full border-4 overflow-hidden shadow-[0_0_24px_rgba(233,195,73,0.55)]"
-                style={{ borderColor: '#e9c349' }}
-              >
-                <img
-                  src={assetUrl(`villains/${starter.villainId}.webp`)}
-                  alt={starter.name}
-                  className="w-full h-full object-cover scale-125"
-                />
-              </div>
-            ) : (
-              <div
-                className="w-20 sm:w-24 h-20 sm:h-24 rounded-full overflow-hidden flex items-center justify-center shadow-[0_0_24px_rgba(233,195,73,0.5)]"
-                style={{
-                  background: 'radial-gradient(circle at 35% 30%, #f7e08a, #e9c349 55%, #b8911f)',
-                  border: '4px solid #c9a227',
-                }}
-              >
-                <img
-                  src={assetUrl('actions/gain_power.webp')}
-                  alt="Moneda de Poder"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Resultado */}
-        {revealed ? (
-          <>
-            <div className="text-center w-full">
-              <p className="font-stats text-[9px] sm:text-[11px] uppercase tracking-widest text-on-surface-variant/60 mb-1">
-                ¡Empieza!
-              </p>
-              <h2 className="font-serif text-xl sm:text-3xl font-bold text-tertiary">{starter.name}</h2>
-              <p className="font-stats text-[8px] sm:text-xs text-on-surface-variant/70 mt-2">
-                {other.name} recibe <span className="text-tertiary font-bold">+1 ⚡</span> por ir segundo
-              </p>
-            </div>
-            <button
-              onClick={onContinue}
-              className="w-full px-4 sm:px-6 py-2 sm:py-3 min-h-10 sm:min-h-12 rounded-lg sm:rounded-xl border-2 border-tertiary bg-tertiary/20 hover:bg-tertiary/30 text-tertiary font-serif text-sm sm:text-base font-bold uppercase tracking-wider transition-all active:scale-95"
+    <ModalStage
+      eyebrow={revealed ? 'Sorteo del turno' : 'Lanzando la moneda…'}
+      title={revealed ? `¡Empieza ${starter.name}!` : 'Decidiendo quién mueve primero'}
+      subtitle={revealed ? <>{other.name} recibe <b className="not-italic text-[#f6dd94]">+1 ⚡</b> por ir segundo.</> : undefined}
+      widthClass="max-w-md"
+      actions={revealed ? <button onClick={onContinue} className="stage-btn stage-btn--primary">Comenzar</button> : undefined}
+    >
+      {/* Moneda */}
+      <div style={{ perspective: '600px' }} className="flex items-center justify-center h-20 sm:h-28 shrink-0">
+        <div
+          className={`relative w-20 sm:w-24 h-20 sm:h-24 rounded-full ${revealed ? '' : 'coin-spin'}`}
+          style={{ transformStyle: 'preserve-3d' }}
+        >
+          {revealed ? (
+            <div
+              className="w-20 sm:w-24 h-20 sm:h-24 rounded-full border-4 overflow-hidden shadow-[0_0_24px_rgba(233,195,73,0.55)]"
+              style={{ borderColor: '#e9c349' }}
             >
-              Comenzar
-            </button>
-          </>
-        ) : (
-          <p className="font-serif text-sm sm:text-base text-on-surface-variant/80 h-auto flex items-center">
-            Decidiendo quién mueve primero…
-          </p>
-        )}
+              <img
+                src={assetUrl(`villains/${starter.villainId}.webp`)}
+                alt={starter.name}
+                className="w-full h-full object-cover scale-125"
+              />
+            </div>
+          ) : (
+            <div
+              className="w-20 sm:w-24 h-20 sm:h-24 rounded-full overflow-hidden flex items-center justify-center shadow-[0_0_24px_rgba(233,195,73,0.5)]"
+              style={{
+                background: 'radial-gradient(circle at 35% 30%, #f7e08a, #e9c349 55%, #b8911f)',
+                border: '4px solid #c9a227',
+              }}
+            >
+              <img
+                src={assetUrl('actions/gain_power.webp')}
+                alt="Moneda de Poder"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </ModalStage>
   );
 }

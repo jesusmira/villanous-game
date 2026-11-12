@@ -6,6 +6,7 @@ import { getEffectDef } from '../core/villains/registry';
 import { canVanquish, canVanquishFree } from '../core/engine/RuleEngine';
 import { CardComponent } from './CardComponent';
 import type { ActionPanelCtx } from './useActionPanelState';
+import { ModalStage } from './shared/ModalStage';
 
 interface Props {
   ap: ActionPanelCtx;
@@ -83,132 +84,96 @@ export function VanquishModal({ ap, state, playerId, free = false }: Props) {
     }, 900);
   }
 
+  const embersFor = (show: boolean) => show && embers.map(e => (
+    <div key={e.id} className="ember" style={{
+      left: `${e.x}%`, top: `${e.y}%`,
+      width: e.size, height: e.size,
+      background: e.color,
+      boxShadow: `0 0 ${e.size * 2}px ${e.color}`,
+      animationDelay: `${Math.random() * 0.3}s`,
+    }} />
+  ));
+
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 pointer-events-none">
-      <div className="bg-surface-container-highest border border-error/30 rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto pointer-events-auto flex flex-col gap-4 p-5">
-
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-serif text-base text-error">{free ? 'Trampa — Vencer gratuito' : 'Vencer'}</h2>
-            <p className="text-[10px] text-on-surface-variant/60 mt-0.5">
-              {free
-                ? 'No consume casilla de acción. Cierra (×) si no quieres vencer a nadie.'
-                : 'Elige un Héroe y los Aliados para combatir'}
-            </p>
-          </div>
-          <button onClick={close} className="text-on-surface-variant/40 hover:text-on-surface transition-colors text-lg leading-none">×</button>
-        </div>
-
-        {/* Hero selection */}
-        <div className="flex flex-col gap-2">
-          <p className="font-stats text-[9px] uppercase tracking-wider text-on-surface-variant/50">Héroe objetivo</p>
-          <div className="flex gap-3 flex-wrap justify-center">
-            {ap.heroesInKingdom.map(c => {
-              const isBurningCard = burning && selectedHeroId === c.instId;
-              return (
-                <div
-                  key={c.instId}
-                  onClick={() => !burning && (setSelectedHeroId(c.instId), setSelectedAllyIds([]))}
-                  className={`relative cursor-pointer transition-all rounded-xl ${
-                    isBurningCard ? 'burning-card' :
-                    selectedHeroId === c.instId ? 'ring-2 ring-error scale-105' : 'opacity-70 hover:opacity-100 hover:scale-105'
-                  }`}
-                >
-                  <CardComponent card={c} state={state} selected={selectedHeroId === c.instId} />
-                  {isBurningCard && embers.map(e => (
-                    <div key={e.id} className="ember" style={{
-                      left: `${e.x}%`, top: `${e.y}%`,
-                      width: e.size, height: e.size,
-                      background: e.color,
-                      boxShadow: `0 0 ${e.size * 2}px ${e.color}`,
-                      animationDelay: `${Math.random() * 0.3}s`,
-                    }} />
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Ally selection */}
-        {selectedHeroId && (
-          <div className="flex flex-col gap-2">
-            <p className="font-stats text-[9px] uppercase tracking-wider text-on-surface-variant/50">
-              Aliados para combatir
-            </p>
-            {alliesForHero.length === 0
-              ? <p className="text-[11px] text-error/60">No hay Aliados disponibles en esta ubicación.</p>
-              : (
-                <div className="flex gap-3 flex-wrap justify-center">
-                  {alliesForHero.map(c => {
-                    const isAdj = c.locationId !== hero?.locationId;
-                    const sel   = selectedAllyIds.includes(c.instId);
-                    const isBurningCard = burning && sel;
-                    return (
-                      <div key={c.instId} className="relative">
-                        <div
-                          onClick={() => !burning && setSelectedAllyIds(prev =>
-                            prev.includes(c.instId) ? prev.filter(id => id !== c.instId) : [...prev, c.instId]
-                          )}
-                          className={`cursor-pointer transition-all rounded-xl ${
-                            isBurningCard ? 'burning-card' :
-                            sel ? 'ring-2 ring-primary scale-105' : 'opacity-60 hover:opacity-100 hover:scale-105'
-                          }`}
-                        >
-                          <CardComponent card={c} state={state} selected={sel} />
-                          {isBurningCard && embers.map(e => (
-                            <div key={e.id} className="ember" style={{
-                              left: `${e.x}%`, top: `${e.y}%`,
-                              width: e.size, height: e.size,
-                              background: e.color,
-                              boxShadow: `0 0 ${e.size * 2}px ${e.color}`,
-                              animationDelay: `${Math.random() * 0.3}s`,
-                            }} />
-                          ))}
-                        </div>
-                        {isAdj && !burning && (
-                          <span className="absolute -top-1 -right-1 font-stats text-[8px] bg-primary text-on-primary px-1 rounded-full leading-tight">adj</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-          </div>
-        )}
-
-        {/* Strength comparison */}
-        {selectedHeroId && (
-          <div className="flex items-center gap-3 bg-surface-container/60 rounded-xl px-3 py-2">
-            <div className="flex flex-col items-center">
-              <span className="font-stats text-[9px] text-on-surface-variant/50 uppercase">Aliados</span>
-              <span className={`font-stats text-lg font-bold ${allyStr >= heroStr ? 'text-green-400' : 'text-amber-400'}`}>{allyStr}</span>
-            </div>
-            <span className="text-on-surface-variant/40 font-stats text-xs">vs</span>
-            <div className="flex flex-col items-center">
-              <span className="font-stats text-[9px] text-on-surface-variant/50 uppercase">Héroe</span>
-              <span className="font-stats text-lg font-bold text-error">{heroStr}</span>
-            </div>
-            <div className="ml-auto font-stats text-[10px]">
-              {allyStr >= heroStr
-                ? <span className="text-green-400">✓ Suficiente fuerza</span>
-                : <span className="text-amber-400">Necesitas {heroStr - allyStr} más</span>}
-            </div>
-          </div>
-        )}
-
-        {/* Confirm */}
-        <div className="flex justify-end">
-          <button
-            disabled={!canConfirm}
-            onClick={confirm}
-            className="px-4 py-2 rounded-xl border border-error/50 bg-error/10 text-error font-stats text-xs uppercase tracking-wider hover:bg-error/20 transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
-          >
-            Vencer
-          </button>
+    <ModalStage
+      passThrough
+      tone="fate"
+      onDismiss={burning ? undefined : close}
+      eyebrow={free ? 'Trampa · Vencer gratuito' : 'Acción Vencer'}
+      title={selectedHeroId ? `Vencer a ${hero?.name ?? 'el Héroe'}` : 'Elige un Héroe'}
+      subtitle={free
+        ? 'No consume casilla de acción. Cierra si no quieres vencer a nadie.'
+        : selectedHeroId ? 'Elige los Aliados que combaten.' : 'Después elegirás los Aliados que combaten.'}
+      widthClass="max-w-4xl"
+      actions={<>
+        <button onClick={close} disabled={burning} className="stage-btn stage-btn--secondary">{free ? 'No vencer' : 'Cancelar'}</button>
+        <button disabled={!canConfirm} onClick={confirm} className="stage-btn stage-btn--danger">Vencer</button>
+      </>}
+    >
+      <div className="modal-stage-section">
+        <span className="modal-stage-label">Héroe objetivo</span>
+        <div className="flex flex-wrap justify-center gap-3 sm:gap-5">
+          {ap.heroesInKingdom.map(c => {
+            const isBurningCard = burning && selectedHeroId === c.instId;
+            return (
+              <div
+                key={c.instId}
+                onClick={() => !burning && (setSelectedHeroId(c.instId), setSelectedAllyIds([]))}
+                className={`relative cursor-pointer ${isBurningCard ? 'burning-card' : `stage-pick ${selectedHeroId === c.instId ? 'is-chosen' : ''}`}`}
+              >
+                <CardComponent card={c} state={state} selected={selectedHeroId === c.instId} sizeClassName="card-size-stage-sm" />
+                {embersFor(isBurningCard)}
+              </div>
+            );
+          })}
         </div>
       </div>
-    </div>
+
+      {selectedHeroId && (
+        <div className="modal-stage-section">
+          <span className="modal-stage-label">Aliados para combatir</span>
+          {alliesForHero.length === 0
+            ? <p className="modal-stage-note">No hay Aliados disponibles en esta ubicación.</p>
+            : (
+              <div className="flex flex-wrap justify-center gap-3 sm:gap-5">
+                {alliesForHero.map(c => {
+                  const isAdj = c.locationId !== hero?.locationId;
+                  const sel   = selectedAllyIds.includes(c.instId);
+                  const isBurningCard = burning && sel;
+                  return (
+                    <div key={c.instId} className="relative">
+                      <div
+                        onClick={() => !burning && setSelectedAllyIds(prev =>
+                          prev.includes(c.instId) ? prev.filter(id => id !== c.instId) : [...prev, c.instId]
+                        )}
+                        className={`relative cursor-pointer ${isBurningCard ? 'burning-card' : `stage-pick ${sel ? 'is-chosen' : ''}`}`}
+                      >
+                        <CardComponent card={c} state={state} selected={sel} sizeClassName="card-size-stage-sm" />
+                        {embersFor(isBurningCard)}
+                      </div>
+                      {isAdj && !burning && (
+                        <span className="absolute -top-2 -right-2 z-70 stage-badge">Adyacente</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+        </div>
+      )}
+
+      {selectedHeroId && (
+        <div className="flex items-center justify-center gap-4 sm:gap-6">
+          <span className="stage-stat">Aliados <b className={allyStr >= heroStr ? 'text-[#8be6b6]' : 'text-[#f0b483]'}>{allyStr}</b></span>
+          <span className="modal-stage-label">vs</span>
+          <span className="stage-stat">Héroe <b className="text-[#ff9c90]">{heroStr}</b></span>
+          <span className="stage-stat">
+            <b className={`text-[11px]! tracking-[0.14em]! ${allyStr >= heroStr ? 'text-[#8be6b6]' : 'text-[#f0b483]'}`}>
+              {allyStr >= heroStr ? '✓ Fuerza suficiente' : `Faltan ${heroStr - allyStr}`}
+            </b>
+          </span>
+        </div>
+      )}
+    </ModalStage>
   );
 }

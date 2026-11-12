@@ -6,14 +6,14 @@ import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { EffectId, CardDefId } from '../core/villains/effectIds';
 import { useGameStore } from '../state/gameStore';
 import { CardPickButton } from './CardPickButton';
+import { ModalStage } from './shared/ModalStage';
 
-// Sin fondo oscuro y con pointer-events-none: el tablero queda visible y clicable detrás
-// (la ficha de contenido de abajo recupera los eventos con pointer-events-auto).
-const OVL   = 'fixed inset-0 flex items-center justify-center z-100 p-4 pointer-events-none';
-const SEL   = 'px-2.5 py-1.5 rounded border border-outline-variant/40 text-xs font-stats text-on-surface-variant bg-surface-container hover:border-primary hover:text-primary transition-all';
-const ACT   = 'px-2.5 py-1.5 rounded border border-tertiary bg-tertiary/10 text-tertiary text-xs font-stats font-bold';
-const BTN   = 'px-3 py-1.5 rounded border border-primary/50 bg-primary-container text-primary text-xs font-stats font-bold uppercase tracking-wide hover:bg-primary/20 transition-all disabled:opacity-40';
-const PANEL = 'bg-surface-container-high border border-outline-variant/30 rounded-lg p-3 flex flex-col gap-2.5';
+// Mismo lenguaje visual que el resto de modales (ModalStage): pastillas para elegir,
+// botón dorado para confirmar y secciones sin caja. El tablero sigue consultable detrás.
+const SEL   = 'stage-chip';
+const ACT   = 'stage-chip is-chosen';
+const BTN   = 'stage-btn stage-btn--primary';
+const PANEL = 'modal-stage-section';
 
 const TRIGGER_MSG: Record<string, string> = {
   VANQUISH_4PLUS: '¡El oponente ha derrotado un Héroe de Fuerza 4 o superior!',
@@ -38,9 +38,9 @@ function MaliciaResolver({ state, reactingPlayer, condInstId }: {
 
   return (
     <div className={PANEL}>
-      <p className="text-xs text-on-surface-variant">Derrota un Héroe de Fuerza ≤4 en tu Reino:</p>
+      <p className="modal-stage-label">Derrota un Héroe de Fuerza ≤4 en tu Reino:</p>
       {heroes.length === 0
-        ? <p className="text-xs text-error/70">No hay Héroes de Fuerza ≤4. Puedes jugar igualmente (sin efecto).</p>
+        ? <p className="modal-stage-note">No hay Héroes de Fuerza ≤4. Puedes jugar igualmente (sin efecto).</p>
         : (
           <div className="flex flex-wrap gap-3 justify-center">
             {heroes.map(c => c && (
@@ -83,9 +83,9 @@ function TiraniaResolver({ state, reactingPlayer, condInstId }: {
 
   return (
     <div className={PANEL}>
-      <p className="text-xs text-on-surface-variant">Robarás 3 cartas. Elige exactamente 3 para descartar:</p>
+      <p className="modal-stage-label">Robarás 3 cartas. Elige exactamente 3 para descartar:</p>
       {willDraw.length > 0 && (
-        <p className="text-xs text-primary/70">
+        <p className="modal-stage-note">
           Cartas que robarás: <span className="text-primary">{willDraw.map(c => c?.name).join(', ')}</span>
         </p>
       )}
@@ -107,7 +107,7 @@ function TiraniaResolver({ state, reactingPlayer, condInstId }: {
           />
         ))}
       </div>
-      <p className="text-[11px] text-on-surface-variant">{selectedDiscardIds.length} / 3 seleccionadas</p>
+      <p className="modal-stage-label">{selectedDiscardIds.length} / 3 seleccionadas</p>
       {selectedDiscardIds.length === 3 && (
         <button className={BTN}
           onClick={() => doResolveCondition(condInstId, { discardInstIds: selectedDiscardIds })}>
@@ -152,18 +152,18 @@ function ObsesionResolver({ state, reactingPlayer, condInstId }: {
   return (
     <div className={PANEL}>
       {nonHeroes.length > 0 && (
-        <p className="text-xs text-primary/70">
+        <p className="modal-stage-note">
           Descartadas: <span className="text-primary">{nonHeroes.map(c => c?.name).join(', ')}</span>
         </p>
       )}
       {hero ? (
         <>
-          <p className="text-xs text-on-surface-variant">
+          <p className="modal-stage-label">
             Héroe: <strong className="text-on-surface">{hero.name}</strong> (F:{hero.baseStrength ?? '?'})
           </p>
           {isPeterPan ? (
             <>
-              <p className="text-xs text-tertiary/80">
+              <p className="modal-stage-note">
                 Al ser revelado, se juega automáticamente en el Árbol del Ahorcado.
               </p>
               <button className={BTN} onClick={() => doResolveCondition(condInstId, { playHero: true })}>
@@ -183,7 +183,7 @@ function ObsesionResolver({ state, reactingPlayer, condInstId }: {
               </div>
               {play === true && (
                 <>
-                  <p className="text-xs text-on-surface-variant">Elige ubicación en tu Reino:</p>
+                  <p className="modal-stage-label">Elige ubicación en tu Reino:</p>
                   <div className="flex flex-wrap gap-1.5">
                     {ownLocs.map(l => (
                       <button key={l.id}
@@ -204,7 +204,7 @@ function ObsesionResolver({ state, reactingPlayer, condInstId }: {
         </>
       ) : (
         <>
-          <p className="text-xs text-error/70">No hay Héroes en tu mazo de Destino.</p>
+          <p className="modal-stage-note">No hay Héroes en tu mazo de Destino.</p>
           <button className={BTN}
             onClick={() => doResolveCondition(condInstId, { playHero: false })}>
             Jugar Obsesión (sin efecto)
@@ -236,9 +236,9 @@ function PerspicazResolver({ state, reactingPlayer, condInstId }: {
 
   return (
     <div className={PANEL}>
-      <p className="text-xs text-on-surface-variant">Elige un Aliado de tu mano para jugar gratis:</p>
+      <p className="modal-stage-label">Elige un Aliado de tu mano para jugar gratis:</p>
       {allies.length === 0
-        ? <p className="text-xs text-error/70">No tienes Aliados en la mano.</p>
+        ? <p className="modal-stage-note">No tienes Aliados en la mano.</p>
         : (
           <div className="flex flex-wrap gap-1.5">
             {allies.map(c => c && (
@@ -252,7 +252,7 @@ function PerspicazResolver({ state, reactingPlayer, condInstId }: {
         )}
       {allyId && (
         <>
-          <p className="text-xs text-on-surface-variant">Elige ubicación en tu Reino:</p>
+          <p className="modal-stage-label">Elige ubicación en tu Reino:</p>
           <div className="flex flex-wrap gap-1.5">
             {unlockedLocs.map(l => (
               <button key={l.id}
@@ -293,9 +293,9 @@ function CobardiaResolver({ state, reactingPlayer, condInstId }: {
 
   return (
     <div className={PANEL}>
-      <p className="text-xs text-on-surface-variant">Elige un Aliado de tu mano para jugar gratis:</p>
+      <p className="modal-stage-label">Elige un Aliado de tu mano para jugar gratis:</p>
       {allies.length === 0
-        ? <p className="text-xs text-error/70">No tienes Aliados en la mano.</p>
+        ? <p className="modal-stage-note">No tienes Aliados en la mano.</p>
         : (
           <div className="flex flex-wrap gap-1.5">
             {allies.map(c => c && (
@@ -309,7 +309,7 @@ function CobardiaResolver({ state, reactingPlayer, condInstId }: {
         )}
       {allyId && (
         <>
-          <p className="text-xs text-on-surface-variant">Elige ubicación en tu Reino:</p>
+          <p className="modal-stage-label">Elige ubicación en tu Reino:</p>
           <div className="flex flex-wrap gap-1.5">
             {unlockedLocs.map(l => (
               <button key={l.id}
@@ -362,64 +362,52 @@ export function ConditionModal({ state }: Props) {
   const isType = (effectId: string) => condCard?.effectIds.includes(effectId) ?? false;
 
   return (
-    <div className={OVL}>
-      <div className="bg-surface-container border border-tertiary/50 rounded-xl p-5 w-105 max-w-[94vw] max-h-[90vh] overflow-y-auto flex flex-col gap-4 shadow-[0_0_40px_rgba(233,195,73,0.25)] pointer-events-auto">
-
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <span className="bg-tertiary text-on-tertiary font-stats text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded">
-            {reactingPlayer.name}
-          </span>
-          <h2 className="font-serif text-lg font-bold text-tertiary">¡Carta de Condición!</h2>
-        </div>
-        <p className="text-xs text-on-surface italic">{TRIGGER_MSG[pendingCondition.triggerType]}</p>
-
-        {/* Eligible cards */}
-        <div className="flex flex-col gap-1.5">
-          <p className="text-xs text-on-surface-variant">Puedes responder con:</p>
-          <div className="flex flex-wrap gap-3 justify-center">
-            {eligibleCardInstIds.map(id => {
-              const c = state.allCards[id];
-              return c && (
-                <CardPickButton key={id} card={c} state={state}
-                  selected={selectedCondId === id}
-                  onClick={() => setSelectedCondId(id)}
-                />
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Resolvers */}
-        {selectedCondId && isType(EffectId.MALICIA_COND) && (
-          <MaliciaResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
-        )}
-        {selectedCondId && isType(EffectId.TIRANIA_COND) && (
-          <TiraniaResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
-        )}
-        {selectedCondId && isType(EffectId.OBSESION_COND) && (
-          <ObsesionResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
-        )}
-        {selectedCondId && isType(EffectId.PERSPICAZ_COND) && (
-          <PerspicazResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
-        )}
-        {selectedCondId && isType(EffectId.JHON_COBARDIA_COND) && (
-          <CobardiaResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
-        )}
-        {selectedCondId && condCard && !isType(EffectId.MALICIA_COND) && !isType(EffectId.TIRANIA_COND)
-          && !isType(EffectId.OBSESION_COND) && !isType(EffectId.PERSPICAZ_COND) && !isType(EffectId.JHON_COBARDIA_COND) && (
-          <SimpleResolver condCard={condCard} condInstId={selectedCondId} />
-        )}
-
-        {/* Footer */}
-        <div className="flex justify-end border-t border-outline-variant/20 pt-3">
-          <button
-            className="px-3 py-1.5 rounded border border-outline-variant/50 text-on-surface-variant text-xs font-stats hover:border-outline hover:text-on-surface transition-all"
-            onClick={() => doResolveCondition(null, {})}>
-            Ignorar
-          </button>
+    <ModalStage
+      passThrough
+      eyebrow={`${reactingPlayer.name} · carta de Condición`}
+      title="¡Puedes responder!"
+      subtitle={TRIGGER_MSG[pendingCondition.triggerType]}
+      widthClass="max-w-4xl"
+      actions={
+        <button className="stage-btn stage-btn--secondary" onClick={() => doResolveCondition(null, {})}>
+          Ignorar
+        </button>
+      }
+    >
+      <div className="modal-stage-section">
+        <span className="modal-stage-label">Puedes responder con</span>
+        <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
+          {eligibleCardInstIds.map(id => {
+            const c = state.allCards[id];
+            return c && (
+              <CardPickButton key={id} card={c} state={state}
+                selected={selectedCondId === id}
+                onClick={() => setSelectedCondId(id)}
+              />
+            );
+          })}
         </div>
       </div>
-    </div>
+
+      {selectedCondId && isType(EffectId.MALICIA_COND) && (
+        <MaliciaResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
+      )}
+      {selectedCondId && isType(EffectId.TIRANIA_COND) && (
+        <TiraniaResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
+      )}
+      {selectedCondId && isType(EffectId.OBSESION_COND) && (
+        <ObsesionResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
+      )}
+      {selectedCondId && isType(EffectId.PERSPICAZ_COND) && (
+        <PerspicazResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
+      )}
+      {selectedCondId && isType(EffectId.JHON_COBARDIA_COND) && (
+        <CobardiaResolver state={state} reactingPlayer={reactingPlayer} condInstId={selectedCondId} />
+      )}
+      {selectedCondId && condCard && !isType(EffectId.MALICIA_COND) && !isType(EffectId.TIRANIA_COND)
+        && !isType(EffectId.OBSESION_COND) && !isType(EffectId.PERSPICAZ_COND) && !isType(EffectId.JHON_COBARDIA_COND) && (
+        <SimpleResolver condCard={condCard} condInstId={selectedCondId} />
+      )}
+    </ModalStage>
   );
 }

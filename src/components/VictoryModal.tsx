@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import type { GameState } from '../core/types';
-import { modalStyles } from '../styles/modalStyles';
 import { Image } from './Image';
 import { assetUrl } from '../lib/assets';
+import { ModalStage } from './shared/ModalStage';
 
 interface Props {
   state: GameState;
@@ -95,73 +95,39 @@ export function VictoryModal({ state, onPlayAgain }: Props) {
     .filter(line => line.trim().length > 0);
 
   return (
-    <div className={`${modalStyles.overlay} pointer-events-none`}>
-
-      {/* Modal */}
-      <div className="bg-surface-container-highest/98 border-2 border-tertiary/50 rounded-3xl shadow-2xl flex flex-col gap-4 sm:gap-6 p-5 sm:p-8 w-10/12 max-w-xs sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto pointer-events-auto backdrop-blur-sm">
-        {/* Villain Portrait */}
-        <div className="flex justify-center">
-          <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-tertiary/60 shadow-lg animate-bounce">
-            <Image
-              src={assetUrl(`villains/${winner?.villainId}.webp`)}
-              alt={winner?.name}
-              className="w-full h-full object-cover scale-125"
-            />
-          </div>
+    <ModalStage
+      eyebrow="¡Victoria!"
+      title={winner?.name ?? ''}
+      subtitle="ha ganado la partida"
+      widthClass="max-w-md"
+      actions={<button onClick={onPlayAgain} className="stage-btn stage-btn--primary">Jugar de nuevo</button>}
+    >
+      {/* Retrato del villano ganador con anillo de oro */}
+      <div className="villain-avatar-ring order-first" style={{ boxShadow: '0 0 0 1px rgba(0,0,0,0.7), 0 0 40px rgba(230,196,106,0.55), 0 10px 24px rgba(0,0,0,0.7)' }}>
+        <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden bg-black">
+          <Image
+            src={assetUrl(`villains/${winner?.villainId}.webp`)}
+            alt={winner?.name}
+            className="w-full h-full object-cover scale-125"
+          />
         </div>
-
-        {/* Title */}
-        <div className="text-center">
-          <p className="font-stats text-xs sm:text-sm uppercase tracking-widest text-on-surface-variant/60 mb-1 sm:mb-2">
-            ¡Victoria!
-          </p>
-          <h2 className="font-serif text-2xl sm:text-3xl font-bold text-tertiary">
-            {winner?.name}
-          </h2>
-          <p className="font-stats text-xs uppercase tracking-wider text-on-surface-variant/50 mt-1 sm:mt-2">
-            ha ganado la partida
-          </p>
-        </div>
-
-        {/* Divider */}
-        <div className="w-full h-px bg-linear-to-r from-transparent via-tertiary/30 to-transparent" />
-
-        {/* Stats */}
-        <div className="flex gap-3 justify-center">
-          <div className="flex flex-col items-center px-4 py-2 bg-surface-container/60 rounded-lg border border-tertiary/20">
-            <span className="font-stats text-[10px] text-on-surface-variant/60 uppercase tracking-wider">Poder</span>
-            <span className="font-stats text-lg font-bold text-tertiary">{winner?.power ?? 0}</span>
-          </div>
-          <div className="flex flex-col items-center px-4 py-2 bg-surface-container/60 rounded-lg border border-tertiary/20">
-            <span className="font-stats text-[10px] text-on-surface-variant/60 uppercase tracking-wider">Turno</span>
-            <span className="font-stats text-lg font-bold text-tertiary">{state.roundNumber}</span>
-          </div>
-        </div>
-
-        {/* Jugada final */}
-        {finalTurnLines.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <p className="font-stats text-[10px] uppercase tracking-wider text-on-surface-variant/60 text-center">
-              Jugada final
-            </p>
-            <div className="bg-surface-container/60 rounded-lg border border-tertiary/20 px-3 py-2 max-h-32 overflow-y-auto flex flex-col gap-1">
-              {finalTurnLines.map((line, i) => (
-                <p key={i} className="text-[11px] leading-snug text-on-surface-variant/80">
-                  {line}
-                </p>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Button */}
-        <button
-          onClick={onPlayAgain}
-          className="px-6 py-3 sm:py-3 min-h-12 sm:min-h-auto rounded-xl border-2 border-tertiary bg-tertiary/20 hover:bg-tertiary/30 text-tertiary font-serif font-bold uppercase tracking-wider transition-all active:scale-95"
-        >
-          Jugar de nuevo
-        </button>
       </div>
-    </div>
+
+      <div className="flex items-center justify-center gap-6">
+        <span className="stage-stat">Poder <b className="text-gold-bright">{winner?.power ?? 0}</b></span>
+        <span className="stage-stat">Ronda <b className="text-gold-bright">{state.roundNumber}</b></span>
+      </div>
+
+      {finalTurnLines.length > 0 && (
+        <div className="modal-stage-section">
+          <span className="modal-stage-label">Jugada final</span>
+          <div className="history-sheet history-scroll w-full max-h-40! overflow-y-auto flex flex-col gap-1">
+            {finalTurnLines.map((line, i) => (
+              <p key={i} className="font-narrative text-[15px] leading-snug text-[#efe6d2]/80">{line}</p>
+            ))}
+          </div>
+        </div>
+      )}
+    </ModalStage>
   );
 }

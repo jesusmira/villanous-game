@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { GameState } from '../core/types';
 import { useGameStore } from '../state/gameStore';
 import { CardComponent } from './CardComponent';
+import { ModalStage } from './shared/ModalStage';
 
 interface Props { state: GameState }
 
@@ -23,36 +24,26 @@ export function ShrinkPickModal({ state }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 pointer-events-none">
-      <div className="bg-surface-container-highest/95 border border-error/30 rounded-2xl shadow-2xl flex flex-col gap-5 p-6 w-full max-w-3xl pointer-events-auto">
-        <div>
-          <h2 className="font-serif text-base text-on-surface">Furia</h2>
-          <p className="text-[11px] text-on-surface-variant/70 mt-1 leading-snug">
-            Elige hasta {max} Héroe(s) rival(es) para Menguar ({selected.length}/{max}):
-          </p>
-        </div>
-
-        <div className="flex flex-wrap justify-center gap-4">
-          {cards.map(card => (
-            <CardComponent
-              key={card.instId}
-              card={card}
-              state={state}
-              selected={selected.includes(card.instId)}
-              onClick={() => toggle(card.instId)}
-            />
-          ))}
-        </div>
-
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={() => doResolveShrinkPick(selected)}
-            className="px-4 py-2 rounded-lg bg-error text-on-error text-xs font-stats uppercase tracking-widest"
-          >
-            Confirmar ({selected.length})
+    <ModalStage
+      passThrough
+      tone="fate"
+      eyebrow="Furia"
+      title={`Mengua hasta ${max} Héroe${max !== 1 ? 's' : ''}`}
+      subtitle={`Héroes del rival · ${selected.length}/${max} elegido${selected.length !== 1 ? 's' : ''}`}
+      actions={
+        <button onClick={() => doResolveShrinkPick(selected)} className="stage-btn stage-btn--primary">
+          Confirmar ({selected.length})
+        </button>
+      }
+    >
+      <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
+        {cards.map(card => (
+          <button key={card.instId} onClick={() => toggle(card.instId)}
+            className={`stage-pick ${selected.includes(card.instId) ? 'is-chosen' : ''}`}>
+            <CardComponent card={card} state={state} selected={selected.includes(card.instId)} sizeClassName="card-size-stage" />
           </button>
-        </div>
+        ))}
       </div>
-    </div>
+    </ModalStage>
   );
 }

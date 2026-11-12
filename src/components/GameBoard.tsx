@@ -28,6 +28,7 @@ import { AttachTargetModal } from './AttachTargetModal';
 import { StarkeyMoveModal } from './StarkeyMoveModal';
 import { HandFan } from './HandFan';
 import { CardFocus, FocusPrimaryButton, FocusSecondaryButton } from './CardFocus';
+import { ModalStage } from './shared/ModalStage';
 import { TestPage } from './TestPage';
 import { useGameStore } from '../state/gameStore';
 import { useActionPanelState } from './useActionPanelState';
@@ -1043,30 +1044,22 @@ export function GameBoard({ state }: Props) {
 
       {/* ── Mapa de Nunca Jamás choice ─────────────────────────── */}
       {pendingItemDrop && (
-        <div className="fixed inset-0 flex items-center justify-center z-110 p-4 pointer-events-none">
-          <div className="bg-surface-container-highest border border-tertiary/30 rounded-2xl shadow-2xl flex flex-col gap-4 p-5 w-full max-w-xs mx-4 pointer-events-auto">
-            <div>
-              <h2 className="font-serif text-base text-on-surface">Mapa de Nunca Jamás</h2>
-              <p className="text-[11px] text-on-surface-variant/70 mt-1 leading-snug">
-                Tienes el Mapa en el reino. ¿Descartarlo para jugar este objeto gratis?
-              </p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => resolvePendingItemDrop(true)}
-                className="px-4 py-2.5 rounded-xl border border-tertiary/50 bg-tertiary/10 text-tertiary font-stats text-xs uppercase tracking-wider hover:bg-tertiary/20 transition-colors"
-              >
-                Usar Mapa — gratis
-              </button>
-              <button
-                onClick={() => resolvePendingItemDrop(false)}
-                className="px-4 py-2.5 rounded-xl border border-outline-variant/40 text-on-surface-variant font-stats text-xs uppercase tracking-wider hover:border-outline hover:text-on-surface transition-colors"
-              >
-                Pagar normalmente — {pendingItemDrop.normalCost} ⚡
-              </button>
-            </div>
-          </div>
-        </div>
+        <ModalStage
+          passThrough
+          zClass="z-110"
+          eyebrow="Mapa de Nunca Jamás"
+          title="¿Usar el Mapa?"
+          subtitle="Tienes el Mapa en tu Reino: puedes descartarlo para jugar este Objeto gratis."
+          widthClass="max-w-lg"
+          actions={<>
+            <button onClick={() => resolvePendingItemDrop(false)} className="stage-btn stage-btn--secondary">
+              Pagar {pendingItemDrop.normalCost} ⚡
+            </button>
+            <button onClick={() => resolvePendingItemDrop(true)} className="stage-btn stage-btn--primary">
+              Usar Mapa · gratis
+            </button>
+          </>}
+        />
       )}
 
       {isHumanTurn && <VanquishModal ap={ap} state={displayedState} playerId={currentPlayer.id} />}

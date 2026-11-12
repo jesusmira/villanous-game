@@ -3,6 +3,7 @@ import type { CardInstId, GameState, LocationId, PlayerId } from '../core/types'
 import { getPlugin } from '../core/villains/registry';
 import { getPlayer } from '../core/engine/stateHelpers';
 import { CardComponent } from './CardComponent';
+import { ModalStage } from './shared/ModalStage';
 
 interface Props {
   state: GameState;
@@ -12,9 +13,6 @@ interface Props {
   onSkip: () => void;
   onCancel: () => void;
 }
-
-const SEL = 'px-2.5 py-1.5 rounded border border-outline-variant/40 text-xs font-stats text-on-surface-variant bg-surface-container hover:border-primary hover:text-primary transition-all';
-const SKIP_BTN = 'px-3 py-1.5 rounded border border-outline-variant/50 text-on-surface-variant text-xs font-stats hover:border-outline hover:text-on-surface transition-all';
 
 /** Sr. Starkey: "puedes mover un Héroe a una ubicación adyacente" — opcional, de ahí el botón
  *  Ignorar (juega la carta sin mover a nadie). Elegir héroe y destino es responsabilidad del
@@ -34,64 +32,51 @@ export function StarkeyMoveModal({ state, playerId, cardName, onConfirm, onSkip,
     : [];
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-110 p-4" onClick={onCancel}>
-      <div
-        className="bg-surface-container-highest border border-tertiary/30 rounded-2xl shadow-2xl flex flex-col gap-4 p-5 w-full max-w-md mx-4"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-serif text-base text-on-surface">{cardName}</h2>
-            <p className="text-[11px] text-on-surface-variant/70 mt-1 leading-snug">
-              Puedes mover un Héroe a una ubicación adyacente.
-            </p>
-          </div>
-          <button onClick={onCancel} className="text-on-surface-variant/40 hover:text-on-surface transition-colors text-lg leading-none">×</button>
-        </div>
-
-        {heroEntries.length === 0 ? (
-          <p className="text-xs text-error/70">No hay Héroes en tu Reino.</p>
-        ) : (
-          <>
-            <p className="text-xs text-on-surface-variant">Elige el Héroe a mover:</p>
-            <div className="flex gap-3 flex-wrap justify-center">
-              {heroEntries.map(({ id }) => {
-                const card = state.allCards[id];
-                if (!card) return null;
-                return (
-                  <div
-                    key={id}
-                    onClick={() => setHeroId(id)}
-                    className={`cursor-pointer transition-all rounded-xl ${heroId === id ? 'ring-2 ring-primary opacity-100' : 'opacity-70 hover:opacity-100 hover:scale-105'}`}
-                  >
-                    <CardComponent card={card} state={state} />
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {heroId && (
-          <>
-            <p className="text-xs text-on-surface-variant">Elige ubicación destino (adyacente):</p>
-            <div className="flex flex-wrap gap-1.5 justify-center">
-              {destOptions.map(locId => (
-                <button key={locId} className={SEL} onClick={() => onConfirm(heroId, locId)}>
-                  {plugin.locations.find(l => l.id === locId)?.name ?? locId}
+    <ModalStage
+      zClass="z-110"
+      onDismiss={onCancel}
+      eyebrow={cardName}
+      title="Mover un Héroe"
+      subtitle="Puedes mover un Héroe a una ubicación adyacente."
+      actions={<>
+        <button onClick={onCancel} className="stage-btn stage-btn--secondary">Cancelar</button>
+        <button onClick={onSkip} className="stage-btn stage-btn--secondary">Ignorar — no mover</button>
+      </>}
+    >
+      {heroEntries.length === 0 ? (
+        <p className="modal-stage-note">No hay Héroes en tu Reino.</p>
+      ) : (
+        <div className="modal-stage-section">
+          <span className="modal-stage-label">Héroe a mover</span>
+          <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
+            {heroEntries.map(({ id }) => {
+              const card = state.allCards[id];
+              if (!card) return null;
+              return (
+                <button key={id} onClick={() => setHeroId(id)} className={`stage-pick ${heroId === id ? 'is-chosen' : ''}`}>
+                  <CardComponent card={card} state={state} selected={heroId === id} sizeClassName="card-size-stage" />
                 </button>
-              ))}
-              {destOptions.length === 0 && (
-                <p className="text-xs text-error/70">Sin ubicaciones adyacentes desbloqueadas.</p>
-              )}
-            </div>
-          </>
-        )}
-
-        <div className="flex justify-end border-t border-outline-variant/20 pt-3">
-          <button className={SKIP_BTN} onClick={onSkip}>Ignorar — no mover Héroe</button>
+              );
+            })}
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+
+      {heroId && (
+        <div className="modal-stage-section">
+          <span className="modal-stage-label">Ubicación destino (adyacente)</span>
+          <div className="flex flex-wrap justify-center gap-2">
+            {destOptions.map(locId => (
+              <button key={locId} className="stage-chip" onClick={() => onConfirm(heroId, locId)}>
+                {plugin.locations.find(l => l.id === locId)?.name ?? locId}
+              </button>
+            ))}
+            {destOptions.length === 0 && (
+              <p className="modal-stage-note">Sin ubicaciones adyacentes desbloqueadas.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </ModalStage>
   );
 }

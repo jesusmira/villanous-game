@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { GameState, CardInstId } from '../core/types';
 import { useGameStore } from '../state/gameStore';
 import { CardComponent } from './CardComponent';
+import { ModalStage } from './shared/ModalStage';
 
 interface Props { state: GameState }
 
@@ -37,84 +38,53 @@ export function DemoslesModal({ state }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 pointer-events-none">
-      <div className="bg-surface-container-highest border border-error/30 rounded-2xl shadow-2xl w-full max-w-sm pointer-events-auto flex flex-col gap-5 p-5">
-
-        {/* Header */}
-        <div>
-          <h2 className="font-serif text-base text-error">Démosles un Susto</h2>
-          <p className="text-[11px] text-on-surface-variant/60 mt-0.5 leading-snug">
-            Elige qué descartar. Si guardas las dos, selecciona cuál va primera.
-          </p>
-        </div>
-
-        {/* Cards */}
-        <div className="flex justify-center gap-6">
-          {cards.map(card => {
-            const discarded  = toDiscard.has(card.instId);
-            const isTop      = topCardId === card.instId;
-            const isKept     = !discarded;
-            return (
-              <div key={card.instId} className="flex flex-col items-center gap-3">
-
-                {/* Card visual */}
-                <div
+    <ModalStage
+      passThrough
+      tone="fate"
+      eyebrow="Démosles un Susto"
+      title="Mira las dos cartas de Destino"
+      subtitle="Descarta las que quieras. Si guardas las dos, elige cuál queda arriba."
+      actions={<>
+        <span className="modal-stage-label">
+          {toDiscard.size > 0 ? `${toDiscard.size} descartada(s)` : 'Ninguna descartada'}
+          {keepIds.length > 0 && ` · ${keepIds.length} al mazo`}
+        </span>
+        <button disabled={!canConfirm} onClick={confirm} className="stage-btn stage-btn--primary">Confirmar</button>
+      </>}
+    >
+      <div className="flex flex-wrap justify-center gap-6 sm:gap-10">
+        {cards.map(card => {
+          const discarded = toDiscard.has(card.instId);
+          const isTop     = topCardId === card.instId;
+          const isKept    = !discarded;
+          return (
+            <div key={card.instId} className="flex flex-col items-center gap-3">
+              <button
+                onClick={() => toggleDiscard(card.instId)}
+                className={`stage-pick ${isTop ? 'is-chosen' : ''} ${discarded ? 'opacity-35 grayscale' : ''}`}
+              >
+                <CardComponent card={card} state={state} selected={isTop} sizeClassName="card-size-stage" />
+              </button>
+              <div className="flex flex-col items-center gap-1.5">
+                <button
                   onClick={() => toggleDiscard(card.instId)}
-                  className={`cursor-pointer transition-all duration-200 rounded-xl select-none ${
-                    discarded ? 'opacity-30 scale-95 grayscale' : 'hover:scale-105'
-                  } ${isTop ? 'ring-2 ring-tertiary' : ''}`}
+                  className={`stage-chip ${discarded ? 'is-danger-chosen' : ''}`}
                 >
-                  <CardComponent card={card} state={state} selected={isTop} />
-                </div>
-
-                {/* Action buttons below the card */}
-                <div className="flex flex-col items-center gap-1.5">
-                  {/* Toggle discard */}
+                  {discarded ? '✕ Descartar' : '✓ Guardar'}
+                </button>
+                {needsOrder && isKept && (
                   <button
-                    onClick={() => toggleDiscard(card.instId)}
-                    className={`px-3 py-1 rounded-lg border font-stats text-[10px] uppercase tracking-wider transition-all ${
-                      discarded
-                        ? 'border-error/60 bg-error/15 text-error hover:bg-error/25'
-                        : 'border-outline-variant/40 text-on-surface-variant/60 hover:border-error/50 hover:text-error/70'
-                    }`}
+                    onClick={() => setTopCardId(isTop ? null : card.instId)}
+                    className={`stage-chip ${isTop ? 'is-chosen' : ''}`}
                   >
-                    {discarded ? '✕ Descartar' : '✓ Guardar'}
+                    {isTop ? '★ Primera' : '↑ Poner primera'}
                   </button>
-
-                  {/* "Poner primero" — solo si hay 2 cartas guardadas */}
-                  {needsOrder && isKept && (
-                    <button
-                      onClick={() => setTopCardId(isTop ? null : card.instId)}
-                      className={`px-3 py-1 rounded-lg border font-stats text-[10px] uppercase tracking-wider transition-all ${
-                        isTop
-                          ? 'border-tertiary bg-tertiary/15 text-tertiary'
-                          : 'border-outline-variant/40 text-on-surface-variant/50 hover:border-tertiary/50 hover:text-tertiary/70'
-                      }`}
-                    >
-                      {isTop ? '★ Primera' : '↑ Poner primera'}
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
-            );
-          })}
-        </div>
-
-        {/* Status + confirm */}
-        <div className="flex items-center justify-between border-t border-outline-variant/15 pt-3">
-          <span className="font-stats text-[10px] text-on-surface-variant/50">
-            {toDiscard.size > 0 ? `${toDiscard.size} descartada(s)` : 'Ninguna descartada'}
-            {keepIds.length > 0 && ` · ${keepIds.length} al mazo`}
-          </span>
-          <button
-            disabled={!canConfirm}
-            onClick={confirm}
-            className="px-4 py-1.5 rounded-xl border border-primary/50 bg-primary-container text-primary font-stats text-xs uppercase tracking-wider hover:bg-primary/20 transition-all disabled:opacity-35 disabled:cursor-not-allowed"
-          >
-            Confirmar
-          </button>
-        </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </ModalStage>
   );
 }
