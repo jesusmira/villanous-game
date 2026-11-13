@@ -67,7 +67,7 @@ A `VillainPlugin` contains:
 - `effects: EffectDef[]` — effect handlers (Strategy pattern); each has a `trigger` and an `execute: (state, ctx) => GameState`
 - `checkWinCondition: (state, playerId) => boolean` — evaluated after every state mutation
 
-To add a new villain: create `src/core/villains/<id>/index.ts`, export a `VillainPlugin`, import and register it in `registry.ts`, and add its id to the `VillainId` union in `types.ts`.
+To add a new villain: create `src/core/villains/<id>/index.ts`, export a `VillainPlugin`, import and register it in `registry.ts`, and add its id to the `VillainId` union in `types.ts`. Also write its Villain Guide in `src/content/guides/<id>.md` and add it to `GUIDE_LOADERS` in `src/content/index.ts` — it's a `Record<VillainId, …>`, so the build fails until you do. Guides use plain Markdown plus `@cartas: Name A | Name B` to show card thumbnails, looked up by name in that villain's decks.
 
 ### Effect system
 

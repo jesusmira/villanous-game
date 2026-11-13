@@ -33,12 +33,15 @@ const BOARD_IMAGES: Record<string, string> = {
 };
 import { getCoveredSlotIndices, getAvailableSlotIndices, getHissChoiceSlotIndices } from '../core/engine/slotHelpers';
 import { LocationTile } from './LocationTile';
+import { parseProgress } from './shared/winProgress';
 import { Zap, Layers, BookOpen, Star } from 'lucide-react';
 
 interface Props {
   state: GameState;
   player: PlayerState;
   isActive: boolean;
+  /** Pulsar el avatar abre la Guía de Villano de este jugador. */
+  onAvatarClick?: () => void;
   onCardClick: (id: CardInstId) => void;
   selectedCardId: CardInstId | null;
   /** ACTIVATE phase: called with slot index when a token is clicked */
@@ -69,16 +72,7 @@ interface Props {
   onSherifDragEnd?: () => void;
 }
 
-/** Parse "✅ Foo | ❌ Bar" into typed chips */
-function parseProgress(label: string | null): { done: boolean; text: string }[] {
-  if (!label) return [];
-  return label.split(' | ').map(item => ({
-    done: item.startsWith('✅'),
-    text: item.replace(/^[✅❌]\s*/, '').trim(),
-  }));
-}
-
-export function PlayerBoard({ state, player, isActive, onCardClick, selectedCardId, onActionSlotClick, onLocationClick, movableLocIds, playHighlights, onCardDrop, onVillainCardDragStart, onVillainCardDragEnd, onHeroCardDragStart, onHeroCardDragEnd, onFateLocationClick, ravenInstId, onRavenDragStart, onRavenDragEnd, sherifInstId, onSherifDragStart, onSherifDragEnd }: Props) {
+export function PlayerBoard({ state, player, isActive, onAvatarClick, onCardClick, selectedCardId, onActionSlotClick, onLocationClick, movableLocIds, playHighlights, onCardDrop, onVillainCardDragStart, onVillainCardDragEnd, onHeroCardDragStart, onHeroCardDragEnd, onFateLocationClick, ravenInstId, onRavenDragStart, onRavenDragEnd, sherifInstId, onSherifDragStart, onSherifDragEnd }: Props) {
   const plugin        = getPlugin(player.villainId);
   const progressLabel = plugin.getWinProgress?.(state, player) ?? null;
   const progressItems = parseProgress(progressLabel);
@@ -109,8 +103,15 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
       >
         <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto sm:flex-1 min-w-0">
 
-          {/* Avatar con anillo de oro labrado */}
-          <div className="villain-avatar-ring shrink-0">
+          {/* Avatar con anillo de oro labrado — pulsarlo abre la Guía de Villano */}
+          <button
+            type="button"
+            onClick={onAvatarClick}
+            disabled={!onAvatarClick}
+            title={`Guía de ${plugin.name}`}
+            aria-label={`Abrir la Guía de Villano de ${plugin.name}`}
+            className="villain-avatar-ring villain-avatar-button shrink-0"
+          >
             <div
               className="w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-full overflow-hidden flex items-center justify-center bg-black"
               style={{ boxShadow: `inset 0 0 0 1px rgba(0,0,0,0.8), inset 0 0 18px ${plugin.color}55` }}
@@ -120,7 +121,12 @@ export function PlayerBoard({ state, player, isActive, onCardClick, selectedCard
                 className="w-full h-full object-cover scale-150"
               />
             </div>
-          </div>
+            {onAvatarClick && (
+              <span className="villain-avatar-badge" aria-hidden="true">
+                <BookOpen className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+              </span>
+            )}
+          </button>
 
           {/* Nombre + objetivo */}
           <div className="flex flex-col gap-1 min-w-0">

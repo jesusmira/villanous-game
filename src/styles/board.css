@@ -157,6 +157,32 @@
   .villain-plaque.is-active .villain-avatar-ring {
     box-shadow: 0 0 0 1px rgba(0,0,0,0.7), 0 0 22px rgb(var(--gold-rgb) / 0.5), 0 6px 18px rgba(0,0,0,0.7);
   }
+  /* El avatar abre la Guía de Villano: brillo al pasar el ratón y una insignia de libro como
+     pista visible también en táctil (donde no hay hover). */
+  .villain-avatar-button {
+    position: relative;
+    display: block;
+    cursor: pointer;
+    transition: transform var(--dur-fast, 150ms) ease, box-shadow var(--dur-fast, 150ms) ease;
+  }
+  .villain-avatar-button:disabled { cursor: default; }
+  .villain-avatar-button:not(:disabled):hover,
+  .villain-avatar-button:focus-visible {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.7), 0 0 20px rgb(var(--gold-bright-rgb) / 0.6), 0 6px 18px rgba(0,0,0,0.7);
+    outline: none;
+  }
+  .villain-avatar-badge {
+    position: absolute;
+    right: -3px; bottom: -3px;
+    display: flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px;
+    border-radius: 999px;
+    color: #3a2808;
+    background: radial-gradient(circle at 35% 30%, #f6dd94 0%, #b8862f 75%);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.75), 0 2px 6px rgba(0,0,0,0.6);
+  }
+  @media (min-width: 640px) { .villain-avatar-badge { width: 20px; height: 20px; } }
 
   /* ── Banda cinematográfica (cabecera) ─────────────────────── */
   .cine-band {

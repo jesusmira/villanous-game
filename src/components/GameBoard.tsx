@@ -26,6 +26,8 @@ import { VictoryModal } from './VictoryModal';
 import { ConfirmLeaveModal } from './ConfirmLeaveModal';
 import { AttachTargetModal } from './AttachTargetModal';
 import { StarkeyMoveModal } from './StarkeyMoveModal';
+import { VillainGuideModal } from './VillainGuideModal';
+import type { GuideTab } from './VillainGuideModal';
 import { HandFan } from './HandFan';
 import { CardFocus, FocusPrimaryButton, FocusSecondaryButton } from './CardFocus';
 import { ModalStage } from './shared/ModalStage';
@@ -36,7 +38,7 @@ import { canMovePawn, canPlayCard, canMoveItemAlly, canMoveHero, canPayToDiscard
 import { computeKingdomCostMod } from '../core/engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../core/engine/slotHelpers';
 import { buildPlayCtx, getAttachCandidates } from '../core/ai/contextBuilder';
-import { LayoutGrid, RotateCcw, ScrollText, Beaker, BookOpen } from 'lucide-react';
+import { LayoutGrid, RotateCcw, ScrollText, Beaker, BookOpen, HelpCircle } from 'lucide-react';
 
 // Dispositivo cuyo puntero PRIMARIO es táctil (tablet/móvil). En estos no hay hover
 // prolongado ni arrastre desde la mano: un toque abre el Modo Enfoque y "Jugar" selecciona.
@@ -65,6 +67,8 @@ export function GameBoard({ state }: Props) {
 
   // ─── UI State: Drawers & modals ───────────────────────────────────────────
   const [historyOpen, setHistoryOpen]       = useState(false);
+  // Guía de Villano / Reglas: jugador cuya guía se muestra y pestaña inicial.
+  const [guide, setGuide]                   = useState<{ playerId: string; tab: GuideTab } | null>(null);
   const [floraOpen, setFloraOpen]           = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showTests, setShowTests]           = useState(false);
@@ -164,6 +168,7 @@ export function GameBoard({ state }: Props) {
   // el AVANCE automático cada 750ms: no arranca hasta cerrar el modal (ver
   // handleCloseTurnIndicator), para que el turno de la IA visiblemente empiece tras Aceptar.
   const [replayHeld, setReplayHeld]         = useState(false);
+  const guideOpen = guide !== null;
 
   // Reinicia el índice de replay cuando llega una nueva cola de jugadas de la IA. Se ajusta
   // durante el render (en vez de en un useEffect) para evitar un commit intermedio con el
@@ -186,9 +191,10 @@ export function GameBoard({ state }: Props) {
   useEffect(() => {
     if (replayIndex < 0 || replayIndex >= replayRef.current.length) return;
     if (replayHeld) return; // esperando a que se cierre el modal de turno
+    if (guideOpen) return;  // pausado mientras se consulta la Guía/Reglas, para no perderse jugadas
     const id = setTimeout(() => setReplayIndex(i => i + 1), 750);
     return () => clearTimeout(id);
-  }, [replayIndex, replayHeld]);
+  }, [replayIndex, replayHeld, guideOpen]);
 
   // Cierra el modal "Turno de..." y libera el avance automático si estaba retenido.
   const handleCloseTurnIndicator = () => {
@@ -747,6 +753,14 @@ export function GameBoard({ state }: Props) {
           )}
           <span className="hidden sm:inline md:hidden font-stats text-xs text-gold/80">R{state.roundNumber}</span>
           <button
+            onClick={() => setGuide({ playerId: (state.players.find(p => !p.isAI) ?? state.players[0]).id, tab: 'rules' })}
+            title="Reglas del juego"
+            aria-label="Reglas del juego"
+            className="text-on-surface-variant/80 hover:text-gold-bright transition-colors duration-200"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => setHistoryOpen(true)}
             title="Ver histórico"
             className="text-on-surface-variant/80 hover:text-gold-bright transition-colors duration-200"
@@ -843,6 +857,7 @@ export function GameBoard({ state }: Props) {
               state={displayedState}
               player={player}
               isActive={isActive}
+              onAvatarClick={() => setGuide({ playerId: player.id, tab: 'guide' })}
               onCardClick={(id) => {
                 const card = displayedState.allCards[id];
                 if (card) setFocusCard({ card, from: 'board' });
@@ -1086,6 +1101,14 @@ export function GameBoard({ state }: Props) {
       {state.pendingShrinkSlotChoice && <ShrinkSlotModal state={state} />}
       {state.pendingShotReveal && <ShotRevealModal state={state} />}
       {historyOpen && <HistoryModal state={displayedState} onClose={() => setHistoryOpen(false)} />}
+      {guide && (
+        <VillainGuideModal
+          state={displayedState}
+          playerId={guide.playerId}
+          initialTab={guide.tab}
+          onClose={() => setGuide(null)}
+        />
+      )}
       {showHookDeck && <HookDeckModal state={displayedState} onClose={() => setShowHookDeck(false)} />}
       {floraOpen && floraVictim && (
         <FloraRevealModal state={displayedState} victim={floraVictim} onClose={() => setFloraOpen(false)} />
