@@ -28,7 +28,7 @@ export function TurnIndicatorModal({ player, isOpen, onClose }: Props) {
       title={<span className="turn-indicator-name" style={{ textShadow: `0 2px 4px rgba(0,0,0,0.9), 0 0 36px ${plugin.color}cc, 0 0 70px rgba(230,196,106,0.3)` }}>{player.name}</span>}
       subtitle={plugin.name}
       widthClass="max-w-xl"
-      actions={<button onClick={onClose} className="stage-btn stage-btn--primary">Aceptar</button>}
+      actions={<button onClick={onClose} className="btn btn--primary">Aceptar</button>}
     />
   );
 }

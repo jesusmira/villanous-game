@@ -22,7 +22,7 @@ export function AttachTargetModal({ state, cardName, reqTarget, candidates, onSe
       eyebrow={cardName}
       title={`Elige ${label}`}
       subtitle={`${cardName} se unirá a la carta que elijas.`}
-      actions={<button onClick={onCancel} className="stage-btn stage-btn--secondary">Cancelar</button>}
+      actions={<button onClick={onCancel} className="btn btn--secondary">Cancelar</button>}
     >
       <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
         {candidates.map(id => {

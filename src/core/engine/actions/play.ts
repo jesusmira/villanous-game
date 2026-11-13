@@ -9,7 +9,7 @@ import {
   applyPowerGain, heroBlockedFromLocation, computeActivationCostMod,
 } from '../stateHelpers';
 import { getActionAtSlot } from '../slotHelpers';
-import { checkConditions, firePawnArrivalIfMoved } from './_helpers';
+import { checkConditions, firePawnArrivalIfMoved, fireHeroDefeated } from './_helpers';
 
 function checkAllyConditions(state: GameState, playerId: PlayerId): GameState {
   let s = state;
@@ -177,11 +177,7 @@ function executeVanquish(
   }
   s = addLog(s, `${getPlayer(s, playerId).name} derrota a ${hero.name}.`);
 
-  for (const cId of [...(getPlayer(s, playerId).locationStates[heroLocId]?.villainCardInstIds ?? [])]) {
-    s = runEffects(s, cId, 'ON_VANQUISH', {
-      actingPlayerId: playerId, cardInstId: cId, targetCardInstId: heroInstId, targetLocationId: heroLocId,
-    });
-  }
+  s = fireHeroDefeated(s, playerId, heroInstId, heroLocId, heroStr);
 
   if (heroStr >= 4) s = checkConditions(s, 'VANQUISH_4PLUS', playerId);
 

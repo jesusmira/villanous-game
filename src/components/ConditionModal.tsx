@@ -10,9 +10,9 @@ import { ModalStage } from './shared/ModalStage';
 
 // Mismo lenguaje visual que el resto de modales (ModalStage): pastillas para elegir,
 // botón dorado para confirmar y secciones sin caja. El tablero sigue consultable detrás.
-const SEL   = 'stage-chip';
-const ACT   = 'stage-chip is-chosen';
-const BTN   = 'stage-btn stage-btn--primary';
+const SEL   = 'chip';
+const ACT   = 'chip is-chosen';
+const BTN   = 'btn btn--primary';
 const PANEL = 'modal-stage-section';
 
 const TRIGGER_MSG: Record<string, string> = {
@@ -369,7 +369,7 @@ export function ConditionModal({ state }: Props) {
       subtitle={TRIGGER_MSG[pendingCondition.triggerType]}
       widthClass="max-w-4xl"
       actions={
-        <button className="stage-btn stage-btn--secondary" onClick={() => doResolveCondition(null, {})}>
+        <button className="btn btn--secondary" onClick={() => doResolveCondition(null, {})}>
           Ignorar
         </button>
       }

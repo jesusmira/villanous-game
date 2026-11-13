@@ -31,7 +31,7 @@ export function ShrinkPickModal({ state }: Props) {
       title={`Mengua hasta ${max} Héroe${max !== 1 ? 's' : ''}`}
       subtitle={`Héroes del rival · ${selected.length}/${max} elegido${selected.length !== 1 ? 's' : ''}`}
       actions={
-        <button onClick={() => doResolveShrinkPick(selected)} className="stage-btn stage-btn--primary">
+        <button onClick={() => doResolveShrinkPick(selected)} className="btn btn--primary">
           Confirmar ({selected.length})
         </button>
       }

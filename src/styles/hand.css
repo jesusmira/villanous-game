@@ -1,0 +1,118 @@
+/* Mano en abanico (HandFan).
+   Capa `components`. */
+
+@layer components {
+  /* ── Mano en abanico (HandFan) ───────────────────────────────── */
+  /* --fan-h: alto de carta en la mano. --fan-show: fracción que asoma sobre el borde inferior. */
+  :root {
+    --fan-h: clamp(116px, 37svh, 172px);
+    --fan-show: 0.66;
+    --fan-overlap: -0.3;
+  }
+  @media (min-width: 1024px) {
+    :root { --fan-h: clamp(196px, 30vh, 280px); --fan-overlap: -0.2; }
+  }
+  .card-size-fan {
+    height: var(--fan-h) !important;
+    width: auto !important;
+    aspect-ratio: 2 / 3;
+    border-radius: 9px !important;
+  }
+  /* Ancla: ocupa solo la parte visible (sirve para medir cuánto tapa la mano). */
+  .hand-fan-anchor {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    height: calc(var(--fan-h) * var(--fan-show));
+    z-index: 40;
+    pointer-events: none;
+  }
+  /* Sombra de suelo bajo la mano para separarla del tablero sin bandeja. */
+  .hand-fan-anchor::before {
+    content: '';
+    position: absolute; left: 15%; right: 15%; bottom: 0; height: 100%;
+    background: radial-gradient(ellipse 50% 100% at 50% 100%, rgba(0,0,0,0.65) 0%, transparent 75%);
+    pointer-events: none;
+  }
+  .hand-fan {
+    position: absolute;
+    left: 50%;
+    bottom: calc(var(--fan-h) * (var(--fan-show) - 1));
+    translate: -50% 0;
+    display: flex;
+    align-items: flex-end;
+  }
+  .hand-fan-slot {
+    position: relative;
+    pointer-events: auto;
+    transform-origin: 50% 115%;
+    /* Arco: las cartas de los extremos bajan y giran hacia fuera. El hueco (slot) NO se mueve
+       nunca al pasar el ratón: es la zona que detecta el puntero. Solo se mueve su dibujo
+       (.hand-fan-card). Antes subía el slot entero y su borde inferior quedaba ~20 px por encima
+       del borde de pantalla: agarrando la carta por la parte baja, el puntero salía de ella al
+       subir, bajaba, volvía a quedar debajo… y la carta daba saltos sin parar. */
+    transform: translateY(calc(var(--fan) * var(--fan) * 4px)) rotate(calc(var(--fan) * var(--fan-step)));
+    transition: filter var(--dur-fast) var(--ease-premium), opacity var(--dur-fast) var(--ease-premium);
+  }
+  .hand-fan-slot + .hand-fan-slot { margin-left: calc(var(--fan-h) * var(--fan-overlap)); }
+  .hand-fan-card {
+    transform-origin: 50% 100%;
+    transition: transform var(--dur-med) var(--ease-premium);
+  }
+  /* Mientras está subida, la zona sensible se amplía hacia arriba para cubrir la carta entera. */
+  .hand-fan-slot:hover::before {
+    content: '';
+    position: absolute;
+    left: -8%; right: -8%;
+    bottom: 100%;
+    height: calc(var(--fan-h) * 0.7);
+  }
+  /* Al pasar el ratón: se endereza (contrarresta el giro y la caída del arco), sube entera y crece. */
+  .hand-fan-slot:hover { z-index: 100 !important; }
+  .hand-fan-slot:hover .hand-fan-card,
+  .hand-fan-slot.is-selected:hover .hand-fan-card {
+    transform: rotate(calc(var(--fan) * var(--fan-step) * -1))
+               translateY(calc(var(--fan-h) * (var(--fan-show) - 1.04) - var(--fan) * var(--fan) * 4px))
+               scale(1.14);
+  }
+  .hand-fan-slot.is-selected .hand-fan-card {
+    transform: rotate(calc(var(--fan) * var(--fan-step) * -1))
+               translateY(calc(var(--fan-h) * (var(--fan-show) - 1.02) - var(--fan) * var(--fan) * 4px));
+  }
+  /* Descartar: todas suben (sin enderezarse) para poder elegir varias. */
+  .hand-fan.is-raised .hand-fan-card {
+    transform: translateY(calc(var(--fan-h) * (var(--fan-show) - 1)));
+  }
+  .hand-fan.is-raised .hand-fan-slot:hover .hand-fan-card {
+    transform: rotate(calc(var(--fan) * var(--fan-step) * -1))
+               translateY(calc(var(--fan-h) * (var(--fan-show) - 1.04) - var(--fan) * var(--fan) * 4px))
+               scale(1.08);
+  }
+  /* Jugable ahora mismo: filo jade luminoso (el oro queda para la carta elegida). */
+  .hand-fan-slot.is-playable .villainous-card {
+    border-color: #8be6b6;
+    box-shadow: 0 0 0 1px rgba(139,230,182,0.9), 0 0 14px rgba(111,220,164,0.65), 0 0 30px rgba(111,220,164,0.25), var(--shadow-card);
+  }
+  .hand-fan-slot.is-marked { filter: saturate(0.4) brightness(0.65); }
+  .hand-fan-slot.is-marked .villainous-card { border-color: rgba(240,110,110,0.85); }
+  .hand-fan-slot.is-dragging { opacity: 0.35; }
+  /* Durante un arrastre el abanico queda quieto: sin esto, el puntero al pasar por encima de las
+     otras cartas las levantaba y bajaba una tras otra (efecto "ola"), y la carta arrastrada daba
+     un salto al quedar elegida. La copia que sigue al puntero la pinta DragProvider aparte. */
+  .hand-fan.is-dragging .hand-fan-slot { pointer-events: none; }
+  .hand-fan.is-dragging .hand-fan-card { transform: none; }
+  .hand-fan-badge {
+    position: absolute;
+    left: 50%; bottom: calc(var(--fan-h) + 6px);
+    translate: -50% 0;
+    white-space: nowrap;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(240,120,120,0.55);
+    background: rgba(40,10,16,0.85);
+    color: #ffc9c2;
+    font: 600 9px/1.6 'Inter', sans-serif;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    pointer-events: auto;
+  }
+}

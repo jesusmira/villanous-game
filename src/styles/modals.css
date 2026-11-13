@@ -1,0 +1,382 @@
+/* Modales: Modo Enfoque (CardFocus), Acción Destino, escenario común (ModalStage) e histórico.
+   Capa `components`. */
+
+@layer components {
+  /* ── Modo Enfoque (CardFocus) ─────────────────────────────────── */
+  /* Carta grande. El alto disponible se reparte según orientación para no necesitar scroll nunca:
+     ver .focus-layout más abajo. Los márgenes (32/48 px) cubren el padding del overlay. */
+  .card-size-focus {
+    height: clamp(160px, calc(100svh - 32px), 480px) !important;
+    width: auto !important;
+    aspect-ratio: 2 / 3;
+    border-radius: 12px !important;
+    animation: none !important;
+  }
+  @media (orientation: portrait) {
+    /* Reserva 274 px para ficha + botones (+24 de padding y 12 de hueco) y que la carta no supere
+       el ancho de pantalla. iPhone 6 (375×667): carta de 357 px de alto. */
+    .card-size-focus { height: clamp(150px, min(calc(100svh - 310px), calc((100vw - 32px) * 1.5)), 480px) !important; }
+  }
+  .focus-layout {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .focus-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    min-height: 0;
+  }
+  .focus-rules { padding: 16px 20px; gap: 12px; min-height: 0; }
+  .focus-title { font-size: 1.25rem; }
+  .focus-text  { font-size: 16px; line-height: 1.625; }
+  @media (orientation: landscape) {
+    .focus-layout { flex-direction: row; }
+    .focus-side {
+      width: min(360px, calc(100vw - (100svh - 32px) * 0.667 - 64px));
+      max-height: calc(100svh - 32px);
+    }
+  }
+  @media (orientation: portrait) {
+    .focus-layout { flex-direction: column; gap: 12px; }
+    .focus-side { width: min(360px, calc(100vw - 24px)); max-height: 274px; }
+  }
+  /* Pantallas bajas o estrechas (móviles): ficha más compacta. */
+  @media (max-height: 520px), (max-width: 480px) {
+    .focus-rules { padding: 10px 14px; gap: 8px; }
+    .focus-title { font-size: 1rem; }
+    .focus-text  { font-size: 14px; line-height: 1.45; }
+  }
+  .card-size-peek {
+    height: clamp(220px, 50vh, 400px) !important;
+    width: auto !important;
+    aspect-ratio: 2 / 3;
+    border-radius: 12px !important;
+    animation: none !important;
+  }
+  .card-focus-backdrop {
+    background: radial-gradient(ellipse at center, rgba(14,10,22,0.6) 0%, rgba(4,3,8,0.88) 100%);
+    backdrop-filter: blur(4px);
+    animation: focus-fade var(--dur-med) var(--ease-premium) both;
+  }
+  .card-focus-enter { animation: focus-rise var(--dur-med) var(--ease-premium) both; }
+  .card-peek        { animation: focus-fade var(--dur-fast) var(--ease-premium) both; }
+  @keyframes focus-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes focus-rise {
+    from { opacity: 0; translate: 0 14px; scale: 0.96; }
+    to   { opacity: 1; translate: 0 0;    scale: 1; }
+  }
+
+  /* Ficha de reglas Art Déco: doble filete dorado, esquinas escalonadas y fondo oscuro mate. */
+  .deco-frame {
+    position: relative;
+    background:
+      radial-gradient(ellipse 120% 60% at 50% 0%, rgba(98,60,150,0.22) 0%, transparent 65%),
+      linear-gradient(180deg, rgba(24,19,34,0.97) 0%, rgba(11,9,16,0.98) 100%);
+    border: 1px solid rgb(var(--gold-rgb) / 0.6);
+    border-radius: 4px;
+    box-shadow:
+      inset 0 0 0 4px rgba(11,9,16,0.98),
+      inset 0 0 0 5px rgb(var(--gold-rgb) / 0.35),
+      0 24px 60px -18px rgba(0,0,0,0.9),
+      0 0 40px -14px rgb(var(--gold-rgb) / 0.25);
+  }
+  .deco-frame.is-hero { border-color: rgba(255,170,160,0.55); }
+  /* Esquinas escalonadas (motivo Art Déco) */
+  .deco-frame::before, .deco-frame::after {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    border: 1px solid rgb(var(--gold-bright-rgb) / 0.75);
+    pointer-events: none;
+  }
+  .deco-frame::before { top: -5px; left: -5px; border-right: none; border-bottom: none; box-shadow: -3px -3px 0 -2px rgb(var(--gold-bright-rgb) / 0.45); }
+  .deco-frame::after  { bottom: -5px; right: -5px; border-left: none; border-top: none; box-shadow: 3px 3px 0 -2px rgb(var(--gold-bright-rgb) / 0.45); }
+  .deco-rule {
+    height: 7px;
+    background:
+      linear-gradient(90deg, transparent, rgb(var(--gold-rgb) / 0.75), transparent) center / 100% 1px no-repeat,
+      linear-gradient(45deg, transparent 42%, var(--color-gold) 42%, var(--color-gold) 58%, transparent 58%) center / 7px 7px no-repeat;
+  }
+
+  /* ── Acción Destino (FateModal) ──────────────────────────────── */
+  :root { --fate-h: clamp(170px, 44vh, 380px); }
+  @media (max-height: 500px) {
+    :root { --fate-h: clamp(140px, 46vh, 220px); }
+  }
+  /* Vertical: dos cartas por fila en vez de apiladas a pantalla completa. */
+  @media (orientation: portrait) {
+    :root { --fate-h: min(40vh, calc((100vw - 56px) * 0.75)); }
+  }
+  .card-size-fate {
+    height: var(--fate-h) !important;
+    width: auto !important;
+    aspect-ratio: 2 / 3;
+    border-radius: 12px !important;
+    border-color: rgba(240,140,130,0.55) !important;
+  }
+  .card-size-fate-thumb {
+    height: 52px !important;
+    width: auto !important;
+    aspect-ratio: 2 / 3;
+    border-radius: 5px !important;
+    animation: none !important;
+  }
+  .fate-choice-card {
+    border-radius: 12px;
+    transition: transform var(--dur-med) var(--ease-premium), box-shadow var(--dur-med) var(--ease-premium);
+    box-shadow: 0 0 0 1px rgba(240,140,130,0.25), 0 0 30px -6px rgba(200,60,70,0.35);
+  }
+  .fate-choice-card:hover {
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 0 0 2px rgba(255,170,160,0.85), 0 0 36px rgba(220,80,90,0.55), 0 24px 40px -12px rgba(0,0,0,0.85);
+  }
+  /* El texto ocupa el ancho de la carta para que la fila no se descuadre. */
+  .fate-choice-text { max-width: calc(var(--fate-h) * 0.72); }
+  /* Solo hace falta cuando la carta sale pequeña: muy alta se lee sola, muy baja no hay sitio. */
+  @media (min-height: 760px), (max-height: 500px) {
+    .fate-choice-text { display: none; }
+  }
+  /* Pastilla superior (paso 2 o cartas ocultas): no tapa el tablero. */
+  .fate-pill {
+    position: fixed;
+    top: 60px;
+    /* Mismo motivo que .turn-flow: centrado sin translate (lo pisa la animación de entrada). */
+    left: 0; right: 0;
+    margin-inline: auto;
+    width: fit-content;
+    z-index: 95;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: calc(100vw - 24px);
+    padding: 6px 8px 6px 8px;
+    border-radius: 14px;
+    background:
+      linear-gradient(90deg, transparent 10%, rgba(240,140,130,0.8) 50%, transparent 90%) top center / 100% 1px no-repeat,
+      linear-gradient(180deg, rgba(34,20,30,0.95) 0%, rgba(14,9,14,0.96) 100%);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(220,110,110,0.5);
+    box-shadow: 0 16px 40px -12px rgba(0,0,0,0.9), 0 0 30px -10px rgba(200,60,70,0.4);
+    animation: focus-rise var(--dur-med) var(--ease-premium) both;
+  }
+
+  /* ── Escenario común de modales (ModalStage): mismo lenguaje que la Acción Destino ─────── */
+  .modal-stage {
+    position: fixed;
+    left: 0; right: 0; bottom: 0; top: 48px; /* bajo la banda superior */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+  }
+  @media (min-width: 640px) { .modal-stage { padding: 24px; } }
+  .modal-stage-backdrop {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(14,10,22,0.6) 0%, rgba(4,3,8,0.88) 100%);
+    backdrop-filter: blur(4px);
+    animation: focus-fade var(--dur-med) var(--ease-premium) both;
+  }
+  .modal-stage-backdrop.is-pass-through {
+    /* Mismo oscurecido que la Acción Destino (para que el texto se lea igual de bien), pero sin
+       desenfoque y sin capturar el puntero: las cartas del tablero se pueden seguir consultando. */
+    backdrop-filter: none;
+    pointer-events: none;
+  }
+  .modal-stage-content {
+    position: relative;
+    width: 100%;
+    max-height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    scrollbar-width: none;
+    animation: focus-rise var(--dur-med) var(--ease-premium) both;
+  }
+  .modal-stage-content::-webkit-scrollbar { display: none; }
+  @media (min-width: 640px) { .modal-stage-content { gap: 20px; } }
+  .modal-stage-eyebrow {
+    font: 600 10px/1.3 'Inter', sans-serif;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: rgb(var(--gold-bright-rgb) / 0.8);
+  }
+  .tone-fate   .modal-stage-eyebrow { color: rgba(255,156,144,0.85); }
+  .tone-arcane .modal-stage-eyebrow { color: rgba(211,188,249,0.85); }
+  .modal-stage-title {
+    font: 700 20px/1.15 'Cinzel', serif;
+    letter-spacing: 0.06em;
+    color: var(--color-gold-bright);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+  }
+  @media (min-width: 640px) { .modal-stage-title { font-size: 26px; } }
+  .modal-stage-subtitle {
+    max-width: 34rem;
+    font: italic 400 15px/1.45 'EB Garamond', serif;
+    color: rgba(239,230,210,0.85);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+  }
+  /* Bloques de contenido (secciones con su propia etiqueta). */
+  .modal-stage-section { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+  .modal-stage-label {
+    font: 600 9px/1 'Inter', sans-serif;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(203,196,207,0.6);
+  }
+  .modal-stage-note {
+    font: italic 400 14px/1.4 'EB Garamond', serif;
+    color: rgba(239,230,210,0.75);
+    text-align: center;
+  }
+
+  /* Cartas a elegir dentro de un modal: grandes, con elevación y brillo al pasar el ratón. */
+  /* Mismo tamaño que las cartas de la Acción Destino (--fate-h, que ya se adapta a pantallas bajas
+     y a móvil vertical): todos los modales muestran las cartas igual. */
+  .card-size-stage {
+    height: var(--fate-h) !important;
+    width: auto !important;
+    aspect-ratio: 2 / 3;
+    border-radius: 12px !important;
+  }
+  .stage-pick {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    border-radius: 12px;
+    transition: transform var(--dur-med) var(--ease-premium), opacity var(--dur-fast) var(--ease-premium), filter var(--dur-fast) var(--ease-premium);
+  }
+  .stage-pick > .villainous-card, .stage-pick .villainous-card { transition: box-shadow var(--dur-med) var(--ease-premium), border-color var(--dur-fast) var(--ease-premium); }
+  .stage-pick:hover:not(:disabled) { transform: translateY(-6px) scale(1.03); }
+  .stage-pick:hover:not(:disabled) .villainous-card { border-color: rgb(var(--gold-bright-rgb) / 0.75); box-shadow: 0 0 0 1px rgb(var(--gold-bright-rgb) / 0.6), 0 0 28px rgb(var(--gold-rgb) / 0.4), var(--shadow-card-lift); }
+  .stage-pick.is-chosen { transform: translateY(-6px); }
+  .stage-pick.is-chosen .villainous-card { border-color: var(--color-gold-bright); box-shadow: var(--glow-gold), var(--shadow-card-lift); }
+  .tone-fate .stage-pick:hover:not(:disabled) .villainous-card,
+  .stage-pick.is-danger:hover:not(:disabled) .villainous-card { border-color: rgba(255,170,160,0.85); box-shadow: 0 0 0 1px rgba(255,170,160,0.7), 0 0 30px rgba(220,80,90,0.5), var(--shadow-card-lift); }
+  .tone-fate .stage-pick.is-chosen .villainous-card { border-color: #ffb4ab; box-shadow: 0 0 0 2px rgba(255,170,160,0.85), 0 0 34px rgba(220,80,90,0.55), var(--shadow-card-lift); }
+  .stage-pick:disabled { opacity: 0.35; cursor: not-allowed; }
+  .stage-pick-caption {
+    font: 600 10px/1.2 'Inter', sans-serif;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(239,230,210,0.75);
+    text-align: center;
+  }
+
+  /* Opción de acción (ficha redonda + etiqueta), p. ej. Menguar / Agrandar. */
+  .stage-action {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    min-width: 120px;
+    padding: 14px 16px 12px;
+    border-radius: 16px;
+    border: 1px solid rgb(var(--gold-rgb) / 0.22);
+    background: linear-gradient(180deg, rgba(20,16,30,0.75) 0%, rgba(10,8,16,0.8) 100%);
+    transition: transform var(--dur-med) var(--ease-premium), border-color var(--dur-fast) var(--ease-premium), box-shadow var(--dur-fast) var(--ease-premium);
+  }
+  .stage-action:hover { transform: translateY(-4px); border-color: rgb(var(--gold-bright-rgb) / 0.8); box-shadow: 0 0 22px rgb(var(--gold-rgb) / 0.3), 0 14px 26px -10px rgba(0,0,0,0.8); }
+  .stage-action-token {
+    width: 64px; height: 64px;
+    border-radius: 999px;
+    object-fit: cover;
+    box-shadow: 0 0 0 2px var(--color-gold-bright), 0 0 16px rgb(var(--gold-rgb) / 0.45), 0 6px 12px rgba(0,0,0,0.6);
+  }
+  /* Cifra destacada en una línea de resumen (p. ej. Precio total vs Fuerza). */
+  .stage-stat {
+    display: inline-flex; align-items: baseline; gap: 6px;
+    font: 600 10px/1 'Inter', sans-serif;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(239,230,210,0.7);
+  }
+  .stage-stat b { font: 700 18px/1 'Inter', sans-serif; letter-spacing: 0; }
+
+  /* Histórico: lista legible con separadores de turno. */
+  .history-sheet {
+    max-height: min(60vh, 520px);
+    padding: 14px 18px;
+    border-radius: 14px;
+    border: 1px solid rgb(var(--gold-rgb) / 0.18);
+    background: linear-gradient(180deg, rgba(14,11,20,0.7) 0%, rgba(8,6,12,0.78) 100%);
+  }
+  .history-turn {
+    margin: 10px 0 4px;
+    font: 700 10px/1 'Cinzel', serif;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgb(var(--gold-bright-rgb) / 0.75);
+  }
+  .history-turn:first-child { margin-top: 0; }
+
+  /* Variante más compacta para modales con dos filas de cartas (Vencer: Héroes + Aliados). */
+  .card-size-stage-sm {
+    /* Vencer muestra dos filas (Héroes + Aliados): misma escala que Destino, reducida para que
+       quepan las dos a la vez. */
+    height: calc(var(--fate-h) * 0.6) !important;
+    width: auto !important;
+    aspect-ratio: 2 / 3;
+    border-radius: 9px !important;
+  }
+  .stage-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgb(var(--gold-rgb) / 0.6);
+    background: rgba(30,22,10,0.9);
+    color: var(--color-gold-bright);
+    font: 700 8px/1.4 'Inter', sans-serif;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  /* Barra de cuenta atrás (cierre automático en 3 s). */
+  .stage-countdown {
+    width: min(320px, 80%);
+    height: 3px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgb(var(--gold-rgb) / 0.15);
+  }
+  .stage-countdown > div {
+    height: 100%;
+    background: linear-gradient(90deg, #b98c34, var(--color-gold-bright));
+    animation: shrink 3s linear forwards;
+  }
+
+  /* Ficha de acción pulsable (El Cuervo): misma moneda que las del tablero. */
+  .stage-action-btn {
+    position: relative;
+    width: 60px; height: 60px;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 2px solid rgb(var(--gold-rgb) / 0.35);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 6px 12px rgba(0,0,0,0.6);
+    transition: transform var(--dur-fast) var(--ease-premium), box-shadow var(--dur-fast) var(--ease-premium), border-color var(--dur-fast) var(--ease-premium);
+  }
+  .stage-action-btn:hover { transform: translateY(-3px) scale(1.06); border-color: rgb(var(--gold-bright-rgb) / 0.85); box-shadow: 0 0 18px rgb(var(--gold-rgb) / 0.45), 0 8px 14px rgba(0,0,0,0.7); }
+  .stage-action-btn.is-chosen { border-color: var(--color-gold-bright); box-shadow: 0 0 0 2px var(--color-gold-bright), 0 0 22px rgb(var(--gold-rgb) / 0.6), 0 8px 14px rgba(0,0,0,0.7); transform: translateY(-3px); }
+
+  /* Aviso de turno: el nombre a gran tamaño. */
+  .turn-indicator-name { display: block; font-size: clamp(40px, 9vw, 76px); line-height: 1; letter-spacing: 0.04em; }
+
+  /* ── History scrollbar ──────────────────────────────────────────── */
+  .history-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(233,195,73,0.25) transparent;
+  }
+  .history-scroll::-webkit-scrollbar {
+    width: 3px;
+  }
+  .history-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .history-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, rgba(233,195,73,0.15), rgba(233,195,73,0.4));
+    border-radius: 99px;
+  }
+  .history-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(233,195,73,0.6);
+  }
+}

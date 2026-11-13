@@ -88,7 +88,7 @@ export function CuervoModal({ state }: Props) {
       subtitle="Elige una de las acciones disponibles en su ubicación (sin Destino)."
       widthClass="max-w-4xl"
       actions={
-        <button className="stage-btn stage-btn--secondary"
+        <button className="btn btn--secondary"
           onClick={() => doResolveCuervo(ActionType.GAIN_POWER, { amountOverride: 0 })}>
           Omitir acción
         </button>
@@ -183,7 +183,7 @@ export function CuervoModal({ state }: Props) {
               <>
                 <div className="flex items-center justify-center gap-3 w-full">
                   <button onClick={() => { setSelectedCardId(null); setSelectedAllyIds([]); }}
-                    className="stage-chip">← Cambiar</button>
+                    className="chip">← Cambiar</button>
                   <span className="modal-stage-note not-italic flex-1">
                     Vencer: <span className="text-[#f6dd94] font-bold">{state.allCards[selectedCardId]?.name}</span>
                   </span>
@@ -248,7 +248,7 @@ export function CuervoModal({ state }: Props) {
               <>
                 <div className="flex items-center justify-center gap-3 w-full">
                   <button onClick={() => setSelectedCardId(null)}
-                    className="stage-chip">← Cambiar</button>
+                    className="chip">← Cambiar</button>
                   <span className="modal-stage-note not-italic flex-1">
                     Mover: <span className="text-[#f6dd94] font-bold">{state.allCards[selectedCardId]?.name}</span>
                   </span>

@@ -1,0 +1,71 @@
+/* Base: variables, html/body, tipografía y barra de desplazamiento.
+   En la capa `base`: las clases de Tailwind siempre pueden ajustarlo. */
+
+@layer base {
+  /* Los botones heredan la fuente del contexto (los .btn y demás componentes la fijan ellos). */
+  button { cursor: pointer; font-family: inherit; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Global ───────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; }
+
+  /* Ritmo de animación común: 200–300 ms, curva suave sin rebote. */
+  :root {
+    /* Paleta de oro en canales RGB: `rgb(var(--gold-rgb) / 0.4)` para cualquier transparencia.
+       Cambiar el tono del oro de toda la interfaz es editar estas dos líneas. */
+    --gold-rgb: 230 196 106;
+    --gold-bright-rgb: 246 221 148;
+    --ease-premium: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --dur-fast: 200ms;
+    --dur-med:  280ms;
+    /* Sombras de objeto físico: contacto + caída larga + oclusión ambiental */
+    --shadow-card:
+      0 1px 0 rgba(255,255,255,0.06) inset,
+      0 1px 2px rgba(0,0,0,0.6),
+      0 6px 12px -2px rgba(0,0,0,0.55),
+      0 18px 32px -10px rgba(0,0,0,0.7);
+    --shadow-card-lift:
+      0 1px 0 rgba(255,255,255,0.08) inset,
+      0 2px 4px rgba(0,0,0,0.5),
+      0 14px 24px -4px rgba(0,0,0,0.6),
+      0 32px 52px -14px rgba(0,0,0,0.75);
+    --glow-gold: 0 0 0 1px rgb(var(--gold-bright-rgb) / 0.55), 0 0 18px rgb(var(--gold-rgb) / 0.35), 0 0 42px rgb(var(--gold-rgb) / 0.14);
+  }
+
+  html { background: #0c0a12; }
+
+  body {
+    /* Mesa: gradiente morado / azul noche / marrón + viñeteado + grano. El fondo propio del
+       villano (--bg-fondo) sigue teniendo prioridad si existe. */
+    background:
+      radial-gradient(ellipse 120% 85% at 50% 40%, transparent 40%, rgba(4,3,8,0.88) 100%) fixed,
+      linear-gradient(180deg, rgba(14,10,24,0.55) 0%, rgba(10,8,16,0.62) 100%) fixed,
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.6 0 0 0 0 0.55 0 0 0 0 0.7 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+      var(--bg-fondo, none) center / cover no-repeat fixed,
+      radial-gradient(ellipse 70% 55% at 18% 8%,  rgba(88,52,140,0.38) 0%, transparent 70%) fixed,
+      radial-gradient(ellipse 60% 50% at 85% 25%, rgba(28,42,92,0.40) 0%, transparent 70%) fixed,
+      radial-gradient(ellipse 80% 60% at 50% 105%, rgba(74,44,22,0.45) 0%, transparent 70%) fixed,
+      linear-gradient(180deg, #120e1c 0%, #0d0b16 45%, #110c0c 100%) fixed;
+    color: #e7e2ea;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Números siempre tabulares (recursos, costes, rondas) */
+  .font-stats { font-variant-numeric: tabular-nums; }
+  /* Cinzel es mayúscula de por sí: menos tracking y algo más de cuerpo */
+  .font-serif { font-feature-settings: 'liga', 'kern'; }
+  .font-narrative { font-family: var(--font-narrative); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  }
+
+
+  /* ── Scrollbar ────────────────────────────────────────────── */
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+}

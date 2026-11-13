@@ -13,9 +13,9 @@ export const modalStyles = {
 
   // Button styles - responsive sizing
   buttonSmall: 'px-3 sm:px-2.5 py-2 sm:py-1.5 min-h-10 sm:min-h-auto rounded border transition-all active:scale-95',
-  buttonSelect: 'stage-chip',
-  buttonActive: 'stage-chip is-chosen',
-  buttonPrimary: 'stage-btn stage-btn--primary',
+  buttonSelect: 'chip',
+  buttonActive: 'chip is-chosen',
+  buttonPrimary: 'btn btn--primary',
 
   // Panel/section styles
   panel: 'modal-stage-section',

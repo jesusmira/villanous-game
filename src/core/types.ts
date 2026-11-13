@@ -144,6 +144,10 @@ export interface EffectContext {
   /** El jugador declinó explícitamente el target opcional (p. ej. "Ignorar" en el modal de Sr.
    *  Starkey) — el efecto NO debe caer en su propio auto-target de respaldo. */
   skipTargetHero?: boolean;
+  /** ON_VANQUISH: Fuerza del Héroe derrotado en el momento de la derrota (antes de descartarlo;
+   *  después ya no está en su ubicación y perdería los modificadores de ella, p. ej. Sueño sin
+   *  Sueños). */
+  defeatedHeroStrength?: number;
 }
 
 /**

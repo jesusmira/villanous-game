@@ -1,0 +1,118 @@
+/* Cartas: aspecto base (.villainous-card), insignias y tamaños especiales.
+   Capa `components`. */
+
+@layer components {
+  /* ── Villainous card shell ────────────────────────────────── */
+  .villainous-card {
+    width: 80px;
+    height: 120px;
+    position: relative;
+    border-radius: 7px;
+    background: #15111c;
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    border: 1px solid rgb(var(--gold-rgb) / 0.28);
+    flex-shrink: 0;
+    transition: transform var(--dur-med) var(--ease-premium), box-shadow var(--dur-med) var(--ease-premium), border-color var(--dur-fast) var(--ease-premium);
+    animation: card-enter var(--dur-med) var(--ease-premium) both;
+  }
+  /* Barniz: brillo especular sutil sobre la ilustración */
+  .villainous-card::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(155deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 32%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.22) 100%);
+    pointer-events: none;
+    z-index: 60;
+    border-radius: inherit;
+  }
+  .villainous-card.is-interactive:hover {
+    transform: translateY(-6px) scale(1.06);
+    box-shadow: var(--shadow-card-lift);
+    border-color: rgb(var(--gold-bright-rgb) / 0.6);
+    z-index: 20;
+  }
+  .villainous-card.is-selected {
+    transform: translateY(-6px) scale(1.04);
+    border-color: var(--color-gold-bright);
+    box-shadow: var(--glow-gold), var(--shadow-card-lift);
+  }
+  .villainous-card.hero-card { border-color: rgba(255,150,140,0.35); }
+  @keyframes card-enter {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @media (min-width: 1024px) {
+    .villainous-card { width: 112px; height: 168px; }
+  }
+
+  /* Reina de Corazones: Héroe Menguado — miniatura posicionada sobre una única casilla
+     (ver LocationTile.tsx), no la carta de tamaño normal. */
+  .card-size-shrunk-slot {
+    width: 46px !important;
+    height: 69px !important;
+  }
+  @media (min-width: 1024px) {
+    .card-size-shrunk-slot { width: 64px !important; height: 96px !important; }
+  }
+
+  /* Card art fills the entire card — z-index 1 so it's above the gradient */
+  .card-art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+  }
+
+  /* Card color gradient background (when no art) */
+  .card-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Strength badge */
+  .card-strength-badge {
+    position: absolute;
+    bottom: 8px; left: 2px;
+    width: 13px; height: 13px;
+    background: #93000a;
+    border: 1px solid #ffb4ab;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 7px;
+    color: #ffb4ab;
+  }
+  @media (min-width: 1024px) {
+    .card-strength-badge { width: 17px; height: 17px; font-size: 9px; }
+  }
+
+  /* Stored power badge (Little John, etc.) */
+  .card-stored-power-badge {
+    position: absolute;
+    top: 2px; right: 2px;
+    width: 13px; height: 13px;
+    background: #111;
+    border: 1px solid #e8c84a;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 7px;
+    color: #e8c84a;
+  }
+  @media (min-width: 1024px) {
+    .card-stored-power-badge { width: 17px; height: 17px; font-size: 9px; }
+  }
+}

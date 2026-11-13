@@ -29,7 +29,7 @@ export function StartRevealModal({ state, startingPlayerIndex, onContinue }: Pro
       title={revealed ? `¡Empieza ${starter.name}!` : 'Decidiendo quién mueve primero'}
       subtitle={revealed ? <>{other.name} recibe <b className="not-italic text-[#f6dd94]">+1 ⚡</b> por ir segundo.</> : undefined}
       widthClass="max-w-md"
-      actions={revealed ? <button onClick={onContinue} className="stage-btn stage-btn--primary">Comenzar</button> : undefined}
+      actions={revealed ? <button onClick={onContinue} className="btn btn--primary">Comenzar</button> : undefined}
     >
       {/* Moneda */}
       <div style={{ perspective: '600px' }} className="flex items-center justify-center h-20 sm:h-28 shrink-0">

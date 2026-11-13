@@ -268,7 +268,7 @@
       },
       {
         "nombre": "RUECA",
-        "descripcion": "Si un Héroe es de en esta ubicación recibes una cantidad de Monedas de Poder equivalente a la Fuerza de ese Héroe menos",
+        "descripcion": "Si un Héroe es derrotado en esta ubicación recibes una cantidad de Monedas de Poder equivalente a la Fuerza de ese Héroe menos 1",
         "tipo": "Objeto",
         "cantidad": "1",
         "coste": "1",

@@ -49,7 +49,7 @@ export function DemoslesModal({ state }: Props) {
           {toDiscard.size > 0 ? `${toDiscard.size} descartada(s)` : 'Ninguna descartada'}
           {keepIds.length > 0 && ` · ${keepIds.length} al mazo`}
         </span>
-        <button disabled={!canConfirm} onClick={confirm} className="stage-btn stage-btn--primary">Confirmar</button>
+        <button disabled={!canConfirm} onClick={confirm} className="btn btn--primary">Confirmar</button>
       </>}
     >
       <div className="flex flex-wrap justify-center gap-6 sm:gap-10">
@@ -68,14 +68,14 @@ export function DemoslesModal({ state }: Props) {
               <div className="flex flex-col items-center gap-1.5">
                 <button
                   onClick={() => toggleDiscard(card.instId)}
-                  className={`stage-chip ${discarded ? 'is-danger-chosen' : ''}`}
+                  className={`chip ${discarded ? 'is-danger-chosen' : ''}`}
                 >
                   {discarded ? '✕ Descartar' : '✓ Guardar'}
                 </button>
                 {needsOrder && isKept && (
                   <button
                     onClick={() => setTopCardId(isTop ? null : card.instId)}
-                    className={`stage-chip ${isTop ? 'is-chosen' : ''}`}
+                    className={`chip ${isTop ? 'is-chosen' : ''}`}
                   >
                     {isTop ? '★ Primera' : '↑ Poner primera'}
                   </button>

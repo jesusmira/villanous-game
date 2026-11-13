@@ -86,7 +86,7 @@ export function CardFocus({ card, state, mode, side = 'right', onClose, actions 
       {(description || attached.length > 0) && (
         <div className="focus-rules-scroll flex flex-col gap-2 min-h-0 overflow-y-auto scrollbar-hide">
           {description && (
-            <p className="focus-text font-narrative leading-relaxed text-[#efe6d2] text-center">
+            <p className="focus-text font-narrative text-[#efe6d2] text-center">
               {description}
             </p>
           )}
@@ -150,7 +150,7 @@ export function FocusPrimaryButton({ children, disabled, title, onClick }: {
 }) {
   return (
     <button onClick={onClick} disabled={disabled} title={title}
-      className="focus-btn-primary min-w-32 px-6 py-2.5 rounded-lg font-serif font-bold text-sm uppercase tracking-[0.14em]">
+      className="btn btn--primary min-w-32">
       {children}
     </button>
   );
@@ -162,7 +162,7 @@ export function FocusSecondaryButton({ children, disabled, title, onClick }: {
 }) {
   return (
     <button onClick={onClick} disabled={disabled} title={title}
-      className="focus-btn-secondary min-w-28 px-5 py-2.5 rounded-lg font-stats font-semibold text-xs uppercase tracking-[0.16em]">
+      className="btn btn--secondary min-w-28">
       {children}
     </button>
   );

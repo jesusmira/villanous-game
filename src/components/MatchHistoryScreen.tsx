@@ -112,7 +112,7 @@ export function MatchHistoryScreen({ onBack }: Props) {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => exportAllGameRecords(records)}
-                    className="text-[10px] font-stats uppercase tracking-wider text-on-surface-variant/60 hover:text-primary transition-colors flex items-center gap-1"
+                    className="text-[10px] uppercase tracking-wider text-on-surface-variant/60 hover:text-primary transition-colors flex items-center gap-1"
                     title="Descargar todas las partidas (JSON), con cartas y log detallado de cada acción"
                   >
                     <Download className="w-3 h-3" /> Exportar todo
@@ -122,13 +122,13 @@ export function MatchHistoryScreen({ onBack }: Props) {
                       <span className="text-[10px] text-on-surface-variant/70">¿Borrar todo?</span>
                       <button
                         onClick={() => { void clear(); setConfirmClear(false); }}
-                        className="text-[10px] font-stats uppercase tracking-wider text-error hover:underline"
+                        className="text-[10px] uppercase tracking-wider text-error hover:underline"
                       >
                         Sí
                       </button>
                       <button
                         onClick={() => setConfirmClear(false)}
-                        className="text-[10px] font-stats uppercase tracking-wider text-on-surface-variant hover:underline"
+                        className="text-[10px] uppercase tracking-wider text-on-surface-variant hover:underline"
                       >
                         No
                       </button>
@@ -136,7 +136,7 @@ export function MatchHistoryScreen({ onBack }: Props) {
                   ) : (
                     <button
                       onClick={() => setConfirmClear(true)}
-                      className="text-[10px] font-stats uppercase tracking-wider text-on-surface-variant/60 hover:text-error transition-colors"
+                      className="text-[10px] uppercase tracking-wider text-on-surface-variant/60 hover:text-error transition-colors"
                     >
                       Borrar historial
                     </button>

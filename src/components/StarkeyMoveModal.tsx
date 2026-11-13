@@ -39,8 +39,8 @@ export function StarkeyMoveModal({ state, playerId, cardName, onConfirm, onSkip,
       title="Mover un Héroe"
       subtitle="Puedes mover un Héroe a una ubicación adyacente."
       actions={<>
-        <button onClick={onCancel} className="stage-btn stage-btn--secondary">Cancelar</button>
-        <button onClick={onSkip} className="stage-btn stage-btn--secondary">Ignorar — no mover</button>
+        <button onClick={onCancel} className="btn btn--secondary">Cancelar</button>
+        <button onClick={onSkip} className="btn btn--secondary">Ignorar — no mover</button>
       </>}
     >
       {heroEntries.length === 0 ? (
@@ -67,7 +67,7 @@ export function StarkeyMoveModal({ state, playerId, cardName, onConfirm, onSkip,
           <span className="modal-stage-label">Ubicación destino (adyacente)</span>
           <div className="flex flex-wrap justify-center gap-2">
             {destOptions.map(locId => (
-              <button key={locId} className="stage-chip" onClick={() => onConfirm(heroId, locId)}>
+              <button key={locId} className="chip" onClick={() => onConfirm(heroId, locId)}>
                 {plugin.locations.find(l => l.id === locId)?.name ?? locId}
               </button>
             ))}

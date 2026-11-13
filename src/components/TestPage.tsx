@@ -329,7 +329,7 @@ export function TestPage() {
       {selectedDetail && (
         <button
           onClick={closePreview}
-          className="fixed top-3 right-3 z-200 px-3 py-2 rounded-lg bg-error text-white font-stats text-xs uppercase tracking-wider shadow-lg hover:bg-error/80 active:scale-95 transition-all"
+          className="fixed top-3 right-3 z-200 px-3 py-2 rounded-lg bg-error text-white text-xs uppercase tracking-wider shadow-lg hover:bg-error/80 active:scale-95 transition-all"
         >
           ✕ Cerrar prueba
         </button>
@@ -347,7 +347,7 @@ export function TestPage() {
             <button
               key={modal.key}
               onClick={() => toggleModal(modal)}
-              className={`px-4 py-3 rounded-lg font-stats text-sm uppercase tracking-wider transition-all ${
+              className={`px-4 py-3 rounded-lg text-sm uppercase tracking-wider transition-all ${
                 selectedDetail === modal.key
                   ? 'bg-primary text-on-primary ring-2 ring-primary/50 scale-105'
                   : 'bg-surface-container border border-outline-variant/40 text-on-surface hover:bg-surface-container-high hover:border-primary/50'

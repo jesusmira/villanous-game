@@ -22,7 +22,7 @@ export function HistoryModal({ state, onClose }: Props) {
       eyebrow={`Ronda ${state.roundNumber} · turno de ${currentPlayer.name}`}
       title="Histórico"
       widthClass="max-w-lg"
-      actions={<button onClick={onClose} className="stage-btn stage-btn--secondary">Cerrar</button>}
+      actions={<button onClick={onClose} className="btn btn--secondary">Cerrar</button>}
     >
       {/* Últimas jugadas abajo; desplazar hacia arriba para ver las antiguas. */}
       <div className="history-scroll history-sheet w-full overflow-y-auto">

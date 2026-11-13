@@ -164,13 +164,13 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, onCancelSelec
         )}
         {/* Acciones secundarias: enlaces pequeños sobre el medallón */}
         {phase === TurnPhase.MOVE && ap.player.skipNextMove && (
-          <button className="turn-link" onClick={() => ap.store.doSkipMove()}>Permanecer aquí</button>
+          <button className="btn btn--secondary btn--sm" onClick={() => ap.store.doSkipMove()}>Permanecer aquí</button>
         )}
         {phase === TurnPhase.ACTIVATE && hasHandSelection && onCancelSelection && (
-          <button className="turn-link" onClick={onCancelSelection}>✕ Cancelar carta</button>
+          <button className="btn btn--secondary btn--sm" onClick={onCancelSelection}>✕ Cancelar carta</button>
         )}
         {phase === TurnPhase.DRAW && (
-          <button className="turn-link" onClick={() => ap.store.doRevertToActivate()}>↩ Volver</button>
+          <button className="btn btn--secondary btn--sm" onClick={() => ap.store.doRevertToActivate()}>↩ Volver</button>
         )}
 
         {/* Medallón de fin de fase (estilo "Fin de turno") */}
@@ -209,8 +209,8 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, onCancelSelec
                 {discard.count > 0 ? `${discard.count} carta(s) para descartar` : 'Toca en tu mano las cartas a descartar'}
               </p>
               <div className="flex items-center gap-3">
-                <button className="turn-btn turn-btn--secondary" onClick={discard.onCancel}>Cancelar</button>
-                <button className="turn-btn turn-btn--danger" disabled={!discard.canConfirm} onClick={discard.onConfirm}>
+                <button className="btn btn--secondary" onClick={discard.onCancel}>Cancelar</button>
+                <button className="btn btn--danger" disabled={!discard.canConfirm} onClick={discard.onConfirm}>
                   Descartar {discard.count > 0 ? discard.count : ''}
                 </button>
               </div>

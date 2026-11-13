@@ -6,6 +6,7 @@ import {
   discardCardFromKingdom, moveAttachedItems, addLog, getEffectiveStrength,
 } from '../../engine/stateHelpers';
 import { shuffle } from '../../utils/shuffle';
+import { fireHeroDefeated } from '../../engine/actions/_helpers';
 import { locations } from './cards';
 
 export const effects: EffectDef[] = [
@@ -278,8 +279,11 @@ export const effects: EffectDef[] = [
       }
       if (!heroId) return addLog(state, 'Forma de Dragón: no hay Héroe de Fuerza ≤3.');
       const hero = state.allCards[heroId];
-      if (!hero || getEffectiveStrength(state, heroId) > 3) return state;
+      const heroStr = getEffectiveStrength(state, heroId);
+      if (!hero || heroStr > 3) return state;
+      const heroLocId = hero.locationId;
       let s = discardCardFromKingdom(state, heroId);
+      if (heroLocId) s = fireHeroDefeated(s, ctx.actingPlayerId, heroId, heroLocId, heroStr);
       s = updatePlayer(s, ctx.actingPlayerId, { dragonActive: true });
       return addLog(s, `Forma de Dragón derrota a ${hero.name}. Maléfica está en alerta.`);
     },
@@ -334,7 +338,8 @@ export const effects: EffectDef[] = [
       if (!ctx.targetCardInstId) return state;
       const rueca = state.allCards[ctx.cardInstId];
       if (!rueca) return state;
-      const heroStr = getEffectiveStrength(state, ctx.targetCardInstId);
+      // Fuerza en el momento de la derrota (el Héroe ya está descartado cuando llega aquí).
+      const heroStr = ctx.defeatedHeroStrength ?? getEffectiveStrength(state, ctx.targetCardInstId);
       const gained = Math.max(0, heroStr - 1);
       if (gained === 0) return state;
       const owner = getPlayer(state, rueca.ownerId);

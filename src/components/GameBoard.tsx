@@ -740,7 +740,7 @@ export function GameBoard({ state }: Props) {
             <button
               onClick={() => setFloraOpen(true)}
               title={`Ver cartas de ${floraVictim.name}`}
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-error/50 bg-error/10 text-error font-stats text-[9px] uppercase tracking-wider hover:bg-error/20 transition-all animate-pulse"
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-error/50 bg-error/10 text-error text-[9px] uppercase tracking-wider hover:bg-error/20 transition-all animate-pulse"
             >
               ✦ Cartas de {floraVictim.name}
             </button>
@@ -1052,10 +1052,10 @@ export function GameBoard({ state }: Props) {
           subtitle="Tienes el Mapa en tu Reino: puedes descartarlo para jugar este Objeto gratis."
           widthClass="max-w-lg"
           actions={<>
-            <button onClick={() => resolvePendingItemDrop(false)} className="stage-btn stage-btn--secondary">
+            <button onClick={() => resolvePendingItemDrop(false)} className="btn btn--secondary">
               Pagar {pendingItemDrop.normalCost} ⚡
             </button>
-            <button onClick={() => resolvePendingItemDrop(true)} className="stage-btn stage-btn--primary">
+            <button onClick={() => resolvePendingItemDrop(true)} className="btn btn--primary">
               Usar Mapa · gratis
             </button>
           </>}

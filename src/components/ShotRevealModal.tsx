@@ -21,7 +21,7 @@ export function ShotRevealModal({ state }: Props) {
       title={won ? '¡Tiro conseguido!' : 'El tiro falla'}
       subtitle={won ? 'La Reina de Corazones gana la partida.' : 'Las cartas reveladas se descartan.'}
       actions={
-        <button onClick={() => doResolveShotReveal()} className="stage-btn stage-btn--primary">Continuar</button>
+        <button onClick={() => doResolveShotReveal()} className="btn btn--primary">Continuar</button>
       }
     >
       <div className="flex flex-wrap justify-center gap-3 sm:gap-4">

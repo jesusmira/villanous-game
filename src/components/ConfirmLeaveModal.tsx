@@ -16,8 +16,8 @@ export function ConfirmLeaveModal({ onConfirm, onCancel }: Props) {
       subtitle="Se perderá el progreso de la partida en curso y quedará registrada como abandonada en el historial."
       widthClass="max-w-md"
       actions={<>
-        <button onClick={onCancel} className="stage-btn stage-btn--secondary">Cancelar</button>
-        <button onClick={onConfirm} className="stage-btn stage-btn--danger">Abandonar</button>
+        <button onClick={onCancel} className="btn btn--secondary">Cancelar</button>
+        <button onClick={onConfirm} className="btn btn--danger">Abandonar</button>
       </>}
     />
   );

@@ -299,7 +299,7 @@ export function LocationTile({
                 onLocationClick?.(locDef.id);
               }}
               disabled={!onLocationClick && !onCardDrop}
-              className="relative z-20 lg:hidden font-serif font-semibold text-[10px] uppercase tracking-[0.14em] px-2 py-1 rounded-md border transition-all duration-200 active:scale-95 min-h-8 w-full backdrop-blur-sm"
+              className="relative z-20 lg:hidden font-semibold text-[10px] uppercase tracking-[0.14em] px-2 py-1 rounded-md border transition-all duration-200 active:scale-95 min-h-8 w-full backdrop-blur-sm"
               style={{
                 color: locState.isLocked ? '#958c9e' : '#f3e2b3',
                 borderColor: !onLocationClick && !onCardDrop ? 'rgba(149,140,158,0.3)' : 'rgba(246,221,148,0.6)',
@@ -348,7 +348,7 @@ export function LocationTile({
       </div>
 
       {/* ── Ally / villain card zone — heroes NOT here ──────── */}
-      <div className="card-slot ally-zone group hover:border-secondary-container/40 transition-colors min-h-30 md:min-h-40">
+      <div className="card-slot ally-zone group">
         {allyZoneCards.length === 0 ? (
           <span className="absolute bottom-1 left-2 font-serif text-[7px] font-semibold text-gold/35 uppercase tracking-[0.2em] group-hover:text-gold/60 transition-colors">
             Aliados y objetos

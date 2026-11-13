@@ -12,17 +12,22 @@ import { getPlugin } from '../registry';
 import { EffectId } from '../effectIds';
 import { shuffle } from '../../utils/shuffle';
 import { getCoveredSlotIndices } from '../../engine/slotHelpers';
-import { canPlaceCardFromHand } from '../../engine/RuleEngine';
+import { canPlaceCardFromHand, canVanquishFree } from '../../engine/RuleEngine';
+import { fireHeroDefeated } from '../../engine/actions/_helpers';
+import { vanquishFree } from '../../engine/actions/play';
 
 // ─── CONDITION HANDLERS ───────────────────────────────────────────────────────
 
-function handleMalicia(s: GameState, _reactingPlayerId: PlayerId, ctx: ConditionCtx): GameState {
+function handleMalicia(s: GameState, reactingPlayerId: PlayerId, ctx: ConditionCtx): GameState {
   if (ctx.targetCardInstId) {
-    const heroStr = getEffectiveStrength(s, ctx.targetCardInstId);
-    const heroName = s.allCards[ctx.targetCardInstId]?.name ?? '?';
+    const heroId = ctx.targetCardInstId;
+    const heroStr = getEffectiveStrength(s, heroId);
+    const heroName = s.allCards[heroId]?.name ?? '?';
+    const heroLocId = s.allCards[heroId]?.locationId;
     if (heroStr <= 4) {
-      s = discardCardFromKingdom(s, ctx.targetCardInstId);
+      s = discardCardFromKingdom(s, heroId);
       s = addLog(s, `Malicia: ${heroName} (Fuerza ${heroStr}) derrotado.`);
+      if (heroLocId) s = fireHeroDefeated(s, reactingPlayerId, heroId, heroLocId, heroStr);
     }
   }
   return s;
@@ -235,19 +240,16 @@ export function resolveCuervo(
       if (!params.cardInstId || !params.allyInstIds || params.allyInstIds.length === 0) break;
       const hero = s.allCards[params.cardInstId];
       if (!hero) break;
-      const heroStr = getEffectiveStrength(s, params.cardInstId);
-      const totalAllyStr = params.allyInstIds.reduce((sum, id) => sum + getEffectiveStrength(s, id), 0);
-      if (totalAllyStr < heroStr) {
-        s = addLog(s, 'El Cuervo: Fuerza insuficiente para vencer al Héroe.');
+      // Mismo Vencer que la acción normal, sin gastar casilla (la acción es la del Cuervo): aplica
+      // todas sus reglas (Fuerza, Héroes que exigen 2 Aliados, Burla, Tweedle…) y sus avisos
+      // (Rueca, Condiciones del rival, victoria). Antes era una copia que solo miraba la Fuerza.
+      const check = canVanquishFree(s, playerId, params.cardInstId, params.allyInstIds);
+      if (!check.valid) {
+        s = addLog(s, `El Cuervo: no puede vencer a ${hero.name} — ${check.reason}`);
         break;
       }
-      // Descartar (no mover) cada Aliado usado: discardCardFromKingdom ya cascada sus Objetos
-      // adjuntos y limpia el pile correcto — antes esto se reimplementaba a mano sin esa cascada.
-      for (const allyId of params.allyInstIds) {
-        s = discardCardFromKingdom(s, allyId);
-      }
-      s = discardCardFromKingdom(s, params.cardInstId);
-      s = addLog(s, `El Cuervo: ${hero.name} derrotado.`);
+      s = addLog(s, `El Cuervo vence a ${hero.name}.`);
+      s = vanquishFree(s, playerId, params.cardInstId, params.allyInstIds);
       break;
     }
     case ActionType.MOVE_ITEM_ALLY: {

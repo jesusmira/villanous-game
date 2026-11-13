@@ -1,0 +1,46 @@
+/* Animaciones compartidas: cuenta atrás, moneda del sorteo y quemado al Vencer.
+   Capa `components`. */
+
+@layer components {
+  /* ── Aurora no-hero countdown bar ──────────────────────────────── */
+  @keyframes shrink {
+    from { width: 100%; }
+    to   { width: 0%; }
+  }
+
+  /* ── Coin flip (sorteo de jugador inicial) ─────────────────────── */
+  @keyframes coin-spin {
+    0%   { transform: rotateY(0deg)    scale(1);    }
+    50%  { transform: rotateY(900deg)  scale(1.18); }
+    100% { transform: rotateY(1800deg) scale(1);    }
+  }
+  .coin-spin {
+    animation: coin-spin 1.9s cubic-bezier(0.45, 0.05, 0.3, 1) forwards;
+  }
+
+  /* ── Burn / vanquish animation ──────────────────────────────────── */
+  @keyframes card-burn {
+    0%   { filter: brightness(1)   saturate(1)   hue-rotate(0deg);   opacity: 1;   transform: scale(1)    translateY(0); }
+    15%  { filter: brightness(2.5) saturate(4)   hue-rotate(-15deg); opacity: 1;   transform: scale(1.06) translateY(-4px); }
+    35%  { filter: brightness(3)   saturate(5)   hue-rotate(-25deg); opacity: 0.9; transform: scale(1.08) translateY(-8px); }
+    55%  { filter: brightness(2)   saturate(3)   hue-rotate(-10deg); opacity: 0.6; transform: scale(1.02) translateY(-14px); }
+    75%  { filter: brightness(1.2) saturate(1.5) hue-rotate(0deg);   opacity: 0.3; transform: scale(0.92) translateY(-22px); }
+    100% { filter: brightness(0.5) saturate(0);                       opacity: 0;   transform: scale(0.8)  translateY(-32px); }
+  }
+
+  @keyframes ember-rise {
+    0%   { opacity: 0.9; transform: translateY(0)    scale(1);    }
+    100% { opacity: 0;   transform: translateY(-40px) scale(0.3);  }
+  }
+
+  .burning-card {
+    animation: card-burn 0.85s ease-in forwards;
+    pointer-events: none;
+  }
+
+  .ember {
+    position: absolute;
+    border-radius: 50%;
+    animation: ember-rise 0.7s ease-out forwards;
+  }
+}

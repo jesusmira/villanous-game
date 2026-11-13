@@ -130,7 +130,7 @@ function NavBtn({ dir, disabled, onClick }: { dir: 'left' | 'right'; disabled: b
   return (
     <button
       onClick={onClick} disabled={disabled}
-      className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full border border-outline-variant/50 text-on-surface-variant hover:text-on-surface hover:border-outline disabled:opacity-25 disabled:cursor-not-allowed transition-all active:scale-90"
+      className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full border border-outline-variant/50 text-on-surface-variant hover:text-on-surface hover:border-outline disabled:cursor-not-allowed transition-all active:scale-90"
     >
       {dir === 'left' ? <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" /> : <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />}
     </button>
@@ -253,17 +253,17 @@ export function GameSetup() {
         <Image src="/Logo-vote-villainous.webp" className="h-28 sm:h-40 md:h-56 lg:h-72 object-contain" />
         <div className="flex flex-col gap-3 w-full max-w-xs">
           <button onClick={() => { setGameMode('1v1'); setP2IsAI(false); setP2Name('Jugador 2'); }}
-            className="px-6 py-3 min-h-11 text-sm rounded-lg font-serif font-bold uppercase transition-all hover:scale-105 active:scale-95"
+            className="px-6 py-3 min-h-11 text-sm rounded-lg font-bold uppercase transition-all hover:scale-105 active:scale-95"
             style={{ background: 'linear-gradient(135deg,#d3bcf9,#8b5cf6)', color: '#1c1b1b' }}>
             Jugador vs Jugador
           </button>
           <button onClick={() => { setGameMode('vsia'); setP2IsAI(true); setP2Name('IA'); }}
-            className="px-6 py-3 min-h-11 text-sm rounded-lg font-serif font-bold uppercase transition-all hover:scale-105 active:scale-95"
+            className="px-6 py-3 min-h-11 text-sm rounded-lg font-bold uppercase transition-all hover:scale-105 active:scale-95"
             style={{ background: 'linear-gradient(135deg,#e9c349,#f97316)', color: '#1c1b1b' }}>
             Jugador vs IA
           </button>
           <button onClick={() => setShowHistory(true)}
-            className="px-6 py-2.5 min-h-10 text-xs rounded-lg font-stats font-bold uppercase tracking-widest transition-all hover:scale-105 active:scale-95 border border-outline-variant/50 text-on-surface-variant hover:text-on-surface flex items-center justify-center gap-2">
+            className="px-6 py-2.5 min-h-10 text-xs rounded-lg font-bold uppercase tracking-widest transition-all hover:scale-105 active:scale-95 border border-outline-variant/50 text-on-surface-variant hover:text-on-surface flex items-center justify-center gap-2">
             <History className="w-3.5 h-3.5" /> Historial
           </button>
         </div>
@@ -328,7 +328,7 @@ export function GameSetup() {
         <div className="flex justify-center px-4 pb-5 shrink-0">
           <button
             onClick={start} disabled={!p1Villain || !p2Villain}
-            className="w-full max-w-xs px-8 py-3 min-h-11 rounded-lg font-stats text-sm font-bold uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:opacity-85 active:enabled:scale-95"
+            className="w-full max-w-xs px-8 py-3 min-h-11 rounded-lg text-sm font-bold uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:opacity-85 active:enabled:scale-95"
             style={{ background: 'linear-gradient(135deg,#2d1b4d,#4f3d71)', border: '2px solid #75fd00', color: '#75fd00' }}
           >
             Comenzar Partida
@@ -417,7 +417,7 @@ export function GameSetup() {
       <div className="flex justify-center px-4 pb-4 sm:pb-5 [@media(max-height:500px)]:pb-2">
         <button
           onClick={start} disabled={!p1Villain || !p2Villain}
-          className="w-full max-w-xs px-8 py-2.5 sm:py-3 min-h-10 sm:min-h-11 [@media(max-height:500px)]:py-1.5 [@media(max-height:500px)]:min-h-9 rounded-lg font-stats text-xs sm:text-sm font-bold uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:opacity-85 active:enabled:scale-95"
+          className="w-full max-w-xs px-8 py-2.5 sm:py-3 min-h-10 sm:min-h-11 [@media(max-height:500px)]:py-1.5 [@media(max-height:500px)]:min-h-9 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:opacity-85 active:enabled:scale-95"
           style={{ background: 'linear-gradient(135deg,#2d1b4d,#4f3d71)', border: '2px solid #75fd00', color: '#75fd00' }}
         >
           Comenzar Partida

@@ -107,7 +107,7 @@ export function AuroraModal({ state }: Props) {
           <span className="modal-stage-label">Elige dónde colocarlo</span>
           <div className="flex flex-wrap justify-center gap-2">
             {validLocs.map(loc => (
-              <button key={loc.id} onClick={() => doResolveAuroraHero(loc.id)} className="stage-chip">
+              <button key={loc.id} onClick={() => doResolveAuroraHero(loc.id)} className="chip">
                 <span className="font-serif font-semibold">{loc.name}</span>
                 <span className="text-[10px] opacity-60">· {targetPlayer?.locationStates[loc.id]?.heroCardInstIds.length ?? 0} héroes</span>
               </button>

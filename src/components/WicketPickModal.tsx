@@ -32,7 +32,7 @@ export function WicketPickModal({ state }: Props) {
       title={`Elige hasta ${max} carta${max !== 1 ? 's' : ''}`}
       subtitle={`Para ${verb} · ${selected.length}/${max} elegida${selected.length !== 1 ? 's' : ''}`}
       actions={
-        <button onClick={() => doResolveWicketPick(selected)} className="stage-btn stage-btn--primary">
+        <button onClick={() => doResolveWicketPick(selected)} className="btn btn--primary">
           Confirmar ({selected.length})
         </button>
       }

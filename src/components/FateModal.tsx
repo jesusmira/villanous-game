@@ -78,7 +78,7 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
                 : `Elige una ubicación de ${targetPlayer.name}`}
           </span>
         </div>
-        <button onClick={cancel} className="fate-pill-btn shrink-0" title="Elegir otra carta">
+        <button onClick={cancel} className="btn btn--secondary btn--sm shrink-0" title="Elegir otra carta">
           <X className="w-3.5 h-3.5" /> Cambiar
         </button>
       </div>
@@ -93,7 +93,7 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
         <span className="font-narrative italic text-sm text-[#efe6d2]/80">
           {revealedCards.length} carta{revealedCards.length !== 1 ? 's' : ''} contra {targetPlayer.name}
         </span>
-        <button onClick={() => setCardsHidden(false)} className="fate-pill-btn shrink-0">
+        <button onClick={() => setCardsHidden(false)} className="btn btn--secondary btn--sm shrink-0">
           <Eye className="w-3.5 h-3.5" /> Ver cartas
         </button>
       </div>
@@ -158,7 +158,7 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
           </p>
         )}
 
-        <button onClick={() => setCardsHidden(true)} className="fate-pill-btn">
+        <button onClick={() => setCardsHidden(true)} className="btn btn--secondary btn--sm">
           <EyeOff className="w-3.5 h-3.5" /> Ver tablero
         </button>
       </div>

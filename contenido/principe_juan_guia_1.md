@@ -34,17 +34,3 @@ Mientras **Robin Hood** esté en el Reino del Príncipe Juan, cada vez que el Pr
 
 Cuando se juega el Héroe **Little John**, al Príncipe Juan le pueden quitar hasta **4 Monedas de Poder**, que se colocan sobre la carta de Little John, igual que con Robar a los Ricos. El Príncipe Juan debe derrotar a Little John para recuperar esas Monedas y evitar que arruine la victoria de forma inesperada.
 
----
-## Bug no bug. solo mala suerte
-
-
-Por qué entonces salió Robin Hood tantas veces
-El mecanismo es correcto pero la intuición de "15 cartas = poca probabilidad" no aplica bien aquí, por dos motivos que vi en tu log:
-
-El mazo de Destino del Príncipe Juan se vacía rápido. Cada Destino revela 2 cartas y descarta la que no se elige (aunque sea jugable) — eso son 2 cartas menos del mazo por cada uso, no 1. Con 9 héroes + 3 Buen Disfraz + 3 Robar a los Ricos = 15 cartas, y Garfio/Maléfica usando Destino casi todos los turnos, el mazo se agota cada 7-8 turnos, no cada 15.
-
-Cuando se vacía, la pila de descarte que se baraja puede ser chica. Si en ese momento varios héroes siguen en tu reino (sin derrotar) y no están en el descarte, la pila a barajar puede ser de 4-6 cartas en vez de 15. Mirá la tabla: con 5-6 cartas, la chance de que la MISMA carta caiga entre las 2 primeras posiciones dos barajados seguidos ya es 11-16% — no es insólito, es "mala suerte normal" con un mazo chico.
-
-Revisé también el código del trigger de barajado (fate.ts): solo se dispara cuando el mazo está realmente vacío (fateDeckInstIds.length === 0), nunca antes — sin bug ahí tampoco.
-
-Conclusión: todo correcto, sin sesgo de código. Fue varianza real, amplificada por lo chico que es el mazo de Destino de Príncipe Juan una vez que arranca a vaciarse.

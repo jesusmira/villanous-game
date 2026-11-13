@@ -106,8 +106,8 @@ export function VanquishModal({ ap, state, playerId, free = false }: Props) {
         : selectedHeroId ? 'Elige los Aliados que combaten.' : 'Después elegirás los Aliados que combaten.'}
       widthClass="max-w-4xl"
       actions={<>
-        <button onClick={close} disabled={burning} className="stage-btn stage-btn--secondary">{free ? 'No vencer' : 'Cancelar'}</button>
-        <button disabled={!canConfirm} onClick={confirm} className="stage-btn stage-btn--danger">Vencer</button>
+        <button onClick={close} disabled={burning} className="btn btn--secondary">{free ? 'No vencer' : 'Cancelar'}</button>
+        <button disabled={!canConfirm} onClick={confirm} className="btn btn--danger">Vencer</button>
       </>}
     >
       <div className="modal-stage-section">

@@ -162,7 +162,7 @@ export function HookDeckModal({ state, onClose }: Props) {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 py-2 font-stats text-[9px] uppercase tracking-wider transition-colors ${
+              className={`flex-1 py-2 text-[9px] uppercase tracking-wider transition-colors ${
                 tab === t.id
                   ? 'text-primary border-b-2 border-primary'
                   : 'text-on-surface-variant/50 hover:text-on-surface-variant'

@@ -19,7 +19,7 @@ export function FloraRevealModal({ state, victim, onClose }: Props) {
       title={`Mano de ${victim.name}`}
       subtitle={`${handCards.length} carta${handCards.length !== 1 ? 's' : ''}`}
       widthClass="max-w-5xl"
-      actions={<button onClick={onClose} className="stage-btn stage-btn--secondary">Cerrar</button>}
+      actions={<button onClick={onClose} className="btn btn--secondary">Cerrar</button>}
     >
       {handCards.length === 0 ? (
         <p className="modal-stage-note">La mano está vacía.</p>

@@ -100,7 +100,7 @@ export function VictoryModal({ state, onPlayAgain }: Props) {
       title={winner?.name ?? ''}
       subtitle="ha ganado la partida"
       widthClass="max-w-md"
-      actions={<button onClick={onPlayAgain} className="stage-btn stage-btn--primary">Jugar de nuevo</button>}
+      actions={<button onClick={onPlayAgain} className="btn btn--primary">Jugar de nuevo</button>}
     >
       {/* Retrato del villano ganador con anillo de oro */}
       <div className="villain-avatar-ring order-first" style={{ boxShadow: '0 0 0 1px rgba(0,0,0,0.7), 0 0 40px rgba(230,196,106,0.55), 0 10px 24px rgba(0,0,0,0.7)' }}>
