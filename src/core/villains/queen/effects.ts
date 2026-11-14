@@ -297,10 +297,12 @@ export const effects: EffectDef[] = [
     id: 'queen_mome_raths',
     trigger: EffectTrigger.ON_PLAY,
     requiresTargetCard: 'ALLY',
+    targetCardThenDestination: true,
     description: 'Mueve un Aliado a cualquier ubicación.',
     execute: (state, ctx) => {
-      // La ubicación donde se "suelta" esta carta de Destino (ctx.targetLocationId) se reutiliza
-      // como destino del Aliado — no hay restricción de adyacencia en el texto de la carta.
+      // ctx.targetLocationId es el destino del Aliado: lo elige el jugador en un paso propio tras
+      // elegir el Aliado (targetCardThenDestination, ver GameBoard) — no hay restricción de
+      // adyacencia en el texto de la carta.
       if (!ctx.targetCardInstId || !ctx.targetLocationId) return state;
       const ally = state.allCards[ctx.targetCardInstId];
       if (!ally?.locationId || ally.locationId === ctx.targetLocationId) return state;

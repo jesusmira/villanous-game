@@ -25,6 +25,8 @@ import { FloraRevealModal } from './FloraRevealModal';
 import { VictoryModal } from './VictoryModal';
 import { ConfirmLeaveModal } from './ConfirmLeaveModal';
 import { AttachTargetModal } from './AttachTargetModal';
+import { FateMoveDestModal } from './FateMoveDestModal';
+import { NavVillainChip } from './NavVillainChip';
 import { StarkeyMoveModal } from './StarkeyMoveModal';
 import { VillainGuideModal } from './VillainGuideModal';
 import type { GuideTab } from './VillainGuideModal';
@@ -91,6 +93,8 @@ export function GameBoard({ state }: Props) {
     cardId: string; locId: string; reqTarget: 'ALLY' | 'HERO'; candidates: string[];
   } | null>(null);
   const [pendingStarkeyMove, setPendingStarkeyMove] = useState<{ cardId: string; locId: string } | null>(null);
+  // Destino con "elige carta y luego adónde moverla" (Mome Raths): falta elegir la ubicación.
+  const [pendingFateMoveDest, setPendingFateMoveDest] = useState<{ cardId: string; targetCardInstId: string } | null>(null);
 
   // ─── Replay & Turn tracking ───────────────────────────────────────────────
   const prevPlayerIndexRef = useRef(state.currentPlayerIndex);
@@ -565,6 +569,12 @@ export function GameBoard({ state }: Props) {
     // Detectar si es carta de Destino o carta de mano
     const card = displayedState.allCards[cardId];
     if (card?.deck === 'FATE' && state.pendingFate) {
+      // Mome Raths: elegido el Aliado, falta preguntar adónde se mueve (no se resuelve aún).
+      if (card.effectIds.some(id => getEffectDef(id)?.targetCardThenDestination)) {
+        setPendingFateMoveDest({ cardId, targetCardInstId });
+        setFateDragCardId(null);
+        return;
+      }
       // Es carta de Destino → usar handleFateDrop con target
       const ctx: { targetCardInstId?: string } = { targetCardInstId };
       doFateResolve(cardId, locId, ctx);
@@ -637,6 +647,7 @@ export function GameBoard({ state }: Props) {
     const ctx: { targetCardInstId?: string } = {};
 
     const reqTarget = card.effectIds.map(id => getEffectDef(id)?.requiresTargetCard).find(Boolean);
+    const thenDestination = card.effectIds.some(id => getEffectDef(id)?.targetCardThenDestination);
     if (reqTarget === 'HERO' || reqTarget === 'ALLY') {
       // Los OBJETOS (Espada, Burla, Polvo…) se adjuntan físicamente al Héroe/Aliado de la
       // ubicación donde se colocan — su objetivo está limitado a esa ubicación. Las cartas
@@ -660,6 +671,12 @@ export function GameBoard({ state }: Props) {
       // Si hay un único candidato, seleccionarlo automáticamente
       if (candidates.length === 1) {
         ctx.targetCardInstId = candidates[0];
+        // Mome Raths: con la carta ya elegida, falta preguntar adónde se mueve.
+        if (thenDestination) {
+          setPendingFateMoveDest({ cardId: fateDragCardId, targetCardInstId: candidates[0] });
+          setFateDragCardId(null);
+          return;
+        }
       }
     }
 
@@ -752,6 +769,7 @@ export function GameBoard({ state }: Props) {
             </button>
           )}
           <span className="hidden sm:inline md:hidden font-stats text-xs text-gold/80">R{state.roundNumber}</span>
+          <NavVillainChip players={displayedState.players} />
           <button
             onClick={() => setGuide({ playerId: (state.players.find(p => !p.isAI) ?? state.players[0]).id, tab: 'rules' })}
             title="Reglas del juego"
@@ -1043,6 +1061,25 @@ export function GameBoard({ state }: Props) {
           candidates={pendingAttachTarget.candidates}
           onSelect={resolvePendingAttachTarget}
           onCancel={cancelPendingAttachTarget}
+          subtitle={displayedState.allCards[pendingAttachTarget.cardId]?.effectIds.some(id => getEffectDef(id)?.targetCardThenDestination)
+            ? `Elige ${pendingAttachTarget.reqTarget === 'ALLY' ? 'el Aliado' : 'el Héroe'} que vas a mover; después elegirás adónde.`
+            : undefined}
+        />
+      )}
+
+      {/* ── Mome Raths: adónde se mueve la carta elegida ─────────── */}
+      {pendingFateMoveDest && state.pendingFate && (
+        <FateMoveDestModal
+          state={displayedState}
+          fateCardId={pendingFateMoveDest.cardId}
+          targetCardInstId={pendingFateMoveDest.targetCardInstId}
+          owner={displayedState.players[state.pendingFate.targetPlayerIndex]}
+          onCancel={() => setPendingFateMoveDest(null)}
+          onSelect={locId => {
+            const { cardId, targetCardInstId } = pendingFateMoveDest;
+            setPendingFateMoveDest(null);
+            doFateResolve(cardId, locId, { targetCardInstId });
+          }}
         />
       )}
 
@@ -1085,7 +1122,12 @@ export function GameBoard({ state }: Props) {
       {state.pendingAuroraHero && <AuroraModal state={state} />}
       {state.pendingJaqueca    && <JaquecaModal state={state} />}
       {state.pendingCondition  && <ConditionModal state={state} />}
-      {state.pendingFate && (
+      {/* Mientras un subpaso de la carta de Destino está abierto (elegir objetivo, o adónde
+          moverlo con Mome Raths) el FateModal no se muestra: su pastilla de "elige ubicación"
+          quedaba en la misma posición que la de "Ver cartas" del subpaso y la tapaba. Al cancelar
+          el subpaso vuelve a montarse desde el principio (elegir carta). */}
+      {state.pendingFate && !pendingFateMoveDest
+        && !(pendingAttachTarget && displayedState.allCards[pendingAttachTarget.cardId]?.deck === 'FATE') && (
         <FateModal
           state={state}
           onFateDragStart={setFateDragCardId}

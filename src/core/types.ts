@@ -184,6 +184,12 @@ export interface EffectDef {
   computeStrengthBonus?: (state: GameState, cardInstId: CardInstId) => number;
   computePlayCostModifier?: (state: GameState, playerId: PlayerId, cardToPlay: CardInst, effectCardInstId: CardInstId, targetLocationId: LocationId) => number;
   requiresTargetCard?: 'ALLY' | 'HERO' | 'CURSE';
+  /**
+   * Tras elegir la carta objetivo (requiresTargetCard), el jugador elige ADÓNDE moverla: el
+   * `targetLocationId` del efecto es ese destino, no la ubicación donde se soltó la carta de
+   * Destino (p. ej. Mome Raths: "Mueve un Aliado a cualquier ubicación"). Solo afecta a la UI.
+   */
+  targetCardThenDestination?: boolean;
   requiresTargetHeroAnywhere?: boolean;
   requiresTargetLocation?: boolean;
   computePowerGainModifier?: (state: GameState, playerId: PlayerId, cardInstId: CardInstId) => number;

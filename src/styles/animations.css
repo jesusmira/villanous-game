@@ -43,4 +43,71 @@
     border-radius: 50%;
     animation: ember-rise 0.7s ease-out forwards;
   }
+
+  /* ── Casilla de Sir Hiss: halo dorado que late sin bajar la opacidad del icono ──
+     (animate-pulse la dejaba medio transparente y, encima de las cartas de Héroe, no se leía). */
+  @keyframes hiss-glow {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(0,0,0,0.75), 0 0 10px 2px rgb(233 195 73 / 0.55), 0 4px 10px rgba(0,0,0,0.7); }
+    50%      { box-shadow: 0 0 0 2px rgba(0,0,0,0.75), 0 0 22px 6px rgb(233 195 73 / 0.9),  0 4px 10px rgba(0,0,0,0.7); }
+  }
+  .hiss-choice { animation: hiss-glow 1.4s ease-in-out infinite; }
+  /* Cartas de Héroe que se apartan hacia arriba para dejar ver las casillas de Sir Hiss
+     (ver hissLiftActive en LocationTile). */
+  /* --hiss-lift (medido en LocationTile) es lo que HAY que subir; --hiss-lift-now, lo que se
+     sube en este momento. Táctil: siempre subidas mientras Sir Hiss esté disponible. Ratón: solo
+     mientras el puntero esté sobre los Héroes o sobre una casilla de Sir Hiss. */
+  .hiss-lift-tile { --hiss-lift-now: var(--hiss-lift, 0px); }
+  /* Al bajar se espera un poco (transition-delay): así da tiempo a llevar el ratón de la carta a la
+     casilla, cruzando el hueco entre ambas, sin que las cartas caigan encima de ella. */
+  .hiss-lift-layer { transition: transform 380ms var(--ease-premium) 220ms; }
+  @media (hover: hover) and (pointer: fine) {
+    .hiss-lift-tile { --hiss-lift-now: 0px; }
+    .hiss-lift-tile:has([data-hero-layer]:hover, .hiss-choice:hover) { --hiss-lift-now: var(--hiss-lift, 0px); }
+    .hiss-lift-tile:has([data-hero-layer]:hover, .hiss-choice:hover) .hiss-lift-layer { transition-delay: 0ms; }
+  }
+
+  /* ── Pastilla de la barra superior: avatar + Poder del tablero visible (NavVillainChip) ──
+     Al bajar al tablero siguiente la cara actual sale hacia arriba y la nueva entra desde abajo;
+     al subir, al revés. Las dos caras comparten celda de grid y el escenario recorta. */
+  .nav-villain-stage {
+    display: inline-grid;
+    height: 30px;
+    overflow: hidden;
+    align-items: center;
+  }
+  .nav-villain-slot { grid-area: 1 / 1; display: inline-flex; align-items: center; }
+  .nav-villain-face {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px 2px 2px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgb(var(--gold-rgb) / 0.25);
+  }
+  .nav-villain-avatar {
+    width: 24px; height: 24px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #000;
+    flex-shrink: 0;
+  }
+  .nav-villain-coin {
+    display: flex; align-items: center; justify-content: center;
+    width: 15px; height: 15px;
+    margin-left: 2px;
+    border-radius: 999px;
+    color: #3a2808;
+    background: radial-gradient(circle at 35% 30%, #f6dd94 0%, #b8862f 70%, #6b4d1c 100%);
+    box-shadow: 0 0 6px rgb(var(--gold-rgb) / 0.45);
+  }
+  @keyframes nav-villain-in-up    { from { transform: translateY(110%);  opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes nav-villain-out-up   { from { transform: none; opacity: 1; } to { transform: translateY(-110%); opacity: 0; } }
+  @keyframes nav-villain-in-down  { from { transform: translateY(-110%); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes nav-villain-out-down { from { transform: none; opacity: 1; } to { transform: translateY(110%);  opacity: 0; } }
+  .nav-villain-slot.is-in-up    { animation: nav-villain-in-up    320ms var(--ease-premium) both; }
+  .nav-villain-slot.is-out-up   { animation: nav-villain-out-up   320ms var(--ease-premium) both; }
+  .nav-villain-slot.is-in-down  { animation: nav-villain-in-down  320ms var(--ease-premium) both; }
+  .nav-villain-slot.is-out-down { animation: nav-villain-out-down 320ms var(--ease-premium) both; }
+  @media (prefers-reduced-motion: reduce) {
+    .nav-villain-slot { animation-duration: 1ms !important; }
+  }
 }

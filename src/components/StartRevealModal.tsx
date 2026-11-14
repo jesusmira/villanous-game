@@ -31,8 +31,11 @@ export function StartRevealModal({ state, startingPlayerIndex, onContinue }: Pro
       widthClass="max-w-md"
       actions={revealed ? <button onClick={onContinue} className="btn btn--primary">Comenzar</button> : undefined}
     >
-      {/* Moneda */}
-      <div style={{ perspective: '600px' }} className="flex items-center justify-center h-20 sm:h-28 shrink-0">
+      {/* Moneda. El margen inferior (pb-8) deja sitio al halo (24px) y al aumento del giro
+          (scale 1.18): mientras gira, la moneda es lo último del contenido y .modal-stage-content
+          tiene overflow-y:auto, así que sin él el brillo se cortaba en seco por abajo. Es fijo
+          (no solo durante el giro) para que nada salte al revelar el resultado. */}
+      <div style={{ perspective: '600px' }} className="flex items-center justify-center h-20 sm:h-28 box-content pb-8 shrink-0">
         <div
           className={`relative w-20 sm:w-24 h-20 sm:h-24 rounded-full ${revealed ? '' : 'coin-spin'}`}
           style={{ transformStyle: 'preserve-3d' }}

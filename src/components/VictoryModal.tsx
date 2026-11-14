@@ -102,8 +102,10 @@ export function VictoryModal({ state, onPlayAgain }: Props) {
       widthClass="max-w-md"
       actions={<button onClick={onPlayAgain} className="btn btn--primary">Jugar de nuevo</button>}
     >
-      {/* Retrato del villano ganador con anillo de oro */}
-      <div className="villain-avatar-ring order-first" style={{ boxShadow: '0 0 0 1px rgba(0,0,0,0.7), 0 0 40px rgba(230,196,106,0.55), 0 10px 24px rgba(0,0,0,0.7)' }}>
+      {/* Retrato del villano ganador con anillo de oro. Es lo PRIMERO del contenido y
+          .modal-stage-content tiene overflow-y:auto, así que sin el margen superior (mt-10) su
+          halo de 40px se cortaba en seco por arriba (mismo caso que la moneda de StartRevealModal). */}
+      <div className="villain-avatar-ring order-first mt-10" style={{ boxShadow: '0 0 0 1px rgba(0,0,0,0.7), 0 0 40px rgba(230,196,106,0.55), 0 10px 24px rgba(0,0,0,0.7)' }}>
         <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden bg-black">
           <Image
             src={assetUrl(`villains/${winner?.villainId}.webp`)}

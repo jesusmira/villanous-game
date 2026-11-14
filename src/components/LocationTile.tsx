@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import { CardDeck } from '../core/types';
 import type { LocationDef, LocationState, GameState, CardInstId, CardInst } from '../core/types';
 import { CardComponent } from './CardComponent';
@@ -123,6 +124,40 @@ export function LocationTile({
   // BOTTOM ally zone: villain deck cards only (allies, items, curses, effects)
   const allyZoneCards  = villainCards;
 
+  // Sir Hiss: con el peón aquí, puede usarse UNA casilla tapada por Héroes. Mientras esa elección
+  // esté disponible, las cartas de Héroe se deslizan hacia arriba lo justo para dejar a la vista
+  // la fila de casillas, y vuelven a bajar en cuanto se usa (getHissChoiceSlotIndices deja de
+  // devolver casillas). El desplazamiento se MIDE (no es fijo) porque el tamaño de las cartas y
+  // de la ubicación cambia con la pantalla; se guarda en la variable CSS --hiss-lift sin pasar por
+  // estado. Cuándo se APLICA lo decide el CSS (.hiss-lift-tile en animations.css): en táctil
+  // siempre; con ratón, solo mientras el puntero está sobre los Héroes o sobre una casilla de Hiss.
+  const hissLiftActive = hissChoiceSlotIndices.length > 0 && heroCards.length > 0;
+  const tileRef = useRef<HTMLDivElement>(null);
+  const row1Ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const tile = tileRef.current;
+    if (!tile) return;
+    if (!hissLiftActive) { tile.style.setProperty('--hiss-lift', '0px'); return; }
+    const measure = () => {
+      const row1 = row1Ref.current;
+      if (!row1) return;
+      // Borde inferior de las cartas SIN el desplazamiento que tengan aplicado ahora mismo (puede
+      // ser 0, el total o un valor intermedio de la transición): se lee de su transform real.
+      const layers = tile.querySelectorAll<HTMLElement>('[data-hero-layer]');
+      let bottom = -Infinity;
+      layers.forEach(el => {
+        const ty = new DOMMatrixReadOnly(getComputedStyle(el).transform).m42;
+        bottom = Math.max(bottom, el.getBoundingClientRect().bottom - ty);
+      });
+      const lift = Math.max(0, Math.ceil(bottom - row1.getBoundingClientRect().top + 6));
+      tile.style.setProperty('--hiss-lift', `${lift}px`);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [hissLiftActive, topCards.length, shrunkHeroCards.length]);
+  const liftTransform = 'translateY(calc(-1 * var(--hiss-lift-now, 0px)))';
+
   /* Split action slots: normal = 2 top + 2 bottom; actionsInBottomRow = 0 top + all bottom */
   const row1 = locDef.actionsInBottomRow ? [] : locDef.actions.slice(0, 2);
   const row2Slots = locDef.actionsInBottomRow
@@ -139,14 +174,15 @@ export function LocationTile({
     <div ref={dropRef} className="flex flex-col gap-2">
 
       {/* ── Location card ─────────────────────────────────── */}
-      <div className="relative w-full aspect-3/4">
+      <div ref={tileRef} className={`relative w-full aspect-3/4 ${hissLiftActive ? 'hiss-lift-tile' : ''}`}>
 
         {/* ── Top overlay: hero cards + fate items ─────────────── */}
         {topCards.length > 0 && (
-          <div className={`absolute top-0 inset-x-0 z-30 flex pointer-events-none ${topCards.length === 1 ? 'justify-center' : ''}`}
+          <div data-hero-layer className={`absolute top-0 inset-x-0 z-30 flex pointer-events-none hiss-lift-layer ${topCards.length === 1 ? 'justify-center' : ''}`}
             style={{
               marginLeft: topCards.length > 1 ? '2px' : '0px',
               marginRight: topCards.length > 1 ? `${(topCards.length - 1) * 20}px` : '0px',
+              transform: liftTransform,
             }}>
             {topCards.map((card, idx) => {
               const isHero = heroCards.includes(card);
@@ -175,9 +211,9 @@ export function LocationTile({
         {shrunkHeroCards.map(card => {
           const slotIdx = card.shrunkKeptSlotIndex ?? 0;
           return (
-            <div key={card.instId}
-              className="absolute z-30 pointer-events-auto hover:z-40 transition-transform duration-200 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
-              style={{ top: '6%', left: slotIdx === 0 ? '30%' : '70%', transform: 'translateX(-50%)' }}
+            <div key={card.instId} data-hero-layer
+              className="absolute z-30 pointer-events-auto hover:z-40 hiss-lift-layer drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
+              style={{ top: '6%', left: slotIdx === 0 ? '30%' : '70%', transform: `translateX(-50%) ${liftTransform}` }}
             >
               <CardComponent
                 card={card}
@@ -314,7 +350,7 @@ export function LocationTile({
         {/* ── Action tokens — always visible; greyed out when locked ── */}
         <div className={`absolute inset-x-0 bottom-0 flex flex-col justify-between items-center py-4 px-2 pointer-events-none transition-opacity ${locState.isLocked ? 'opacity-30' : ''}`}
           style={{ top: '15%', height: '85%' }}>
-          <div className="flex justify-center gap-2 lg:gap-3 w-full pointer-events-auto">
+          <div ref={row1Ref} className="flex justify-center gap-2 lg:gap-3 w-full pointer-events-auto">
             {row1.map((slot, idx) => (
               <ActionToken
                 key={idx}
@@ -442,7 +478,7 @@ function ActionToken({ slotType, slotValue, covered, available, used = false, hi
           overflow-hidden
           ${blocked || !available ? 'cursor-not-allowed' : 'cursor-pointer'}
           ${hissChoice
-            ? 'border-tertiary ring-2 ring-tertiary/70 animate-pulse'
+            ? 'border-tertiary hiss-choice'
             : remoteCoverageBy
               ? 'border-tertiary ring-2 ring-tertiary/50'
               : isAvailable ? borderClass : 'border-black/40'}
