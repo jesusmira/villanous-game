@@ -3,7 +3,7 @@ import { ActionType } from '../core/types';
 import type { GameState, PlayerId } from '../core/types';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { getEffectDef } from '../core/villains/registry';
-import { canVanquish, canVanquishFree } from '../core/engine/RuleEngine';
+import { canVanquish, canVanquishFree, allyCannotVanquishHero } from '../core/engine/RuleEngine';
 import { CardComponent } from './CardComponent';
 import type { ActionPanelCtx } from './useActionPanelState';
 import { ModalStage } from './shared/ModalStage';
@@ -40,6 +40,7 @@ export function VanquishModal({ ap, state, playerId, free = false }: Props) {
       : canVanquish(state, playerId, selectedHeroId, selectedAllyIds, ap.pendingSlot!).valid);
 
   const alliesForHero = hero ? ap.alliesInKingdom.filter(c => {
+    if (allyCannotVanquishHero(state, hero.instId, c.instId)) return false; // Arqueros Lobo vs Skippy
     if (c.locationId === hero.locationId) return true;
     if (c.effectIds.some(id => getEffectDef(id)?.canVanquishFromAdjacent))
       return ap.plugin.locations.find(l => l.id === hero.locationId)?.adjacentIds.includes(c.locationId!) ?? false;

@@ -8,7 +8,7 @@ import {
   discardCardFromKingdom, moveAttachedItems, addLog, getEffectiveStrength, computeKingdomCostMod, checkWin,
 } from '../../engine/stateHelpers';
 import { runEffects } from '../../engine/EffectEngine';
-import { getPlugin } from '../registry';
+import { getPlugin, locName } from '../registry';
 import { EffectId } from '../effectIds';
 import { shuffle } from '../../utils/shuffle';
 import { getCoveredSlotIndices } from '../../engine/slotHelpers';
@@ -130,7 +130,7 @@ function handlePerspicaz(s: GameState, reactingPlayerId: PlayerId, ctx: Conditio
         cardInstId: ctx.allyInstId,
         targetLocationId: ctx.targetLocationId,
       });
-      s = addLog(s, `Perspicaz: ${ally.name} jugado gratis en ${ctx.targetLocationId}.`);
+      s = addLog(s, `Perspicaz: ${ally.name} jugado gratis en ${locName(ctx.targetLocationId)}.`);
       const locAfter = getPlayer(s, reactingPlayerId).locationStates[ctx.targetLocationId];
       for (const cId of [...locAfter.villainCardInstIds]) {
         if (cId === ctx.allyInstId) continue;
@@ -224,7 +224,7 @@ export function resolveCuervo(
         });
       }
       s = updateCard(s, params.cardInstId, { locationId: params.targetLocationId });
-      s = addLog(s, `El Cuervo: ${card.name} jugado en ${params.targetLocationId}.`);
+      s = addLog(s, `El Cuervo: ${card.name} jugado en ${locName(params.targetLocationId)}.`);
       s = runEffects(s, params.cardInstId, 'ON_PLAY', {
         actingPlayerId: playerId,
         cardInstId: params.cardInstId,
@@ -267,7 +267,7 @@ export function resolveCuervo(
       s = updateCard(s, params.cardInstId, { locationId: params.targetLocationId });
       // Los Objetos adjuntos viajan con su portador.
       s = moveAttachedItems(s, params.cardInstId, params.targetLocationId);
-      s = addLog(s, `El Cuervo: ${card.name} movido a ${params.targetLocationId}.`);
+      s = addLog(s, `El Cuervo: ${card.name} movido a ${locName(params.targetLocationId)}.`);
       break;
     }
     case ActionType.MOVE_HERO: {
@@ -285,7 +285,7 @@ export function resolveCuervo(
       s = updateCard(s, params.cardInstId, { locationId: params.targetLocationId });
       // Los Objetos adjuntos viajan con su portador.
       s = moveAttachedItems(s, params.cardInstId, params.targetLocationId);
-      s = addLog(s, `El Cuervo: ${hero.name} movido a ${params.targetLocationId}.`);
+      s = addLog(s, `El Cuervo: ${hero.name} movido a ${locName(params.targetLocationId)}.`);
       break;
     }
     case ActionType.DISCARD: {

@@ -13,8 +13,10 @@ const plugins: Record<VillainId, VillainPlugin> = {
 
 const cardDefMap: Record<string, CardDef> = {};
 const effectDefMap: Record<string, EffectDef> = {};
+const locationNameMap: Record<string, string> = {};
 
 for (const plugin of Object.values(plugins)) {
+  for (const loc of plugin.locations) locationNameMap[loc.id] = loc.name;
   for (const def of [...plugin.villainCardDefs, ...plugin.fateCardDefs]) {
     cardDefMap[def.id] = def;
   }
@@ -33,6 +35,11 @@ export function getCardDef(defId: string): CardDef | undefined {
 
 export function getEffectDef(effectId: string): EffectDef | undefined {
   return effectDefMap[effectId];
+}
+
+/** Nombre legible de una ubicación (los ids son únicos entre villanos). Para el registro de partida. */
+export function locName(locationId: string): string {
+  return locationNameMap[locationId] ?? locationId;
 }
 
 export function getAllPlugins(): VillainPlugin[] {

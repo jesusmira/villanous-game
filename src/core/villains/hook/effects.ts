@@ -9,6 +9,7 @@ import { shuffle } from '../../utils/shuffle';
 import { CardDefId } from '../effectIds';
 import { locations, HookLocationId, HookObjectiveStep } from './cards';
 import { pickStarkeyHeroTarget } from './aiHelpers';
+import { locName } from '../registry';
 
 export const effects: EffectDef[] = [
   {
@@ -228,7 +229,7 @@ export const effects: EffectDef[] = [
       s = updateCard(s, allyId, { locationId: destLocId, bonusThisTurn: (ally.bonusThisTurn ?? 0) + 2 });
       // Los Objetos adjuntos viajan con su portador.
       s = moveAttachedItems(s, allyId, destLocId);
-      return addLog(s, `¡A la orden señor!: ${ally.name} movido a ${destLocId} con +2 Fuerza este turno.`);
+      return addLog(s, `¡A la orden señor!: ${ally.name} movido a ${locName(destLocId)} con +2 Fuerza este turno.`);
     },
   },
   {
@@ -277,7 +278,7 @@ export const effects: EffectDef[] = [
         heroCardInstIds: [...locState.heroCardInstIds, heroId],
       });
       s = updateCard(s, heroId, { locationId: destLocId });
-      return addLog(s, `Rival Digno: +2 Poder, ${hero?.name ?? 'Héroe'} jugado en ${destLocId}.`);
+      return addLog(s, `Rival Digno: +2 Poder, ${hero?.name ?? 'Héroe'} jugado en ${locName(destLocId)}.`);
     },
   },
   {
@@ -400,7 +401,7 @@ export const effects: EffectDef[] = [
       s = updateCard(s, heroId, { locationId: destLocId });
       // Los Objetos adjuntos viajan con su portador.
       s = moveAttachedItems(s, heroId, destLocId);
-      return addLog(s, `Sr. Starkey mueve a ${hero.name} a ${destLocId}.`);
+      return addLog(s, `Sr. Starkey mueve a ${hero.name} a ${locName(destLocId)}.`);
     },
   },
 ];

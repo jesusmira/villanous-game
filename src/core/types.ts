@@ -209,6 +209,12 @@ export interface EffectDef {
   /** El Héroe portador no puede jugarse ni moverse a esta ubicación (p. ej. Lady Kluck → La Prisión). */
   cannotEnterLocationId?: LocationId;
   requiresMultipleAlliesToVanquish?: boolean;
+  /**
+   * Héroe que ciertos Aliados no pueden derrotar (p. ej. Skippy: "Los Arqueros Lobo no pueden ser
+   * utilizados para derrotar a Skippy"). Devuelve true si `ally` queda excluido. Lo aplica
+   * `canVanquishFree` y lo consultan la IA y la UI vía `allyCannotVanquishHero` (RuleEngine).
+   */
+  excludesAllyFromVanquish?: (ally: CardInst) => boolean;
   conditionTrigger?: ConditionTriggerType;
   /** El Aliado portador no se descarta al ser utilizado para Vencer (Tweedle Dee y Tweedle Dum). */
   survivesVanquish?: boolean;

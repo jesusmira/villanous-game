@@ -62,6 +62,8 @@ interface Props {
    * bloqueo está en otro sitio.
    */
   remoteEnlargedCoverage?: { slotIndex: number; card: CardInst }[];
+  /** Aviso "contra ti": clave que cambia en cada aviso sobre esta ubicación (reinicia el pulso rojo). */
+  alertKey?: number;
   selectedCardId: CardInstId | null;
   onSlotClick?: (slotIndex: number) => void;
   onCardClick: (cardInstId: CardInstId) => void;
@@ -97,7 +99,7 @@ interface Props {
 
 export function LocationTile({
   locDef, locState, state, villainColor, isCurrentPawn,
-  coveredSlotIndices, availableSlotIndices, usedSlotIndices = [], hissChoiceSlotIndices = [], remoteEnlargedCoverage = [], selectedCardId,
+  coveredSlotIndices, availableSlotIndices, usedSlotIndices = [], hissChoiceSlotIndices = [], remoteEnlargedCoverage = [], alertKey, selectedCardId,
   onSlotClick, onCardClick,
   onLocationClick, isMovableTarget, playHighlight, onCardDrop,
   boardImageUrl, locationIndex = 0,
@@ -269,6 +271,9 @@ export function LocationTile({
               ? `linear-gradient(160deg, ${villainColor}22 0%, rgba(14,14,14,0.2) 100%)`
               : `linear-gradient(160deg, ${villainColor}28 0%, #0e0e0e 65%)` }} />
           <div className="absolute inset-0 pointer-events-none bg-linear-to-t from-background/75 via-background/10 to-transparent" />
+
+          {/* Aviso "contra ti": pulso rojo cuando el rival acaba de tocar esta ubicación */}
+          {alertKey ? <span key={alertKey} className="loc-alert-ring" aria-hidden="true" /> : null}
 
           {/* Locked overlay */}
           {locState.isLocked && (

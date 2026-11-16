@@ -12,7 +12,7 @@ import { ppDistanceToJollyRoger } from '../../villains/hook/intentions';
 import { getPlayer, getEffectiveStrength, computeKingdomCostMod } from '../../engine/stateHelpers';
 import { getCoveredSlotIndices } from '../../engine/slotHelpers';
 import {
-  canPlayCard, canVanquish, canMoveItemAlly, canMoveHero, canFate, canActivateCard,
+  canPlayCard, canVanquish, allyCannotVanquishHero, canMoveItemAlly, canMoveHero, canFate, canActivateCard,
   canDiscard, canPayToDiscardItem,
 } from '../../engine/RuleEngine';
 import {
@@ -142,7 +142,9 @@ function genVanquish(state: GameState, playerId: PlayerId, slotIdx: number): Act
         return a?.cardType === CardType.ALLY && a.effectIds.includes(EffectId.PELOTON_ADJ_VANQUISH);
       }),
     );
-    const candidates = [...sameLocAllies, ...adjAllies];
+    // Aliados vetados contra este Héroe (Arqueros Lobo vs Skippy) fuera ANTES de la selección
+    // greedy: si no, el conjunto entero lo rechazaría canVanquish y se perdería un Vencer posible.
+    const candidates = [...sameLocAllies, ...adjAllies].filter(id => !allyCannotVanquishHero(state, heroId, id));
     if (candidates.length === 0) continue;
 
     const heroStr = getEffectiveStrength(state, heroId);
@@ -345,7 +347,7 @@ export function chooseCuervoAction(state: GameState): { action: ActionType; para
       const heroStr = getEffectiveStrength(state, heroId);
       const needsMultiple = hero.effectIds.some(id => getEffectDef(id)?.requiresMultipleAlliesToVanquish);
       const allies = ls.villainCardInstIds
-        .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+        .filter(id => state.allCards[id]?.cardType === CardType.ALLY && !allyCannotVanquishHero(state, heroId, id))
         .sort((a, b) => getEffectiveStrength(state, b) - getEffectiveStrength(state, a));
       const chosen: CardInstId[] = [];
       let total = 0;

@@ -8,6 +8,7 @@ import {
 import { shuffle } from '../../utils/shuffle';
 import { fireHeroDefeated } from '../../engine/actions/_helpers';
 import { locations } from './cards';
+import { locName } from '../registry';
 
 export const effects: EffectDef[] = [
   {
@@ -45,7 +46,7 @@ export const effects: EffectDef[] = [
       });
       s = updateCard(s, ctx.cardInstId, { locationId: ctx.targetLocationId });
       s = { ...s, pendingCuervo: { playerId: ctx.actingPlayerId, locationId: ctx.targetLocationId } };
-      return addLog(s, `El Cuervo se mueve a ${ctx.targetLocationId}.`);
+      return addLog(s, `El Cuervo se mueve a ${locName(ctx.targetLocationId)}.`);
     },
   },
   {
@@ -198,7 +199,7 @@ export const effects: EffectDef[] = [
       // Dentro del pool, elegir la que tenga más héroes (más disruptiva para Maléfica)
       const [bestLocId] = pool.sort(([, a], [, b]) => b.heroCardInstIds.length - a.heroCardInstIds.length)[0];
       const s = updatePlayer(state, card.ownerId, { pawnLocationId: bestLocId });
-      return addLog(s, `Rey Estéfano mueve a Maléfica a ${bestLocId}.`);
+      return addLog(s, `Rey Estéfano mueve a Maléfica a ${locName(bestLocId)}.`);
     },
   },
   {
@@ -231,7 +232,7 @@ export const effects: EffectDef[] = [
         // Los Objetos adjuntos viajan con su portador.
         s = moveAttachedItems(s, allyId, ctx.targetLocationId);
       }
-      return addLog(s, `Rey Huberto reagrupa Aliados en ${ctx.targetLocationId}.`);
+      return addLog(s, `Rey Huberto reagrupa Aliados en ${locName(ctx.targetLocationId)}.`);
     },
   },
   {

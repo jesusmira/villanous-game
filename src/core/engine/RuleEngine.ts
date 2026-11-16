@@ -169,6 +169,18 @@ export function canVanquish(
 }
 
 /**
+ * ¿Este Aliado tiene prohibido participar en derrotar a este Héroe? (p. ej. Arqueros Lobo contra
+ * Skippy — ver `EffectDef.excludesAllyFromVanquish`). Lo usan el motor, la IA y la UI para no
+ * ofrecer ni elegir combinaciones que luego el motor rechazaría.
+ */
+export function allyCannotVanquishHero(state: GameState, heroInstId: CardInstId, allyInstId: CardInstId): boolean {
+  const hero = state.allCards[heroInstId];
+  const ally = state.allCards[allyInstId];
+  if (!hero || !ally) return false;
+  return hero.effectIds.some(id => getEffectDef(id)?.excludesAllyFromVanquish?.(ally));
+}
+
+/**
  * Validación de Vencer SIN consumir casilla de acción — para efectos que otorgan un
  * Vencer gratuito (p. ej. Trampa del Príncipe Juan tras mover el Aliado).
  */
@@ -205,6 +217,8 @@ export function canVanquishFree(
       if (!heroLocDef?.adjacentIds.includes(ally.locationId!))
         return fail('El Aliado con habilidad adyacente no está en una ubicación contigua.');
     }
+    if (allyCannotVanquishHero(state, heroInstId, allyId))
+      return fail(`${ally.name} no puede usarse para derrotar a ${hero.name}.`);
   }
 
   // Combined strength must meet or exceed hero strength

@@ -1,6 +1,6 @@
 import { TurnPhase } from '../../types';
 import type { GameState, PlayerId, LocationId } from '../../types';
-import { getPlugin } from '../../villains/registry';
+import { getPlugin, locName } from '../../villains/registry';
 import { runEffects } from '../EffectEngine';
 import { shuffle } from '../../utils/shuffle';
 import {
@@ -13,7 +13,7 @@ export function movePawn(
   locationId: LocationId,
 ): GameState {
   let s = updatePlayer(state, playerId, { pawnLocationId: locationId, skipNextMove: false, dragonActive: false });
-  s = addLog(s, `${getPlayer(s, playerId).name} se mueve a ${locationId}.`);
+  s = addLog(s, `${getPlayer(s, playerId).name} se mueve a ${locName(locationId)}.`);
   const arrivedLoc = getPlayer(s, playerId).locationStates[locationId];
   for (const cardId of [...arrivedLoc.villainCardInstIds, ...arrivedLoc.heroCardInstIds]) {
     s = runEffects(s, cardId, 'ON_PAWN_ARRIVES', {
@@ -52,7 +52,7 @@ export function activateRaven(
   s = updatePlayer(s, playerId, { ravenUsedThisTurn: true });
   // Disparar el efecto ACTIVATED → abre pendingCuervo para elegir acción.
   s = runEffects(s, ravenInstId, 'ACTIVATED', { actingPlayerId: playerId, cardInstId: ravenInstId, targetLocationId });
-  s = addLog(s, `El Cuervo vuela a ${targetLocationId}.`);
+  s = addLog(s, `El Cuervo vuela a ${locName(targetLocationId)}.`);
   return s;
 }
 
@@ -83,7 +83,7 @@ export function activateSherif(
   // Los Objetos adjuntos viajan con su portador.
   s = moveAttachedItems(s, sherifInstId, targetLocationId);
   s = updatePlayer(s, playerId, { sherifUsedThisTurn: true });
-  s = addLog(s, `El Sheriff se mueve a ${targetLocationId}.`);
+  s = addLog(s, `El Sheriff se mueve a ${locName(targetLocationId)}.`);
 
   // Si hay Héroes en el destino, +1 Poder al Príncipe Juan
   const destLs = getPlayer(s, playerId).locationStates[targetLocationId];
@@ -96,7 +96,7 @@ export function activateSherif(
 
 export function skipMove(state: GameState, playerId: PlayerId): GameState {
   let s = updatePlayer(state, playerId, { skipNextMove: false, dragonActive: false });
-  s = addLog(s, `${getPlayer(s, playerId).name} permanece en ${getPlayer(s, playerId).pawnLocationId}.`);
+  s = addLog(s, `${getPlayer(s, playerId).name} permanece en ${locName(getPlayer(s, playerId).pawnLocationId)}.`);
   s = { ...s, turnPhase: TurnPhase.ACTIVATE, usedActionSlotIndices: [] };
   return checkWin(s);
 }

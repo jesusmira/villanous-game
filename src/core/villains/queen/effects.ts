@@ -5,7 +5,7 @@ import {
   discardCardFromKingdom, moveAttachedItems, addLog, getEffectiveStrength,
   applyMenguarToggle, applyPowerGain,
 } from '../../engine/stateHelpers';
-import { getPlugin } from '../registry';
+import { getPlugin, locName } from '../registry';
 import { shuffle } from '../../utils/shuffle';
 import { getCoveredSlotIndices } from '../../engine/slotHelpers';
 
@@ -264,7 +264,7 @@ export const effects: EffectDef[] = [
         const s = updateCard(state, ctx.targetCardInstId, {
           isEnlarged: true, enlargedTargetLocationId: locationId, enlargedTargetSlotIndex: slotIndex,
         });
-        return addLog(s, `Agrandar: ${hero.name} también tapa una casilla en ${locationId}.`);
+        return addLog(s, `Agrandar: ${hero.name} también tapa una casilla en ${locName(locationId)}.`);
       }
       return {
         ...addLog(state, `Agrandar: elige a qué ubicación adyacente y casilla tapará ${hero.name}.`),
@@ -318,7 +318,7 @@ export const effects: EffectDef[] = [
       });
       s = updateCard(s, ctx.targetCardInstId, { locationId: ctx.targetLocationId });
       s = moveAttachedItems(s, ctx.targetCardInstId, ctx.targetLocationId);
-      return addLog(s, `Mome Raths: ${ally.name} movido a ${ctx.targetLocationId}.`);
+      return addLog(s, `Mome Raths: ${ally.name} movido a ${locName(ctx.targetLocationId)}.`);
     },
   },
   {
@@ -438,7 +438,7 @@ export const effects: EffectDef[] = [
         heroCardInstIds: [...destLocState.heroCardInstIds, aliciaFoundId],
       });
       s = updateCard(s, aliciaFoundId, { locationId: ctx.targetLocationId });
-      return addLog(s, `Madriguera del Conejo: Alicia encontrada y jugada en ${ctx.targetLocationId}.`);
+      return addLog(s, `Madriguera del Conejo: Alicia encontrada y jugada en ${locName(ctx.targetLocationId)}.`);
     },
   },
   {

@@ -127,6 +127,15 @@ export const effects: EffectDef[] = [
     canVanquishFromAdjacent: true,
   },
 
+  // Skippy — los Arqueros Lobo no pueden usarse para derrotarlo (ni con Vencer ni con Trampa).
+  {
+    id: EffectId.JHON_SKIPPY_NO_ARQUEROS,
+    trigger: EffectTrigger.CONTINUOUS,
+    description: 'Los Arqueros Lobo no pueden usarse para derrotar a Skippy.',
+    execute: (s) => s,
+    excludesAllyFromVanquish: (ally) => ally.defId.startsWith(CardDefId.JHON_ARQUEROS),
+  },
+
   // Sheriff de Nottingham — marcador CONTINUOUS (permite detectar la carta)
   {
     id: EffectId.JHON_SHERIF,

@@ -4,6 +4,7 @@ import { getPlayer, updatePlayer, updateLocationState, updateCard, addLog } from
 import { runEffects } from '../../engine/EffectEngine';
 import { placeHeroInKingdom } from '../../engine/actions/fate';
 import { buildPlayCtx } from '../../ai/contextBuilder';
+import { locName } from '../registry';
 
 export function resolveDemosles(
   state: GameState,
@@ -53,7 +54,7 @@ function handlePerspicaz(s: GameState, reactingPlayerId: PlayerId, ctx: Conditio
         targetLocationId: ctx.targetLocationId,
         ...playCtx,
       });
-      s = addLog(s, `Perspicaz: ${ally.name} jugado gratis en ${ctx.targetLocationId}.`);
+      s = addLog(s, `Perspicaz: ${ally.name} jugado gratis en ${locName(ctx.targetLocationId)}.`);
       const locAfter = getPlayer(s, reactingPlayerId).locationStates[ctx.targetLocationId];
       for (const cId of [...locAfter.villainCardInstIds]) {
         if (cId === ctx.allyInstId) continue;

@@ -1,6 +1,6 @@
 import { CardType } from '../../types';
 import type { GameState, PlayerId, CardInstId, LocationId } from '../../types';
-import { getEffectDef } from '../../villains/registry';
+import { getEffectDef, locName } from '../../villains/registry';
 import { runEffects } from '../EffectEngine';
 import { shuffle } from '../../utils/shuffle';
 import {
@@ -125,7 +125,7 @@ export function resolveFate(
     }
 
     s = placeHeroInKingdom(s, chosenInstId, targetPlayer.id, targetLocationId, actingPlayerId);
-    s = addLog(s, `${card.name} juegado en el Reino de ${targetPlayer.name}.`);
+    s = addLog(s, `${card.name} jugado en el Reino de ${targetPlayer.name}.`);
   } else {
     const locState = getPlayer(s, targetPlayer.id).locationStates[targetLocationId];
     if (card.cardType === CardType.ITEM) {
@@ -185,7 +185,7 @@ export function resolveAuroraHero(state: GameState, targetLocationId: LocationId
   }
 
   s = placeHeroInKingdom(s, heroInstId, targetPlayerId, targetLocationId, pending.actingPlayerId);
-  s = addLog(s, `${hero.name} colocado en ${targetLocationId}.`);
+  s = addLog(s, `${hero.name} colocado en ${locName(targetLocationId)}.`);
   s = runEffects(s, heroInstId, 'ON_PLAY', {
     actingPlayerId: pending.actingPlayerId, cardInstId: heroInstId, targetLocationId,
   });

@@ -10,7 +10,7 @@ import { getPlugin, getEffectDef } from '../../villains/registry';
 import { EffectId } from '../../villains/effectIds';
 import { getPlayer, getEffectiveStrength } from '../../engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../../engine/slotHelpers';
-import { canVanquishFree } from '../../engine/RuleEngine';
+import { canVanquishFree, allyCannotVanquishHero } from '../../engine/RuleEngine';
 import {
   movePawn, skipMove, endActivatePhase, drawCards, activateRaven, activateSherif,
 } from '../../engine/GameEngine';
@@ -94,7 +94,7 @@ function bestTrampaVanquish(
       const needsMultiple = (state.allCards[heroId]?.effectIds ?? [])
         .some(id => getEffectDef(id)?.requiresMultipleAlliesToVanquish);
       const allies = ls.villainCardInstIds
-        .filter(id => state.allCards[id]?.cardType === CardType.ALLY)
+        .filter(id => state.allCards[id]?.cardType === CardType.ALLY && !allyCannotVanquishHero(state, heroId, id))
         .sort((a, b) => getEffectiveStrength(state, b) - getEffectiveStrength(state, a));
       const chosenAllies: CardInstId[] = [];
       let total = 0;

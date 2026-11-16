@@ -9,6 +9,7 @@ import {
 import { runEffects } from '../../engine/EffectEngine';
 import { shuffle } from '../../utils/shuffle';
 import { buildPlayCtx } from '../../ai/contextBuilder';
+import { locName } from '../registry';
 
 // ── Find Robin Hood anywhere and play him at targetLocId ──────────────────────
 function findAndPlayRobinHood(
@@ -32,7 +33,7 @@ function findAndPlayRobinHood(
         heroCardInstIds: [...dest.heroCardInstIds, heroId],
       });
       s = updateCard(s, heroId, { locationId: targetLocId });
-      return addLog(s, `Robin Hood movido a ${targetLocId}.`);
+      return addLog(s, `Robin Hood movido a ${locName(targetLocId)}.`);
     }
   }
 
@@ -49,7 +50,7 @@ function findAndPlayRobinHood(
       heroCardInstIds: [...dest.heroCardInstIds, heroId],
     });
     s = updateCard(s, heroId, { locationId: targetLocId });
-    return addLog(s, `Robin Hood encontrado y jugado en ${targetLocId}.`);
+    return addLog(s, `Robin Hood encontrado y jugado en ${locName(targetLocId)}.`);
   }
 
   // 3. Fate deck (reshuffle after)
@@ -64,7 +65,7 @@ function findAndPlayRobinHood(
       heroCardInstIds: [...dest.heroCardInstIds, heroId],
     });
     s = updateCard(s, heroId, { locationId: targetLocId });
-    return addLog(s, `Robin Hood encontrado en el mazo y jugado en ${targetLocId}.`);
+    return addLog(s, `Robin Hood encontrado en el mazo y jugado en ${locName(targetLocId)}.`);
   }
 
   return state;
@@ -94,7 +95,7 @@ function handleCobardia(s: GameState, reactingPlayerId: PlayerId, ctx: Condition
     targetLocationId: ctx.targetLocationId,
     ...playCtx,
   });
-  return addLog(s, `Cobardía: ${ally.name} jugado gratis en ${ctx.targetLocationId}.`);
+  return addLog(s, `Cobardía: ${ally.name} jugado gratis en ${locName(ctx.targetLocationId)}.`);
 }
 
 export const conditionHandlers = {

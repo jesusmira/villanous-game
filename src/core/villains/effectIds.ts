@@ -24,6 +24,7 @@ export const EffectId = {
   JHON_CORONA_COST:     'jhon_corona_cost',
   JHON_ORDEN_POWER:     'jhon_orden_power',
   JHON_ARQUERO_ADJ:     'jhon_arquero_adj',
+  JHON_SKIPPY_NO_ARQUEROS: 'jhon_skippy_no_arqueros',
   JHON_COBARDIA_COND:   'jhon_cobardia_cond',
   JHON_IMPUESTOS:       'jhon_impuestos',
   JHON_ENCARCELAMIENTO: 'jhon_encarcelamiento',

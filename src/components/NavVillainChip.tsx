@@ -4,6 +4,7 @@ import type { PlayerState } from '../core/types';
 import { getPlugin } from '../core/villains/registry';
 import { Image } from './Image';
 import { assetUrl } from '../lib/assets';
+import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 
 /**
  * Índice del tablero de jugador que se está viendo al hacer scroll: el último cuyo borde superior
@@ -44,15 +45,18 @@ function useVisibleBoardIndex(playerIds: string[]): number {
 
 function ChipFace({ player }: { player: PlayerState }) {
   const plugin = getPlugin(player.villainId);
+  const power = useAnimatedNumber(player.power);
   return (
     <span className="nav-villain-face" title={`${plugin.name} · ${player.power} de Poder`}>
       <span className="nav-villain-avatar" style={{ boxShadow: `0 0 0 1.5px ${plugin.color}, 0 0 10px ${plugin.color}88` }}>
         <Image src={assetUrl(`villains/${player.villainId}.webp`)} alt={plugin.name} className="w-full h-full object-cover scale-150" />
       </span>
-      <span className="nav-villain-coin" aria-hidden="true">
-        <Zap className="w-2.5 h-2.5" fill="currentColor" />
+      <span key={power.flash?.key ?? 0} className={`power-flash ${power.flash ? `is-${power.flash.dir}` : ''} inline-flex items-center gap-[5px]`}>
+        <span className="power-coin nav-villain-coin" aria-hidden="true">
+          <Zap className="w-2.5 h-2.5" fill="currentColor" />
+        </span>
+        <span className="power-num font-stats text-sm font-bold text-gold-bright leading-none tabular-nums">{power.shown}</span>
       </span>
-      <span className="font-stats text-sm font-bold text-gold-bright leading-none tabular-nums">{player.power}</span>
     </span>
   );
 }

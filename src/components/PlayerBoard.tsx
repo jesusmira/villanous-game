@@ -34,6 +34,7 @@ const BOARD_IMAGES: Record<string, string> = {
 import { getCoveredSlotIndices, getAvailableSlotIndices, getHissChoiceSlotIndices } from '../core/engine/slotHelpers';
 import { LocationTile } from './LocationTile';
 import { parseProgress } from './shared/winProgress';
+import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { Zap, Layers, BookOpen, Star } from 'lucide-react';
 
 interface Props {
@@ -42,6 +43,8 @@ interface Props {
   isActive: boolean;
   /** Pulsar el avatar abre la Guía de Villano de este jugador. */
   onAvatarClick?: () => void;
+  /** Aviso "contra ti": ubicación → clave que cambia en cada aviso (reinicia el pulso rojo). */
+  alertLocKeys?: Record<string, number>;
   onCardClick: (id: CardInstId) => void;
   selectedCardId: CardInstId | null;
   /** ACTIVATE phase: called with slot index when a token is clicked */
@@ -72,8 +75,9 @@ interface Props {
   onSherifDragEnd?: () => void;
 }
 
-export function PlayerBoard({ state, player, isActive, onAvatarClick, onCardClick, selectedCardId, onActionSlotClick, onLocationClick, movableLocIds, playHighlights, onCardDrop, onVillainCardDragStart, onVillainCardDragEnd, onHeroCardDragStart, onHeroCardDragEnd, onFateLocationClick, ravenInstId, onRavenDragStart, onRavenDragEnd, sherifInstId, onSherifDragStart, onSherifDragEnd }: Props) {
+export function PlayerBoard({ state, player, isActive, onAvatarClick, alertLocKeys, onCardClick, selectedCardId, onActionSlotClick, onLocationClick, movableLocIds, playHighlights, onCardDrop, onVillainCardDragStart, onVillainCardDragEnd, onHeroCardDragStart, onHeroCardDragEnd, onFateLocationClick, ravenInstId, onRavenDragStart, onRavenDragEnd, sherifInstId, onSherifDragStart, onSherifDragEnd }: Props) {
   const plugin        = getPlugin(player.villainId);
+  const power         = useAnimatedNumber(player.power);
   const progressLabel = plugin.getWinProgress?.(state, player) ?? null;
   const progressItems = parseProgress(progressLabel);
 
@@ -190,10 +194,13 @@ export function PlayerBoard({ state, player, isActive, onAvatarClick, onCardClic
           {/* Recursos */}
           <div className="bg-black/35 backdrop-blur-md border border-white/8 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full flex items-center gap-2 sm:gap-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_16px_rgba(0,0,0,0.5)]">
             <StatTip label="Poder (Monedas)">
-              <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center bg-[radial-gradient(circle_at_35%_30%,#f6dd94_0%,#b8862f_70%,#6b4d1c_100%)] shadow-[0_0_8px_rgba(230,196,106,0.45),inset_0_-1px_0_rgba(0,0,0,0.3)]">
-                <Zap className="w-2.5 sm:w-3 h-2.5 sm:h-3 text-[#3a2808]" fill="currentColor" />
+              {/* Cuenta hasta el nuevo valor y destella (oro al ganar, rojizo al pagar). */}
+              <span key={power.flash?.key ?? 0} className={`power-flash ${power.flash ? `is-${power.flash.dir}` : ''} flex items-center gap-0.5 sm:gap-1`}>
+                <span className="power-coin w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center bg-[radial-gradient(circle_at_35%_30%,#f6dd94_0%,#b8862f_70%,#6b4d1c_100%)] shadow-[0_0_8px_rgba(230,196,106,0.45),inset_0_-1px_0_rgba(0,0,0,0.3)]">
+                  <Zap className="w-2.5 sm:w-3 h-2.5 sm:h-3 text-[#3a2808]" fill="currentColor" />
+                </span>
+                <span className="power-num font-stats text-sm sm:text-base font-bold text-gold-bright tabular-nums">{power.shown}</span>
               </span>
-              <span className="font-stats text-sm sm:text-base font-bold text-gold-bright">{player.power}</span>
             </StatTip>
             <div className="hidden sm:block w-px h-3.5 bg-white/10" />
             <StatTip label="Cartas en mano">
@@ -244,6 +251,7 @@ export function PlayerBoard({ state, player, isActive, onAvatarClick, onCardClic
                 availableSlotIndices={available}
                 usedSlotIndices={isActive && isPawnHere ? state.usedActionSlotIndices : undefined}
                 hissChoiceSlotIndices={hissChoices}
+                alertKey={alertLocKeys?.[locDef.id]}
                 selectedCardId={selectedCardId}
                 onCardClick={onCardClick}
                 onSlotClick={onActionSlotClick}

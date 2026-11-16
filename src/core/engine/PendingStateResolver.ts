@@ -4,7 +4,7 @@ import {
   getPlayer, updatePlayer, updateLocationState, updateCard, addLog, checkWin,
   discardCardFromKingdom, moveAttachedItems, applyMenguarToggle,
 } from './stateHelpers';
-import { getPlugin } from '../villains/registry';
+import { getPlugin, locName } from '../villains/registry';
 import { canVanquishFree } from './RuleEngine';
 import { vanquishFree } from './actions/play';
 
@@ -40,7 +40,7 @@ export function resolveTrampaMove(
   // Los Objetos adjuntos (Arco, Flecha Dorada) viajan con el Aliado.
   s = moveAttachedItems(s, allyInstId, targetLocationId);
   s = { ...s, trampaActive: undefined, trampaVanquish: playerId };
-  return addLog(s, `Trampa: ${ally.name} movido/a a ${targetLocationId}. Puedes llevar a cabo un Vencer.`);
+  return addLog(s, `Trampa: ${ally.name} movido/a a ${locName(targetLocationId)}. Puedes llevar a cabo un Vencer.`);
 }
 
 /** Fase 2 de Trampa: el Vencer gratuito (no consume casilla de acción). */
@@ -137,7 +137,7 @@ export function resolveEnlargeTarget(
     isEnlarged: true, enlargedTargetLocationId: locationId, enlargedTargetSlotIndex: slotIndex,
   });
   const heroName = s.allCards[pending.heroInstId]?.name ?? 'Héroe';
-  return addLog(s, `Agrandar: ${heroName} también tapa una casilla en ${locationId}.`);
+  return addLog(s, `Agrandar: ${heroName} también tapa una casilla en ${locName(locationId)}.`);
 }
 
 export function resolveJaqueca(state: GameState, itemInstId: CardInstId): GameState {

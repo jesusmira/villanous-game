@@ -4,7 +4,7 @@ import type { GameState, CardInstId, LocationId } from '../core/types';
 import { getPlugin, getEffectDef } from '../core/villains/registry';
 import { getPlayer, getEffectiveStrength } from '../core/engine/stateHelpers';
 import { getAvailableSlotIndices, getItemGrantedSlotEntries } from '../core/engine/slotHelpers';
-import { canVanquish, canMoveItemAlly, canMoveHero } from '../core/engine/RuleEngine';
+import { canVanquish, canMoveItemAlly, canMoveHero, allyCannotVanquishHero } from '../core/engine/RuleEngine';
 import { useGameStore } from '../state/gameStore';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -140,6 +140,7 @@ export function useActionPanelState(state: GameState, playerId: string) {
     const hero = state.allCards[heroInstId];
     if (!hero) return [];
     return alliesInKingdom.filter(ally => {
+      if (allyCannotVanquishHero(state, heroInstId, ally.instId)) return false; // Arqueros Lobo vs Skippy
       if (ally.locationId === hero.locationId) return true;
       const canFromAdj = ally.effectIds.some(id => getEffectDef(id)?.canVanquishFromAdjacent);
       if (!canFromAdj) return false;

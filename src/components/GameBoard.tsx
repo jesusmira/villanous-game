@@ -27,6 +27,8 @@ import { ConfirmLeaveModal } from './ConfirmLeaveModal';
 import { AttachTargetModal } from './AttachTargetModal';
 import { FateMoveDestModal } from './FateMoveDestModal';
 import { NavVillainChip } from './NavVillainChip';
+import { locName } from '../core/villains/registry';
+import type { PlayerState } from '../core/types';
 import { StarkeyMoveModal } from './StarkeyMoveModal';
 import { VillainGuideModal } from './VillainGuideModal';
 import type { GuideTab } from './VillainGuideModal';
@@ -213,6 +215,48 @@ export function GameBoard({ state }: Props) {
     }
     prevPlayerIndexRef.current = state.currentPlayerIndex;
   }, [state.currentPlayerIndex, state.players.length, isReplaying]);
+
+  // ── Aviso "contra ti": algo cambió en un Reino durante el turno de OTRO jugador ──
+  // (Héroe/Objeto de Destino jugado contra ti, Robar a los Ricos, Agrandar…). Se compara el estado
+  // mostrado con el anterior — así funciona igual en vivo (1v1) y paso a paso en la reproducción
+  // de la IA. La ubicación tocada pulsa en rojo y una pastilla resume la jugada unos segundos.
+  const prevDisplayedRef = useRef(displayedState);
+  const [kingdomAlert, setKingdomAlert] = useState<{ key: number; actor: string; victim: string; lines: string[]; locIds: string[] } | null>(null);
+  const [alertLocKeys, setAlertLocKeys] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const prev = prevDisplayedRef.current;
+    prevDisplayedRef.current = displayedState;
+    if (prev === displayedState) return;
+    // Otra partida (jugadores distintos): nada que comparar.
+    if (prev.players.length !== displayedState.players.length || prev.players.some((p, i) => p.id !== displayedState.players[i].id)) return;
+    const actor = displayedState.players[displayedState.currentPlayerIndex];
+    const changed: { victim: PlayerState; locIds: string[] }[] = [];
+    for (const owner of displayedState.players) {
+      if (owner.id === actor.id) continue;
+      const before = prev.players.find(p => p.id === owner.id)!;
+      const locIds = Object.keys(owner.locationStates)
+        .filter(locId => kingdomLocSignature(prev, before, locId) !== kingdomLocSignature(displayedState, owner, locId));
+      if (locIds.length > 0) changed.push({ victim: owner, locIds });
+    }
+    if (changed.length === 0) return;
+    const { victim, locIds } = changed[0];
+    const lines = displayedState.log.slice(prev.log.length).filter(l => !l.startsWith('---'));
+    const humans = displayedState.players.filter(p => !p.isAI).length;
+    setKingdomAlert(a => ({
+      key: (a?.key ?? 0) + 1,
+      actor: getPlugin(actor.villainId).name,
+      victim: !victim.isAI && humans === 1 ? 'ti' : victim.name,
+      lines: lines.length > 0 ? lines.slice(-2) : [`Algo ha cambiado en el Reino de ${victim.name}.`],
+      locIds,
+    }));
+    setAlertLocKeys(keys => Object.fromEntries(locIds.map(id => [id, (keys[id] ?? 0) + 1])));
+  }, [displayedState]);
+  // La pastilla se va sola a los 6 s (cada aviso nuevo reinicia la cuenta).
+  useEffect(() => {
+    if (!kingdomAlert) return;
+    const t = setTimeout(() => setKingdomAlert(null), 6000);
+    return () => clearTimeout(t);
+  }, [kingdomAlert]);
 
   // Descripción de la acción actual (último entry nuevo del log)
   const replayLabel = isReplaying
@@ -834,6 +878,18 @@ export function GameBoard({ state }: Props) {
         </div>
       )}
 
+      {/* ── Aviso "contra ti" ───────────────────────────────── */}
+      {kingdomAlert && (
+        <div key={kingdomAlert.key} className={`kingdom-alert ${isReplaying ? 'top-[94px]' : 'top-14'}`} role="status">
+          <span className="kingdom-alert-eyebrow">{kingdomAlert.actor} contra {kingdomAlert.victim}</span>
+          <span className="kingdom-alert-text">{kingdomAlert.lines.join(' ')}</span>
+          <span className="flex items-center gap-1">
+            {kingdomAlert.locIds.map(id => <span key={id} className="kingdom-alert-loc">{locName(id)}</span>)}
+          </span>
+          <button onClick={() => setKingdomAlert(null)} className="kingdom-alert-close" aria-label="Cerrar aviso">×</button>
+        </div>
+      )}
+
       {/* ── Winner banner ───────────────────────────────────── */}
       {/* Durante el replay de la IA no se muestra: primero se ve su turno ganador
           paso a paso; el modal (con el resumen de la jugada final) llega al terminar.
@@ -876,6 +932,7 @@ export function GameBoard({ state }: Props) {
               player={player}
               isActive={isActive}
               onAvatarClick={() => setGuide({ playerId: player.id, tab: 'guide' })}
+              alertLocKeys={alertLocKeys}
               onCardClick={(id) => {
                 const card = displayedState.allCards[id];
                 if (card) setFocusCard({ card, from: 'board' });
@@ -1159,3 +1216,18 @@ export function GameBoard({ state }: Props) {
   );
 }
 
+/**
+ * Huella de lo que un RIVAL puede cambiar en una ubicación ajena: Héroes presentes (con sus
+ * Objetos unidos, Poder robado y Menguar/Agrandar), Objetos de Destino sueltos y el bloqueo.
+ * Si cambia durante el turno de otro jugador, es que te han hecho algo ahí (ver kingdomAlert).
+ */
+function kingdomLocSignature(state: GameState, player: PlayerState, locId: string): string {
+  const ls = player.locationStates[locId];
+  if (!ls) return '';
+  const heroes = ls.heroCardInstIds.map(id => {
+    const c = state.allCards[id];
+    return `${id}:${(c?.attachedItemInstIds ?? []).join(',')}:${c?.storedPower ?? 0}:${c?.isShrunk ? 's' : ''}${c?.isEnlarged ? 'e' : ''}`;
+  });
+  const fateItems = ls.villainCardInstIds.filter(id => state.allCards[id]?.deck === 'FATE');
+  return `${ls.isLocked ? 'L' : ''}|${heroes.join(';')}|${fateItems.join(',')}`;
+}

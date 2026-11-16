@@ -1,6 +1,6 @@
 import { CardType } from '../../types';
 import type { GameState, PlayerId, CardInstId, LocationId, PlayCardCtx, ActivateCardCtx } from '../../types';
-import { getPlugin, getEffectDef } from '../../villains/registry';
+import { getPlugin, getEffectDef, locName } from '../../villains/registry';
 import { EffectId } from '../../villains/effectIds';
 import { runEffects } from '../EffectEngine';
 import {
@@ -77,7 +77,7 @@ export function playCard(
   }
   s = updateCard(s, cardInstId, { locationId: targetLocationId });
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
-  s = addLog(s, `${player.name} juega ${card.name} en ${targetLocationId}.`);
+  s = addLog(s, `${player.name} juega ${card.name} en ${locName(targetLocationId)}.`);
 
   const statePreEffects = s;
   s = runEffects(s, cardInstId, 'ON_PLAY', { actingPlayerId: playerId, cardInstId, targetLocationId, ...ctx });
@@ -205,7 +205,7 @@ export function moveItemAlly(
   // Los Objetos adjuntos viajan con su portador.
   s = moveAttachedItems(s, cardInstId, targetLocationId);
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
-  s = addLog(s, `${card.name} movido/a a ${targetLocationId}.`);
+  s = addLog(s, `${card.name} movido/a a ${locName(targetLocationId)}.`);
   if (getPlayer(s, playerId).pawnLocationId === targetLocationId) {
     s = runEffects(s, cardInstId, 'ON_PAWN_ARRIVES', { actingPlayerId: playerId, cardInstId, targetLocationId });
   }
@@ -237,7 +237,7 @@ export function moveHero(
   // Los Objetos adjuntos (Burla, Polvo de Hada, etc.) viajan con el Héroe.
   s = moveAttachedItems(s, heroInstId, targetLocationId);
   s = { ...s, usedActionSlotIndices: [...s.usedActionSlotIndices, slotIndex] };
-  return addLog(s, `${hero.name} movido/a a ${targetLocationId}.`);
+  return addLog(s, `${hero.name} movido/a a ${locName(targetLocationId)}.`);
 }
 
 export function activateCard(
