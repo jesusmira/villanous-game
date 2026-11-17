@@ -419,6 +419,20 @@ export function canDiscard(
 }
 
 // ─── PAY TO DISCARD (Buen Disfraz y similares) ────────────────────────────────
+
+/**
+ * Objeto "pagar para descartar" unido a esta carta (p. ej. el Buen Disfraz de un Héroe), con su
+ * coste. Lo usan la UI de Vencer y la vista de carta para ofrecer el pago desde el propio Héroe.
+ */
+export function attachedPayToDiscardItem(
+  state: GameState, cardInstId: CardInstId,
+): { itemId: CardInstId; cost: number } | null {
+  for (const itemId of state.allCards[cardInstId]?.attachedItemInstIds ?? []) {
+    const cost = state.allCards[itemId]?.effectIds.map(id => getEffectDef(id)?.payToDiscardCost).find(Boolean);
+    if (cost) return { itemId, cost };
+  }
+  return null;
+}
 // A diferencia del resto de acciones, NO consume casilla: se puede hacer en cualquier
 // momento del propio turno (cualquier fase), no solo durante ACTIVATE.
 

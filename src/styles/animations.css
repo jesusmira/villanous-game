@@ -76,6 +76,77 @@
     align-items: center;
   }
   .nav-villain-slot { grid-area: 1 / 1; display: inline-flex; align-items: center; }
+  /* Botón de la pastilla (abre el desplegable) y el propio desplegable. */
+  .nav-villain-trigger {
+    display: inline-flex; align-items: center; gap: 2px;
+    border-radius: 999px;
+    transition: filter var(--dur-fast) ease;
+  }
+  .nav-villain-trigger:hover, .nav-villain-trigger.is-open { filter: brightness(1.15); }
+  .nav-villain-caret {
+    width: 14px; height: 14px;
+    color: rgba(203,196,207,0.6);
+    transition: transform var(--dur-fast) ease;
+  }
+  .nav-villain-caret.is-open { transform: rotate(180deg); }
+  /* Puente invisible sobre el hueco entre botón y panel: el ratón no "sale" al cruzarlo. */
+  .nav-villain-menu::before { content: ''; position: absolute; left: 0; right: 0; top: -12px; height: 12px; }
+  .nav-villain-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: min(340px, calc(100vw - 24px));
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 14px 16px 16px;
+    border-radius: 16px;
+    text-align: left;
+    background:
+      linear-gradient(90deg, transparent 10%, rgb(var(--gold-bright-rgb) / 0.5) 50%, transparent 90%) top center / 100% 1px no-repeat,
+      linear-gradient(180deg, rgba(26,20,38,0.97) 0%, rgba(12,10,18,0.98) 100%);
+    border: 1px solid rgb(var(--gold-rgb) / 0.25);
+    box-shadow: 0 24px 50px -16px rgba(0,0,0,0.95), 0 0 30px -12px rgb(var(--gold-rgb) / 0.25);
+    backdrop-filter: blur(14px);
+    animation: focus-rise var(--dur-med) var(--ease-premium) both;
+  }
+  .nav-villain-tab {
+    display: inline-flex; align-items: center; gap: 6px;
+    max-width: 50%;
+    padding: 3px 10px 3px 3px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font: 500 11px/1.2 'Inter', sans-serif;
+    color: rgba(203,196,207,0.7);
+    transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+  }
+  .nav-villain-tab:hover { color: #fff; background: rgba(255,255,255,0.05); }
+  .nav-villain-tab.is-selected {
+    color: var(--color-gold-bright);
+    border-color: rgb(var(--gold-rgb) / 0.35);
+    background: rgb(var(--gold-rgb) / 0.1);
+  }
+  .nav-villain-stats {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;
+  }
+  .nav-villain-stats > div {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 8px 4px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+  .nav-villain-stats dt {
+    display: inline-flex; align-items: center; gap: 4px;
+    font: 500 9px/1 'Inter', sans-serif;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(203,196,207,0.65);
+  }
+  .nav-villain-stats dd { font: 700 16px/1 'Inter', sans-serif; color: var(--color-gold-bright); }
+  /* Móvil: la barra va justa, sin flecha; y el panel ocupa el ancho de la pantalla. */
+  @media (max-width: 639px) {
+    .nav-villain-caret { display: none; }
+    .nav-villain-menu { position: fixed; top: 54px; left: 12px; right: 12px; width: auto; }
+  }
   .nav-villain-face {
     display: inline-flex; align-items: center; gap: 5px;
     padding: 2px 9px 2px 2px;

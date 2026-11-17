@@ -44,7 +44,10 @@ export function CardComponent({ card, state, selected, onClick, draggable: isDra
   // de un vistazo, igual que en el tablero físico. Un Héroe Menguado gira 45° y uno Agrandado
   // 90° (ver getCoveredSlotIndices para el efecto real sobre las casillas tapadas).
   const isWicket = card.isWicket === true;
-  const rotationClass = isWicket || card.isEnlarged ? 'rotate-90' : card.isShrunk ? 'rotate-45' : '';
+  // Solo en el TABLERO (cartas `inspectable`): en la vista ampliada, el Modo Enfoque y los modales
+  // la carta se muestra siempre en vertical, para poder leerla.
+  const rotationClass = !inspectable ? ''
+    : isWicket || card.isEnlarged ? 'rotate-90' : card.isShrunk ? 'rotate-45' : '';
 
   return (
     <div

@@ -27,6 +27,8 @@ import { ConfirmLeaveModal } from './ConfirmLeaveModal';
 import { AttachTargetModal } from './AttachTargetModal';
 import { FateMoveDestModal } from './FateMoveDestModal';
 import { NavVillainChip } from './NavVillainChip';
+import { Image } from './Image';
+import { assetUrl } from '../lib/assets';
 import { locName } from '../core/villains/registry';
 import type { PlayerState } from '../core/types';
 import { StarkeyMoveModal } from './StarkeyMoveModal';
@@ -38,7 +40,7 @@ import { ModalStage } from './shared/ModalStage';
 import { TestPage } from './TestPage';
 import { useGameStore } from '../state/gameStore';
 import { useActionPanelState } from './useActionPanelState';
-import { canMovePawn, canPlayCard, canMoveItemAlly, canMoveHero, canPayToDiscardItem } from '../core/engine/RuleEngine';
+import { canMovePawn, canPlayCard, canMoveItemAlly, canMoveHero, canPayToDiscardItem, attachedPayToDiscardItem } from '../core/engine/RuleEngine';
 import { computeKingdomCostMod } from '../core/engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../core/engine/slotHelpers';
 import { buildPlayCtx, getAttachCandidates } from '../core/ai/contextBuilder';
@@ -813,7 +815,7 @@ export function GameBoard({ state }: Props) {
             </button>
           )}
           <span className="hidden sm:inline md:hidden font-stats text-xs text-gold/80">R{state.roundNumber}</span>
-          <NavVillainChip players={displayedState.players} />
+          <NavVillainChip state={displayedState} onOpenGuide={(playerId, tab) => setGuide({ playerId, tab })} />
           <button
             onClick={() => setGuide({ playerId: (state.players.find(p => !p.isAI) ?? state.players[0]).id, tab: 'rules' })}
             title="Reglas del juego"
@@ -931,7 +933,6 @@ export function GameBoard({ state }: Props) {
               state={displayedState}
               player={player}
               isActive={isActive}
-              onAvatarClick={() => setGuide({ playerId: player.id, tab: 'guide' })}
               alertLocKeys={alertLocKeys}
               onCardClick={(id) => {
                 const card = displayedState.allCards[id];
@@ -1013,6 +1014,24 @@ export function GameBoard({ state }: Props) {
               onToggleDiscard={cardId => setDiscardIds(prev =>
                 prev.includes(cardId) ? prev.filter(id => id !== cardId) : [...prev, cardId])}
             />
+            {/* Escritorio: avatar del villano activo, fijo a la izquierda de la mano (no sigue al
+                abanico cuando sube en modo Descartar ni cuando cambia el número de cartas); abre
+                su Guía. En móvil el acceso es el desplegable de la barra superior. */}
+            <div className="hand-avatar-dock">
+              <button
+                type="button"
+                onClick={() => setGuide({ playerId: currentPlayer.id, tab: 'guide' })}
+                title={`Guía de ${ap.plugin.name}`}
+                aria-label={`Abrir la Guía de Villano de ${ap.plugin.name}`}
+                className="villain-avatar-ring villain-avatar-button hand-avatar"
+              >
+                <span className="block w-full h-full rounded-full overflow-hidden bg-black"
+                  style={{ boxShadow: `inset 0 0 0 1px rgba(0,0,0,0.8), inset 0 0 22px ${ap.plugin.color}55` }}>
+                  <Image src={assetUrl(`villains/${currentPlayer.villainId}.webp`)} alt={ap.plugin.name} className="w-full h-full object-cover scale-150" />
+                </span>
+                <span className="villain-avatar-badge" aria-hidden="true"><BookOpen className="w-3 h-3" /></span>
+              </button>
+            </div>
           </div>
           <ActionPanel
             ap={ap}
@@ -1087,8 +1106,14 @@ export function GameBoard({ state }: Props) {
 
         // Objetos "pay to discard" (p. ej. Buen Disfraz): el dueño puede pagar su coste para
         // descartarlo en cualquier momento de su propio turno, sin gastar casilla de acción.
-        const payCost = fc.effectIds.map(id => getEffectDef(id)?.payToDiscardCost).find(Boolean);
-        const canPay  = payCost ? canPayToDiscardItem(state, fc.ownerId, fc.instId) : null;
+        // Si se abre el Héroe que lleva el Objeto (lo habitual: el Disfraz queda medio oculto tras
+        // él), se ofrece el mismo pago sobre ese Objeto.
+        const ownCost  = fc.effectIds.map(id => getEffectDef(id)?.payToDiscardCost).find(Boolean);
+        const attached = ownCost ? null : attachedPayToDiscardItem(state, fc.instId);
+        const payItemId = ownCost ? fc.instId : attached?.itemId;
+        const payCost   = ownCost ?? attached?.cost;
+        const payName   = payItemId ? state.allCards[payItemId]?.name : '';
+        const canPay  = payItemId ? canPayToDiscardItem(state, state.allCards[payItemId].ownerId, payItemId) : null;
         return (
           <CardFocus
             card={fc} state={displayedState} mode="modal" onClose={close}
@@ -1097,9 +1122,9 @@ export function GameBoard({ state }: Props) {
                 <FocusSecondaryButton
                   disabled={!canPay?.valid}
                   title={canPay?.valid ? undefined : canPay?.reason}
-                  onClick={() => { ap.store.doPayToDiscardItem(fc.instId); close(); }}
+                  onClick={() => { ap.store.doPayToDiscardItem(payItemId!); close(); }}
                 >
-                  Pagar {payCost} Poder y descartar
+                  Pagar {payCost} Poder y {attached ? `quitar ${payName}` : 'descartar'}
                 </FocusSecondaryButton>
               )}
               <FocusPrimaryButton onClick={close}>Cerrar</FocusPrimaryButton>

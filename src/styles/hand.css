@@ -115,4 +115,21 @@
     text-transform: uppercase;
     pointer-events: auto;
   }
+
+  /* ── Avatar del villano junto al abanico (solo escritorio) ──────────────────
+     Va dentro del flex del abanico, a la izquierda de las cartas. Se levanta lo que las cartas
+     cuelgan por debajo del borde (1 - --fan-show) para quedar entero en pantalla. */
+  /* Posición fija respecto al centro: a la izquierda del abanico COMPLETO (4 cartas ≈ 2,1 × --fan-h
+     de ancho), más un margen. No depende de cuántas cartas haya ni de si la mano está subida. */
+  .hand-avatar-dock {
+    display: none;
+    position: absolute;
+    bottom: 18px;
+    left: calc(50% - var(--fan-h) * 1.05 - 84px - 104px);
+    z-index: 2;
+    pointer-events: auto;
+  }
+  @media (min-width: 1024px) and (hover: hover) { .hand-avatar-dock { display: block; } }
+  .hand-avatar { width: 84px; height: 84px; }
+  .hand-avatar .villain-avatar-badge { width: 24px; height: 24px; right: 0; bottom: 0; }
 }

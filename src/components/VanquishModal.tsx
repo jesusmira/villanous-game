@@ -3,7 +3,7 @@ import { ActionType } from '../core/types';
 import type { GameState, PlayerId } from '../core/types';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
 import { getEffectDef } from '../core/villains/registry';
-import { canVanquish, canVanquishFree, allyCannotVanquishHero } from '../core/engine/RuleEngine';
+import { canVanquish, canVanquishFree, allyCannotVanquishHero, attachedPayToDiscardItem, canPayToDiscardItem } from '../core/engine/RuleEngine';
 import { CardComponent } from './CardComponent';
 import type { ActionPanelCtx } from './useActionPanelState';
 import { ModalStage } from './shared/ModalStage';
@@ -34,10 +34,18 @@ export function VanquishModal({ ap, state, playerId, free = false }: Props) {
   const hero     = selectedHeroId ? state.allCards[selectedHeroId] : null;
   const heroStr  = selectedHeroId ? getEffectiveStrength(state, selectedHeroId) : 0;
   const allyStr  = selectedAllyIds.reduce((s, id) => s + getEffectiveStrength(state, id), 0);
-  const canConfirm = selectedHeroId && selectedAllyIds.length > 0
-    && (free
-      ? canVanquishFree(state, playerId, selectedHeroId, selectedAllyIds).valid
-      : canVanquish(state, playerId, selectedHeroId, selectedAllyIds, ap.pendingSlot!).valid);
+  const check = selectedHeroId && selectedAllyIds.length > 0
+    ? (free
+      ? canVanquishFree(state, playerId, selectedHeroId, selectedAllyIds)
+      : canVanquish(state, playerId, selectedHeroId, selectedAllyIds, ap.pendingSlot!))
+    : null;
+  const canConfirm = !!check?.valid;
+
+  // Buen Disfraz (u otro Objeto "pagar para descartar") en el Héroe elegido: impide Vencerlo, pero
+  // el Príncipe Juan puede pagar para quitárselo aquí mismo y seguir con el Vencer.
+  const disguise = selectedHeroId ? attachedPayToDiscardItem(state, selectedHeroId) : null;
+  const disguisePay = disguise ? canPayToDiscardItem(state, playerId, disguise.itemId) : null;
+  const disguiseName = disguise ? state.allCards[disguise.itemId]?.name : '';
 
   const alliesForHero = hero ? ap.alliesInKingdom.filter(c => {
     if (allyCannotVanquishHero(state, hero.instId, c.instId)) return false; // Arqueros Lobo vs Skippy
@@ -163,14 +171,33 @@ export function VanquishModal({ ap, state, playerId, free = false }: Props) {
         </div>
       )}
 
+      {selectedHeroId && disguise && !burning && (
+        <div className="modal-stage-section">
+          <p className="modal-stage-note">
+            {hero?.name} lleva <b className="not-italic text-[#ffc2b8]">{disguiseName}</b>: no puede ser derrotado hasta que lo quites.
+          </p>
+          <button
+            className="btn btn--secondary"
+            disabled={!disguisePay?.valid}
+            title={disguisePay?.valid ? undefined : disguisePay?.reason}
+            onClick={() => ap.store.doPayToDiscardItem(disguise.itemId)}
+          >
+            Pagar {disguise.cost} Poder y quitar {disguiseName}
+          </button>
+          {!disguisePay?.valid && disguisePay?.reason && <p className="modal-stage-note">{disguisePay.reason}</p>}
+        </div>
+      )}
+
       {selectedHeroId && (
         <div className="flex items-center justify-center gap-4 sm:gap-6">
           <span className="stage-stat">Aliados <b className={allyStr >= heroStr ? 'text-[#8be6b6]' : 'text-[#f0b483]'}>{allyStr}</b></span>
           <span className="modal-stage-label">vs</span>
           <span className="stage-stat">Héroe <b className="text-[#ff9c90]">{heroStr}</b></span>
           <span className="stage-stat">
-            <b className={`text-[11px]! tracking-[0.14em]! ${allyStr >= heroStr ? 'text-[#8be6b6]' : 'text-[#f0b483]'}`}>
-              {allyStr >= heroStr ? '✓ Fuerza suficiente' : `Faltan ${heroStr - allyStr}`}
+            <b className={`text-[11px]! tracking-[0.14em]! ${allyStr >= heroStr && (!check || check.valid) ? 'text-[#8be6b6]' : 'text-[#f0b483]'}`}>
+              {allyStr < heroStr ? `Faltan ${heroStr - allyStr}`
+                : check && !check.valid ? check.reason   // Disfraz, Burla, Arqueros vs Skippy…
+                : '✓ Fuerza suficiente'}
             </b>
           </span>
         </div>
