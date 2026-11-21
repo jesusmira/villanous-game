@@ -25,7 +25,34 @@
     height: calc(var(--fan-h) * var(--fan-show));
     z-index: 40;
     pointer-events: none;
+    transition: height var(--dur-med) var(--ease-premium);
   }
+  /* Mano plegada: solo asoma la franja superior de las cartas. Al pasar el ratón o elegir una,
+     la carta sigue subiendo entera (sus transformaciones ya usan --fan-show). */
+  .hand-fan-anchor.is-collapsed { --fan-show: 0.22; }
+  /* Asa para plegar/desplegar: centrada justo encima de lo que asoma de la mano. */
+  .hand-fan-handle {
+    position: absolute;
+    left: 50%; translate: -50% 0;
+    bottom: calc(var(--fan-h) * var(--fan-show) + 6px);
+    z-index: 5;
+    pointer-events: auto;
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid rgb(var(--gold-rgb) / 0.35);
+    background: rgba(14,10,22,0.85);
+    backdrop-filter: blur(8px);
+    color: rgba(243,226,179,0.9);
+    font: 600 10px/1.6 'Inter', sans-serif;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    box-shadow: 0 6px 16px -6px rgba(0,0,0,0.8);
+    transition: bottom var(--dur-med) var(--ease-premium), background var(--dur-fast) ease, opacity var(--dur-fast) ease;
+  }
+  .hand-fan-handle:hover { background: rgba(40,30,60,0.95); color: #fff; }
+  /* Con una carta levantada (ratón encima), el asa se aparta para no pintarse sobre su texto. */
+  .hand-fan-anchor:has(.hand-fan-slot:hover) .hand-fan-handle { opacity: 0; pointer-events: none; }
   /* Sombra de suelo bajo la mano para separarla del tablero sin bandeja. */
   .hand-fan-anchor::before {
     content: '';
@@ -40,6 +67,7 @@
     translate: -50% 0;
     display: flex;
     align-items: flex-end;
+    transition: bottom var(--dur-med) var(--ease-premium);
   }
   .hand-fan-slot {
     position: relative;

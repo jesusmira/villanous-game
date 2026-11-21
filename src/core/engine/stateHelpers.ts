@@ -268,7 +268,15 @@ export function discardCardFromKingdom(
     card.deck === 'FATE' ? 'fateDiscardInstIds' : 'villainDiscardInstIds';
 
   s = updatePlayer(s, card.ownerId, { [discardKey]: discard });
-  s = updateCard(s, instId, { locationId: undefined, attachedToInstId: undefined });
+  // Al salir del tablero la carta pierde los estados "de mesa" (Reina de Corazones: Menguado,
+  // Agrandado, Postigo). Sin esto, un Héroe vencido estando menguado iba a la pila de descartes
+  // todavía menguado y, al rebarajarse el mazo de Destino, volvía a salir menguado.
+  s = updateCard(s, instId, {
+    locationId: undefined, attachedToInstId: undefined,
+    isShrunk: false, shrunkKeptSlotIndex: undefined,
+    isEnlarged: false, enlargedTargetLocationId: undefined, enlargedTargetSlotIndex: undefined,
+    isWicket: false,
+  });
   return s;
 }
 

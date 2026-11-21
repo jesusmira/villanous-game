@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { TurnPhase, CardType, ActionType } from '../core/types';
 import type { CardInst, GameState, VillainId } from '../core/types';
 import { preloadGameImages } from '../lib/preload';
@@ -27,6 +27,9 @@ import { ConfirmLeaveModal } from './ConfirmLeaveModal';
 import { AttachTargetModal } from './AttachTargetModal';
 import { FateMoveDestModal } from './FateMoveDestModal';
 import { NavVillainChip } from './NavVillainChip';
+import { flyCardToBoard, slideCardOnBoard } from '../lib/cardFlight';
+import { CardComponent } from './CardComponent';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { Image } from './Image';
 import { assetUrl } from '../lib/assets';
 import { locName } from '../core/villains/registry';
@@ -44,13 +47,11 @@ import { canMovePawn, canPlayCard, canMoveItemAlly, canMoveHero, canPayToDiscard
 import { computeKingdomCostMod } from '../core/engine/stateHelpers';
 import { getAvailableSlotIndices, getActionAtSlot } from '../core/engine/slotHelpers';
 import { buildPlayCtx, getAttachCandidates } from '../core/ai/contextBuilder';
-import { LayoutGrid, RotateCcw, ScrollText, Beaker, BookOpen, HelpCircle } from 'lucide-react';
+import { LayoutGrid, RotateCcw, ScrollText, Beaker, BookOpen, HelpCircle, Volume2, VolumeX, Music } from 'lucide-react';
+import { TRACKS, isMusicOn, setMusicOn, subscribeMusic, resumeMusicIfEnabled } from '../lib/music';
+import { playSound, isMuted, setMuted, subscribeMuted } from '../lib/sound';
+import type { SoundName } from '../lib/sound';
 
-// Dispositivo cuyo puntero PRIMARIO es táctil (tablet/móvil). En estos no hay hover
-// prolongado ni arrastre desde la mano: un toque abre el Modo Enfoque y "Jugar" selecciona.
-// Un portátil con pantalla táctil pero ratón sigue siendo puntero fino.
-const IS_COARSE_POINTER =
-  typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 
 interface Props { state: GameState }
 
@@ -141,8 +142,10 @@ export function GameBoard({ state }: Props) {
 
   // Hover prolongado (450 ms) sobre cualquier carta marcada con data-inspect-id → vista lateral
   // anclada al lado contrario del puntero. Delegado en document: no hace falta cablear cada carta.
+  // Solo reacciona a punteros de RATÓN (pointerType), así que en táctil no hace nada; no se mira
+  // si el dispositivo "es táctil" al cargar, que dejaba la vista apagada al pasar del modo móvil
+  // de las DevTools a escritorio sin recargar.
   useEffect(() => {
-    if (IS_COARSE_POINTER) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let currentId: string | null = null;
     const onOver = (e: PointerEvent) => {
@@ -176,7 +179,16 @@ export function GameBoard({ state }: Props) {
   // el AVANCE automático cada 750ms: no arranca hasta cerrar el modal (ver
   // handleCloseTurnIndicator), para que el turno de la IA visiblemente empiece tras Aceptar.
   const [replayHeld, setReplayHeld]         = useState(false);
+  // Nº de animaciones de carta en curso (vuelos, Efecto ardiendo): la reproducción las espera.
+  const cardAnimRef = useRef(0);
   const guideOpen = guide !== null;
+  // Sonido de libro al abrir/cerrar la Guía o las Reglas (se abran desde donde se abran).
+  const prevGuideOpenRef = useRef(guideOpen);
+  useEffect(() => {
+    if (prevGuideOpenRef.current === guideOpen) return;
+    prevGuideOpenRef.current = guideOpen;
+    playSound(guideOpen ? 'bookOpen' : 'bookClose');
+  }, [guideOpen]);
 
   // Reinicia el índice de replay cuando llega una nueva cola de jugadas de la IA. Se ajusta
   // durante el render (en vez de en un useEffect) para evitar un commit intermedio con el
@@ -200,7 +212,14 @@ export function GameBoard({ state }: Props) {
     if (replayIndex < 0 || replayIndex >= replayRef.current.length) return;
     if (replayHeld) return; // esperando a que se cierre el modal de turno
     if (guideOpen) return;  // pausado mientras se consulta la Guía/Reglas, para no perderse jugadas
-    const id = setTimeout(() => setReplayIndex(i => i + 1), 750);
+    // Mientras una carta vuela o arde en el centro (Destino de la IA, Efectos), se espera a que
+    // termine antes de pasar a la jugada siguiente: si no, se solapaban.
+    let id: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      if (cardAnimRef.current > 0) { id = setTimeout(tick, 150); return; }
+      setReplayIndex(i => i + 1);
+    };
+    id = setTimeout(tick, 750);
     return () => clearTimeout(id);
   }, [replayIndex, replayHeld, guideOpen]);
 
@@ -223,8 +242,21 @@ export function GameBoard({ state }: Props) {
   // mostrado con el anterior — así funciona igual en vivo (1v1) y paso a paso en la reproducción
   // de la IA. La ubicación tocada pulsa en rojo y una pastilla resume la jugada unos segundos.
   const prevDisplayedRef = useRef(displayedState);
-  const [kingdomAlert, setKingdomAlert] = useState<{ key: number; actor: string; victim: string; lines: string[]; locIds: string[] } | null>(null);
+  const [kingdomAlert, setKingdomAlert] = useState<{ key: number; actor: string; victim: string; victimId: string; lines: string[]; locIds: string[] } | null>(null);
   const [alertLocKeys, setAlertLocKeys] = useState<Record<string, number>>({});
+  // Cartas vencidas: se desvanecen en brasas EN SU SITIO del tablero (copias fijas sobre su
+  // último rectángulo), en lugar de dentro del modal de Vencer.
+  const [vanishing, setVanishing] = useState<{ key: number; items: { card: CardInst; rect: DOMRect }[] } | null>(null);
+  // Efecto de Destino recién jugado (no se queda en el tablero): se muestra en el centro y arde.
+  const [burnCard, setBurnCard] = useState<{ key: number; card: CardInst } | null>(null);
+  // Silencio (persistente, compartido con lib/sound): para el botón de la barra.
+  const muted = useSyncExternalStore(subscribeMuted, isMuted, () => false);
+  const musicOn = useSyncExternalStore(subscribeMusic, isMusicOn, () => false);
+  // Si el jugador dejó la música activada, vuelve a sonar al empezar la partida (el clic en
+  // "Comenzar partida" justo antes cuenta como gesto del usuario para el navegador).
+  useEffect(() => { resumeMusicIfEnabled(); }, []);
+  // Seguir el turno de la IA: ubicación donde acaba de actuar (pulso dorado) — ver abajo.
+  const [focusLocKeys, setFocusLocKeys] = useState<Record<string, number>>({});
   useEffect(() => {
     const prev = prevDisplayedRef.current;
     prevDisplayedRef.current = displayedState;
@@ -232,6 +264,92 @@ export function GameBoard({ state }: Props) {
     // Otra partida (jugadores distintos): nada que comparar.
     if (prev.players.length !== displayedState.players.length || prev.players.some((p, i) => p.id !== displayedState.players[i].id)) return;
     const actor = displayedState.players[displayedState.currentPlayerIndex];
+
+    // ── Sonido: UNO por paso (el más importante), deducido de lo que acaba de pasar ──
+    {
+      const lines = displayedState.log.slice(prev.log.length);
+      const has = (re: RegExp) => lines.some(l => re.test(l));
+      const conditionNames = [...new Set(Object.values(displayedState.allCards)
+        .filter(c => c.cardType === CardType.CONDITION).map(c => c.name))];
+      // Carta de Destino colocada (Héroe/Objeto en un Reino, o Efecto jugado), por quien sea.
+      const fatePlaced = lines.some(l => / jugad[oa] en el Reino de /.test(l) || / jugad[oa] contra /.test(l));
+      const powerUp   = displayedState.players.some(p => p.power > (prev.players.find(q => q.id === p.id)?.power ?? p.power));
+      const powerDown = displayedState.players.some(p => p.power < (prev.players.find(q => q.id === p.id)?.power ?? p.power));
+      const humanTurnStarts = !actor.isAI && lines.some(l => l === `--- Turno de ${actor.name} ---`);
+      const sound: SoundName | null =
+          displayedState.winner && !prev.winner
+            // Gana la IA → derrota; gana una persona → victoria.
+            ? (displayedState.players.find(p => p.id === displayedState.winner)?.isAI ? 'defeat' : 'victory')
+        : has(/ derrota a | vence a /)              ? 'vanquish'
+        : has(/ha sido desbloquead/)                ? 'unlock'
+        : lines.some(l => conditionNames.some(n => l.endsWith(` juega ${n}.`))) ? 'condition'
+        : fatePlaced                                ? 'fatePlace'
+        : has(/^Mazo de Destino barajado\./)        ? 'shuffle'
+        : has(/ usa Destino contra /)               ? 'fate'
+        : has(/^Menguar aplicado a |^Agrandar: .+ también tapa |^Agrandar revierte |^Furia: \d+ Héroe/) ? 'shrink'
+        : has(/ se convierte en Postigo\.| vuelve a ser Soldado Naipe\./) ? 'wicket'
+        : has(/ juega .+ en /)                      ? 'play'
+        : has(/ activa /)                           ? 'activate'
+        : has(/ movid[oa]| vuela a |^El Sheriff se mueve a |^El Cuervo se mueve a |Starkey mueve a /) ? 'move'
+        : lines.some(l => l.startsWith(`${actor.name} se mueve a `)) ? 'pawn'
+        : humanTurnStarts                           ? 'turn'
+        : has(/ descarta \d+ carta/)               ? 'discard'
+        : has(/ roba [1-9]\d* carta/)              ? 'draw'
+        : powerUp                                   ? 'coin'
+        : powerDown                                 ? 'pay'
+        : null;
+      if (sound) playSound(sound);
+    }
+
+    // ── Efecto de Destino jugado, u Objeto sin Héroe al que unirse: al centro y arde ──
+    {
+      const lines = displayedState.log.slice(prev.log.length);
+      for (const p of displayedState.players) {
+        const before = new Set(prev.players.find(q => q.id === p.id)?.fateDiscardInstIds ?? []);
+        const playedEffect = p.fateDiscardInstIds
+          .map(id => displayedState.allCards[id])
+          .find(c => c && !before.has(c.instId)
+            && (c.cardType === CardType.EFFECT || c.cardType === CardType.ITEM)
+            && lines.some(l => l.startsWith(`${c.name} jugado contra `)));
+        if (playedEffect) {
+          cardAnimRef.current += 1;
+          setBurnCard(b => ({ key: (b?.key ?? 0) + 1, card: playedEffect }));
+          break;
+        }
+      }
+    }
+
+    // ── Seguir el turno de la IA ──
+    // Cada paso de su turno (reproducción paso a paso) lleva la pantalla a la ubicación donde ha
+    // actuado: primero lo que te hace a ti; si no, lo que hace en su propio Reino (mover el peón,
+    // jugar o mover cartas…). `block: 'nearest'`: solo desplaza si esa ubicación no está ya a la
+    // vista, así que en escritorio casi nunca mueve la pantalla y en móvil la sigue.
+    if (actor.isAI) {
+      let target: { playerId: string; locId: string } | null = null;
+      for (const owner of displayedState.players) {
+        if (owner.id === actor.id) continue;
+        const before = prev.players.find(p => p.id === owner.id)!;
+        const hit = Object.keys(owner.locationStates)
+          .find(l => fullLocSignature(prev, before, l) !== fullLocSignature(displayedState, owner, l));
+        if (hit) { target = { playerId: owner.id, locId: hit }; break; }
+      }
+      if (!target) {
+        const before = prev.players.find(p => p.id === actor.id)!;
+        const own = Object.keys(actor.locationStates)
+          .filter(l => fullLocSignature(prev, before, l) !== fullLocSignature(displayedState, actor, l));
+        // El peón al moverse cambia DOS ubicaciones: la importante es a la que llega.
+        const hit = own.includes(actor.pawnLocationId) ? actor.pawnLocationId : own[0];
+        if (hit) {
+          target = { playerId: actor.id, locId: hit };
+          setFocusLocKeys(keys => ({ [hit]: (keys[hit] ?? 0) + 1 }));
+        }
+      }
+      if (target) {
+        document.querySelector(`[data-player-board="${target.playerId}"] [data-loc-id="${target.locId}"]`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+
     const changed: { victim: PlayerState; locIds: string[] }[] = [];
     for (const owner of displayedState.players) {
       if (owner.id === actor.id) continue;
@@ -248,11 +366,18 @@ export function GameBoard({ state }: Props) {
       key: (a?.key ?? 0) + 1,
       actor: getPlugin(actor.villainId).name,
       victim: !victim.isAI && humans === 1 ? 'ti' : victim.name,
+      victimId: victim.id,
       lines: lines.length > 0 ? lines.slice(-2) : [`Algo ha cambiado en el Reino de ${victim.name}.`],
       locIds,
     }));
     setAlertLocKeys(keys => Object.fromEntries(locIds.map(id => [id, (keys[id] ?? 0) + 1])));
   }, [displayedState]);
+  // Lleva la pantalla a una ubicación concreta de un tablero (vertical y, en móvil, horizontal).
+  const scrollToLocation = (playerId: string, locId: string) => {
+    document.querySelector(`[data-player-board="${playerId}"] [data-loc-id="${locId}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+  };
+
   // La pastilla se va sola a los 6 s (cada aviso nuevo reinicia la cuenta).
   useEffect(() => {
     if (!kingdomAlert) return;
@@ -300,6 +425,26 @@ export function GameBoard({ state }: Props) {
     .map(id => displayedState.allCards[id])
     .filter(Boolean);
 
+  // ── Mano plegable (solo táctil o pantalla de móvil; con ratón en escritorio, siempre desplegada) ──
+  // Reactivo (no un valor fijado al cargar): así también responde al girar o redimensionar, y al
+  // activar/desactivar el modo dispositivo de las DevTools sin recargar.
+  const handCanCollapse = useMediaQuery('(pointer: coarse), (max-width: 639px)');
+  // Táctil: sin arrastre desde la mano (un toque abre el Modo Enfoque y "Jugar" selecciona).
+  const isCoarsePointer = useMediaQuery('(pointer: coarse)');
+  // Mismo criterio de "modo móvil" para el panel de destinos con botones: en escritorio se juega
+  // como siempre, eligiendo o arrastrando la carta hasta la ubicación iluminada.
+  const isMobileLayout = handCanCollapse;
+  // Plegada por defecto en la fase Mover (no se juegan cartas); desplegada en Acciones. El jugador
+  // puede alternarla con el asa, y su elección dura hasta el siguiente cambio de fase/turno.
+  // Siempre desplegada mientras haya una carta elegida, arrastre o modo Descartar.
+  const handScope = `${displayedState.roundNumber}-${displayedState.currentPlayerIndex}-${displayedState.turnPhase}`;
+  const [handPref, setHandPref] = useState<{ scope: string; collapsed: boolean } | null>(null);
+  const handForcedOpen = !!selectedCardId || !!dragCardId || ap.pendingAction === ActionType.DISCARD;
+  const handCollapsed = handCanCollapse && !handForcedOpen && (handPref?.scope === handScope
+    ? handPref.collapsed
+    : displayedState.turnPhase === TurnPhase.MOVE);
+  const toggleHand = () => setHandPref({ scope: handScope, collapsed: !handCollapsed });
+
   const handRevealed = Object.values(currentPlayer.locationStates).some(ls =>
     ls.heroCardInstIds.some(id => displayedState.allCards[id]?.defId === CardDefId.MAL_FLORA),
   );
@@ -312,6 +457,112 @@ export function GameBoard({ state }: Props) {
   ) ?? null;
 
   const isHumanTurn = !displayedState.winner && !currentPlayer.isAI && !isReplaying;
+
+  // ── Animación al jugar una carta elegida: mano → centro de la pantalla → su ubicación ──
+  // Tras cada render se apunta dónde está cada carta de la mano. Si una carta que estaba ELEGIDA
+  // (tocar/clic, no arrastre: arrastrando ya la lleva el jugador) sale de la mano y aparece en el
+  // tablero, una COPIA flotante (fija, sobre todo) hace el viaje: sale de la mano, se acerca al
+  // centro en grande, se detiene un instante y vuela a su sitio. La carta real queda oculta hasta
+  // que aterriza. Se anima una copia y no la carta real porque esta vive dentro del carrusel de
+  // ubicaciones (overflow), que la recortaba durante casi todo el recorrido en móvil.
+  const handRectsRef = useRef<Map<string, DOMRect>>(new Map());
+  const prevHandRef  = useRef<string[]>([]);
+  const prevSelRef   = useRef<string | null>(null);
+  // Cartas de Destino (Héroes, Objetos) en los tableros + de dónde podrían salir volando: la
+  // miniatura de la pastilla de Destino (`data-fly-source`) cuando las juegas tú.
+  const prevBoardRef      = useRef<Map<string, string> | null>(null);   // carta → ubicación
+  const boardRectsRef     = useRef<Map<string, DOMRect>>(new Map());     // carta → rectángulo
+  const prevLogLenRef     = useRef(0);
+  const flySourceRectsRef = useRef<Map<string, DOMRect>>(new Map());
+  useLayoutEffect(() => {
+    // ── Qué ha cambiado en los tableros desde el render anterior ──
+    //   · Carta de Destino nueva: B) la juegas tú → sale de la miniatura de la pastilla de Destino;
+    //     C) la juega la IA → aparece en el centro. En ambos casos pasa por el centro y vuela.
+    //   · Turno de la IA: carta de su mano jugada → aparece en el centro y vuela a su sitio;
+    //     carta movida (Aliado, Objeto, Héroe) → se desliza de una ubicación a otra.
+    //   · Vencer (de quien sea): las cartas que salen del tablero se desvanecen en su sitio.
+    const board = new Map<string, string>();
+    for (const p of displayedState.players) {
+      for (const [locId, ls] of Object.entries(p.locationStates)) {
+        for (const id of [...ls.heroCardInstIds, ...ls.villainCardInstIds]) board.set(id, locId);
+      }
+    }
+    const prevBoard = prevBoardRef.current;
+    const prevRects = boardRectsRef.current;
+    if (prevBoard) {
+      const actor = displayedState.players[displayedState.currentPlayerIndex];
+      const startAnim = () => { cardAnimRef.current += 1; return () => { cardAnimRef.current -= 1; }; };
+      const elOf = (id: string) => document.querySelector<HTMLElement>(`[data-player-board] [data-inspect-id="${id}"]`);
+      const added = [...board.keys()].filter(id => !prevBoard.has(id));
+
+      const newFate = added.find(id => displayedState.allCards[id]?.deck === 'FATE');
+      const newVillain = actor.isAI ? added.find(id => displayedState.allCards[id]?.deck !== 'FATE') : undefined;
+      const arriving = newFate ?? newVillain;
+      if (arriving) {
+        const from = flySourceRectsRef.current.get(arriving) ?? null;
+        if (from || actor.isAI) {
+          const el = elOf(arriving);
+          if (el) { const end = startAnim(); if (!flyCardToBoard(el, from, end)) end(); }
+        }
+      }
+
+      if (actor.isAI) {
+        for (const [id, loc] of board) {
+          const before = prevBoard.get(id);
+          const from = prevRects.get(id);
+          if (!before || before === loc || !from) continue;
+          const el = elOf(id);
+          if (el) { const end = startAnim(); if (!slideCardOnBoard(el, from, end)) end(); }
+        }
+      }
+
+      const newLines = displayedState.log.slice(prevLogLenRef.current);
+      if (newLines.some(l => / derrota a | vence a /.test(l))) {
+        const items = [...prevBoard.keys()]
+          .filter(id => !board.has(id) && prevRects.has(id) && displayedState.allCards[id])
+          .map(id => ({ card: displayedState.allCards[id], rect: prevRects.get(id)! }));
+        if (items.length > 0 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          cardAnimRef.current += 1;
+          // Al siguiente fotograma (no dentro del propio efecto de diseño): las posiciones ya
+          // están guardadas en `items`.
+          requestAnimationFrame(() => setVanishing(v => ({ key: (v?.key ?? 0) + 1, items })));
+        }
+      }
+    }
+    prevBoardRef.current = board;
+    prevLogLenRef.current = displayedState.log.length;
+    const boardRects = new Map<string, DOMRect>();
+    document.querySelectorAll<HTMLElement>('[data-player-board] [data-inspect-id]').forEach(e => {
+      boardRects.set(e.dataset.inspectId!, e.getBoundingClientRect());
+    });
+    boardRectsRef.current = boardRects;
+    const sources = new Map<string, DOMRect>();
+    document.querySelectorAll<HTMLElement>('[data-fly-source]').forEach(e => {
+      sources.set(e.dataset.flySource!, e.getBoundingClientRect());
+    });
+    flySourceRectsRef.current = sources;
+
+    const flyId = prevSelRef.current;
+    const from  = flyId ? handRectsRef.current.get(flyId) : undefined;
+    if (flyId && from && prevHandRef.current.includes(flyId)
+        && !currentPlayer.handInstIds.includes(flyId)
+        && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const el = document.querySelector<HTMLElement>(`[data-player-board] [data-inspect-id="${flyId}"]`);
+      if (el) flyCardToBoard(el, from);
+    }
+    // Apuntes para la próxima vez
+    prevSelRef.current  = isHumanTurn ? selectedCardId : null;
+    prevHandRef.current = isHumanTurn ? [...currentPlayer.handInstIds] : [];
+    const rects = new Map<string, DOMRect>();
+    if (isHumanTurn) {
+      for (const id of currentPlayer.handInstIds) {
+        const h = document.querySelector(`.hand-fan [data-inspect-id="${id}"]`);
+        if (h) rects.set(id, h.getBoundingClientRect());
+      }
+    }
+    handRectsRef.current = rects;
+  });
+
 
   // Parte VISIBLE del abanico de la mano (las cartas asoman desde fuera de la pantalla) para
   // que el final del tablero nunca quede tapado: el padding inferior de <main> la sigue.
@@ -523,7 +774,7 @@ export function GameBoard({ state }: Props) {
     const avail   = getAvailableSlotIndices(displayedState, currentPlayer.id, pawnLoc);
     const slotIdx = avail.find(i => getActionAtSlot(displayedState, currentPlayer.id, i)?.type === ActionType.MOVE_HERO);
     if (slotIdx === undefined) return;
-    if (!canMoveHero(displayedState, currentPlayer.id, dragHeroCardId, locId, slotIdx).valid) return;
+    if (!canMoveHero(displayedState, currentPlayer.id, dragHeroCardId, locId, slotIdx).valid) { playSound('denied'); return; }
     ap.store.doMoveHero(dragHeroCardId, locId, slotIdx);
     setDragHeroCardId(null);
   }
@@ -534,7 +785,7 @@ export function GameBoard({ state }: Props) {
     const avail   = getAvailableSlotIndices(displayedState, currentPlayer.id, pawnLoc);
     const slotIdx = avail.find(i => getActionAtSlot(displayedState, currentPlayer.id, i)?.type === ActionType.MOVE_ITEM_ALLY);
     if (slotIdx === undefined) return;
-    if (!canMoveItemAlly(displayedState, currentPlayer.id, dragBoardCardId, locId, slotIdx).valid) return;
+    if (!canMoveItemAlly(displayedState, currentPlayer.id, dragBoardCardId, locId, slotIdx).valid) { playSound('denied'); return; }
     ap.store.doMoveItemAlly(dragBoardCardId, locId, slotIdx);
     setDragBoardCardId(null);
   }
@@ -553,7 +804,7 @@ export function GameBoard({ state }: Props) {
     const avail    = getAvailableSlotIndices(displayedState, currentPlayer.id, pawnLoc);
     const slotIdx  = avail.find(i => getActionAtSlot(displayedState, currentPlayer.id, i)?.type === ActionType.PLAY_CARD);
     if (slotIdx === undefined) return;
-    if (!canPlayCard(displayedState, currentPlayer.id, cardId, slotIdx, locId).valid) return;
+    if (!canPlayCard(displayedState, currentPlayer.id, cardId, slotIdx, locId).valid) { playSound('denied'); return; }
 
     // Sr. Starkey: "puedes mover un Héroe" — dejar elegir cuál y a dónde (o ignorar del todo)
     // en vez de autoseleccionar (la IA sigue autoseleccionando vía buildPlayCtx/pickStarkeyHeroTarget).
@@ -816,6 +1067,26 @@ export function GameBoard({ state }: Props) {
           )}
           <span className="hidden sm:inline md:hidden font-stats text-xs text-gold/80">R{state.roundNumber}</span>
           <NavVillainChip state={displayedState} onOpenGuide={(playerId, tab) => setGuide({ playerId, tab })} />
+          {TRACKS.length > 0 && (
+            <button
+              onClick={() => setMusicOn(!musicOn)}
+              title={musicOn ? 'Quitar la música' : 'Poner música de ambiente'}
+              aria-label={musicOn ? 'Quitar la música' : 'Poner música de ambiente'}
+              aria-pressed={musicOn}
+              className={`transition-colors duration-200 hover:text-gold-bright ${musicOn ? 'text-gold-bright' : 'text-on-surface-variant/50'}`}
+            >
+              <Music className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={() => setMuted(!muted)}
+            title={muted ? 'Activar sonido' : 'Silenciar'}
+            aria-label={muted ? 'Activar sonido' : 'Silenciar'}
+            aria-pressed={muted}
+            className="text-on-surface-variant/80 hover:text-gold-bright transition-colors duration-200"
+          >
+            {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
           <button
             onClick={() => setGuide({ playerId: (state.players.find(p => !p.isAI) ?? state.players[0]).id, tab: 'rules' })}
             title="Reglas del juego"
@@ -880,13 +1151,56 @@ export function GameBoard({ state }: Props) {
         </div>
       )}
 
+      {/* ── Cartas vencidas: se desvanecen en brasas en su sitio del tablero ── */}
+      {vanishing && (
+        <div key={vanishing.key} className="vanish-layer" aria-hidden="true">
+          {vanishing.items.map(({ card, rect }, i) => (
+            <div key={card.instId} className="vanish-card"
+              style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+              onAnimationEnd={i === vanishing.items.length - 1 ? (e => {
+                if (e.animationName !== 'vanish-burn') return;
+                cardAnimRef.current = Math.max(0, cardAnimRef.current - 1);
+                setVanishing(null);
+              }) : undefined}>
+              <CardComponent card={card} state={displayedState} sizeClassName="card-size-fill" />
+              {Array.from({ length: 8 }, (_, k) => (
+                <span key={k} className="vanish-ember" style={{ left: `${10 + ((k * 37) % 80)}%`, top: `${20 + ((k * 53) % 60)}%`, animationDelay: `${(k % 4) * 0.08}s` }} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Efecto de Destino: aparece en el centro y arde ─────── */}
+      {burnCard && (
+        <div key={burnCard.key} className="effect-burn-stage" aria-live="polite">
+          <div className="effect-burn-card"
+            onAnimationEnd={e => {
+              if (e.animationName !== 'effect-burn') return;
+              cardAnimRef.current = Math.max(0, cardAnimRef.current - 1);
+              setBurnCard(null);
+            }}>
+            <CardComponent card={burnCard.card} state={displayedState} sizeClassName="card-size-stage" />
+          </div>
+        </div>
+      )}
+
       {/* ── Aviso "contra ti" ───────────────────────────────── */}
       {kingdomAlert && (
         <div key={kingdomAlert.key} className={`kingdom-alert ${isReplaying ? 'top-[94px]' : 'top-14'}`} role="status">
-          <span className="kingdom-alert-eyebrow">{kingdomAlert.actor} contra {kingdomAlert.victim}</span>
-          <span className="kingdom-alert-text">{kingdomAlert.lines.join(' ')}</span>
+          {/* Toda la pastilla lleva a la (primera) ubicación afectada; cada etiqueta, a la suya. */}
+          <button type="button" className="kingdom-alert-body" title="Ir a la ubicación"
+            onClick={() => scrollToLocation(kingdomAlert.victimId, kingdomAlert.locIds[0])}>
+            <span className="kingdom-alert-eyebrow">{kingdomAlert.actor} contra {kingdomAlert.victim}</span>
+            <span className="kingdom-alert-text">{kingdomAlert.lines.join(' ')}</span>
+          </button>
           <span className="flex items-center gap-1">
-            {kingdomAlert.locIds.map(id => <span key={id} className="kingdom-alert-loc">{locName(id)}</span>)}
+            {kingdomAlert.locIds.map(id => (
+              <button key={id} type="button" className="kingdom-alert-loc" title="Ir a la ubicación"
+                onClick={() => scrollToLocation(kingdomAlert.victimId, id)}>
+                {locName(id)} ›
+              </button>
+            ))}
           </span>
           <button onClick={() => setKingdomAlert(null)} className="kingdom-alert-close" aria-label="Cerrar aviso">×</button>
         </div>
@@ -934,6 +1248,7 @@ export function GameBoard({ state }: Props) {
               player={player}
               isActive={isActive}
               alertLocKeys={alertLocKeys}
+              focusLocKeys={focusLocKeys}
               onCardClick={(id) => {
                 const card = displayedState.allCards[id];
                 if (card) setFocusCard({ card, from: 'board' });
@@ -997,7 +1312,15 @@ export function GameBoard({ state }: Props) {
       {/* ── Mano en abanico + controles del turno flotantes (sin barra inferior) ── */}
       {isHumanTurn && (
         <>
-          <div ref={handFanRef} className="hand-fan-anchor">
+          <div ref={handFanRef} className={`hand-fan-anchor ${handCollapsed ? 'is-collapsed' : ''}`}>
+            {/* Asa para plegar/desplegar la mano (oculta mientras hay una carta elegida o un panel
+                del turno abierto: entonces la mano tiene que verse entera). */}
+            {handCanCollapse && !handForcedOpen && !ap.pendingAction && (
+              <button type="button" className="hand-fan-handle" onClick={toggleHand}
+                aria-expanded={!handCollapsed} aria-label={handCollapsed ? 'Mostrar la mano' : 'Recoger la mano'}>
+                {handCollapsed ? `▲ Mano · ${handCards.length}` : '▼ Recoger'}
+              </button>
+            )}
             <HandFan
               state={displayedState}
               cards={handCards}
@@ -1006,7 +1329,7 @@ export function GameBoard({ state }: Props) {
               playableIds={playableIds}
               revealed={handRevealed}
               onInspect={card => setFocusCard({ card, from: 'hand' })}
-              dragEnabled={!IS_COARSE_POINTER}
+              dragEnabled={!isCoarsePointer}
               onDragStart={cardId => { setDragCardId(cardId); setSelectedCardId(cardId); setPeek(null); }}
               onDragEnd={() => setDragCardId(null)}
               discardMode={ap.pendingAction === ActionType.DISCARD}
@@ -1051,6 +1374,40 @@ export function GameBoard({ state }: Props) {
               },
             }}
           />
+
+          {/* ── Destinos de la carta elegida, como botones (solo móvil) ──────────────
+              En móvil solo se ve una ubicación y había que deslizar buscando la iluminada.
+              Convive con pulsar la ubicación iluminada en el tablero. */}
+          {isMobileLayout && selectedCardId && !dragCardId && !ap.pendingAction && playHighlights
+            && currentPlayer.handInstIds.includes(selectedCardId) && (() => {
+            const opts = ap.plugin.locations
+              .map(l => ({ loc: l, h: playHighlights[l.id] }))
+              .filter(o => o.h && o.h.playState !== 'blocked');
+            const anyValid = opts.some(o => o.h!.playState === 'valid');
+            return (
+              <div className="turn-flow is-dest" role="group" aria-label="Elegir ubicación">
+                <p className="text-xs text-on-surface-variant text-center mb-2">
+                  Jugar <b className="text-gold-bright">{displayedState.allCards[selectedCardId]?.name}</b> en:
+                </p>
+                {opts.length === 0 || !anyValid ? (
+                  <p className="text-xs text-[#f0b483] text-center">
+                    {opts.length === 0 ? 'No se puede jugar en ninguna ubicación ahora mismo.' : 'No tienes Poder suficiente.'}
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  {opts.map(({ loc, h }) => (
+                    <button key={loc.id} type="button"
+                      className={`chip ${h!.playState === 'valid' ? '' : 'opacity-40'}`}
+                      disabled={h!.playState !== 'valid'}
+                      title={h!.playState === 'valid' ? undefined : 'Poder insuficiente'}
+                      onClick={() => handleCardDrop(loc.id)}>
+                      {loc.name} <span className="text-gold-bright/90">· {h!.cost} ⚡</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
 
@@ -1255,4 +1612,19 @@ function kingdomLocSignature(state: GameState, player: PlayerState, locId: strin
   });
   const fateItems = ls.villainCardInstIds.filter(id => state.allCards[id]?.deck === 'FATE');
   return `${ls.isLocked ? 'L' : ''}|${heroes.join(';')}|${fateItems.join(',')}`;
+}
+
+/**
+ * Huella COMPLETA de una ubicación (todo lo que puede cambiar en ella): cartas de Villano y de
+ * Destino, Héroes (con Objetos unidos y estados), bloqueo y si el peón está ahí. Sirve para saber
+ * dónde ha actuado la IA en cada paso de su turno (ver "Seguir el turno de la IA").
+ */
+function fullLocSignature(state: GameState, player: PlayerState, locId: string): string {
+  const ls = player.locationStates[locId];
+  if (!ls) return '';
+  const card = (id: string) => {
+    const c = state.allCards[id];
+    return `${id}:${(c?.attachedItemInstIds ?? []).join(',')}:${c?.storedPower ?? 0}:${c?.isWicket ? 'w' : ''}${c?.isShrunk ? 's' : ''}${c?.isEnlarged ? 'e' : ''}`;
+  };
+  return `${player.pawnLocationId === locId ? 'P' : ''}|${ls.isLocked ? 'L' : ''}|${ls.villainCardInstIds.map(card).join(';')}|${ls.heroCardInstIds.map(card).join(';')}`;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ActionType } from '../core/types';
 import type { GameState, PlayerId } from '../core/types';
 import { getEffectiveStrength } from '../core/engine/stateHelpers';
@@ -19,15 +19,9 @@ interface Props {
 export function VanquishModal({ ap, state, playerId, free = false }: Props) {
   const [selectedHeroId, setSelectedHeroId]   = useState<string | null>(null);
   const [selectedAllyIds, setSelectedAllyIds] = useState<string[]>([]);
-  const [burning, setBurning]                 = useState(false);
-  const [embers, setEmbers]                   = useState<{ id: number; x: number; y: number; size: number; color: string }[]>([]);
-
-  // Limpiar brasas tras la animación
-  useEffect(() => {
-    if (embers.length === 0) return;
-    const t = setTimeout(() => setEmbers([]), 800);
-    return () => clearTimeout(t);
-  }, [embers]);
+  // El desvanecimiento de las cartas vencidas ya no ocurre aquí: se ve en el TABLERO, en su sitio
+  // (ver "Cartas vencidas" en GameBoard). El modal se cierra al confirmar.
+  const burning = false;
 
   if (!free && ap.pendingAction !== ActionType.VANQUISH) return null;
 
@@ -60,48 +54,19 @@ export function VanquishModal({ ap, state, playerId, free = false }: Props) {
     else ap.clearPending();
     setSelectedHeroId(null);
     setSelectedAllyIds([]);
-    setBurning(false);
-    setEmbers([]);
-  }
-
-  function spawnEmbers() {
-    const colors = ['#ff6b00', '#ff9500', '#ffcc00', '#ff3300', '#ff8800'];
-    const newEmbers = Array.from({ length: 18 }, (_, i) => ({
-      id: Date.now() + i,
-      x: 20 + Math.random() * 60,
-      y: 20 + Math.random() * 60,
-      size: 3 + Math.random() * 6,
-      color: colors[Math.floor(Math.random() * colors.length)],
-    }));
-    setEmbers(newEmbers);
   }
 
   function confirm() {
     if (!selectedHeroId || selectedAllyIds.length === 0) return;
     if (!free && ap.pendingSlot === null) return;
-    setBurning(true);
-    spawnEmbers();
-    setTimeout(() => {
-      if (free) ap.store.doTrampaVanquish(selectedHeroId, selectedAllyIds);
-      else ap.store.doVanquish(selectedHeroId, selectedAllyIds, ap.pendingSlot!);
-      ap.resetSelection();
-      ap.clearPending();
-      setSelectedHeroId(null);
-      setSelectedAllyIds([]);
-      setBurning(false);
-      setEmbers([]);
-    }, 900);
+    if (free) ap.store.doTrampaVanquish(selectedHeroId, selectedAllyIds);
+    else ap.store.doVanquish(selectedHeroId, selectedAllyIds, ap.pendingSlot!);
+    ap.resetSelection();
+    ap.clearPending();
+    setSelectedHeroId(null);
+    setSelectedAllyIds([]);
   }
 
-  const embersFor = (show: boolean) => show && embers.map(e => (
-    <div key={e.id} className="ember" style={{
-      left: `${e.x}%`, top: `${e.y}%`,
-      width: e.size, height: e.size,
-      background: e.color,
-      boxShadow: `0 0 ${e.size * 2}px ${e.color}`,
-      animationDelay: `${Math.random() * 0.3}s`,
-    }} />
-  ));
 
   return (
     <ModalStage
@@ -131,7 +96,6 @@ export function VanquishModal({ ap, state, playerId, free = false }: Props) {
                 className={`relative cursor-pointer ${isBurningCard ? 'burning-card' : `stage-pick ${selectedHeroId === c.instId ? 'is-chosen' : ''}`}`}
               >
                 <CardComponent card={c} state={state} selected={selectedHeroId === c.instId} sizeClassName="card-size-stage-sm" />
-                {embersFor(isBurningCard)}
               </div>
             );
           })}
@@ -158,8 +122,7 @@ export function VanquishModal({ ap, state, playerId, free = false }: Props) {
                         className={`relative cursor-pointer ${isBurningCard ? 'burning-card' : `stage-pick ${sel ? 'is-chosen' : ''}`}`}
                       >
                         <CardComponent card={c} state={state} selected={sel} sizeClassName="card-size-stage-sm" />
-                        {embersFor(isBurningCard)}
-                      </div>
+                              </div>
                       {isAdj && !burning && (
                         <span className="absolute -top-2 -right-2 z-70 stage-badge">Adyacente</span>
                       )}

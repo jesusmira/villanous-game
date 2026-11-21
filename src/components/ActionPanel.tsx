@@ -7,6 +7,7 @@ import { modalStyles } from '../styles/modalStyles';
 import { ACTION_LABELS } from './shared/actionLabels';
 import { ACTION_IMG } from './shared/actionImages';
 import type { ActionPanelCtx } from './useActionPanelState';
+import { playSound } from '../lib/sound';
 
 // ─── ACTIVATE_CARD flow (El Cuervo, etc.) ───────────────────────────────────────
 
@@ -179,7 +180,7 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, onCancelSelec
             <span className="turn-medallion-glow" aria-hidden />
             <button
               className="turn-medallion"
-              onClick={() => ap.store.doEndActivate()}
+              onClick={() => { playSound('click'); ap.store.doEndActivate(); }}
               title={noActionsLeft ? 'Terminar acciones' : `Terminar acciones (${ap.availableSlots.length} sin usar)`}
               aria-label="Terminar acciones"
             >
@@ -191,7 +192,7 @@ export function ActionPanel({ ap, state, playerId, selectedCardId, onCancelSelec
         {phase === TurnPhase.DRAW && (
           <div className="turn-medallion-wrap is-ready">
             <span className="turn-medallion-glow" aria-hidden />
-            <button className="turn-medallion" onClick={() => ap.store.doDrawCards()} title={drawTitle} aria-label={drawTitle}>
+            <button className="turn-medallion" onClick={() => { playSound('click'); ap.store.doDrawCards(); }} title={drawTitle} aria-label={drawTitle}>
               <span className="turn-medallion-main">Robar</span>
               <span className="turn-medallion-sub">{drawDetail}</span>
             </button>

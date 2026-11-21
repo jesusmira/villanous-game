@@ -8,6 +8,8 @@ import { resolve } from 'node:path'
 
 // Base pública del Storage de imágenes (mismo origen/ruta que src/lib/assets.ts).
 const SUPABASE_IMAGES = /^https:\/\/kvmzratzzdyjrazkstfw\.supabase\.co\/storage\/v1\/object\/public\/game-images\/.*/i
+// Música de ambiente (bucket `game-audio`, ver src/lib/music.ts): misma estrategia que las imágenes.
+const SUPABASE_AUDIO = /^https:\/\/kvmzratzzdyjrazkstfw\.supabase\.co\/storage\/v1\/object\/public\/game-audio\/.*/i
 
 // Middleware de solo-desarrollo: recibe anomalías de la IA en vivo (turnos vacíos,
 // rachas de estancamiento) desde src/state/history/liveDebug.ts y las vuelca a
@@ -65,6 +67,17 @@ export default defineConfig({
             options: {
               cacheName: 'game-images',
               expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 60 }, // 60 días
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Música: cada tema se descarga entero una vez (fetch → 200) y luego sale de la caché,
+            // sin volver a gastar tráfico de Supabase.
+            urlPattern: SUPABASE_AUDIO,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'game-audio',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 180 }, // 180 días
               cacheableResponse: { statuses: [0, 200] },
             },
           },

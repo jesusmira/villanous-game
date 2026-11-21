@@ -43,8 +43,11 @@ export function startFate(
   const targetPlayer = state.players[targetPlayerIndex];
 
   let s = state;
-  if (targetPlayer.fateDeckInstIds.length === 0) {
-    const reshuffled = shuffle([...targetPlayer.fateDiscardInstIds]);
+  // Si en el mazo quedan MENOS cartas de las que hay que revelar (p. ej. 1 de 2), se juntan las
+  // que quedan con la pila de descartes, se baraja todo y se revela el número completo: así la
+  // acción Destino nunca ofrece una sola carta mientras haya descartes con los que completarla.
+  if (targetPlayer.fateDeckInstIds.length < revealCount && targetPlayer.fateDiscardInstIds.length > 0) {
+    const reshuffled = shuffle([...targetPlayer.fateDeckInstIds, ...targetPlayer.fateDiscardInstIds]);
     s = updatePlayer(s, targetPlayer.id, { fateDeckInstIds: reshuffled, fateDiscardInstIds: [] });
     s = addLog(s, 'Mazo de Destino barajado.');
   }
@@ -144,6 +147,14 @@ export function resolveFate(
   s = firePawnArrivalIfMoved(statePreFateEffects, s);
 
   if (card.cardType === CardType.EFFECT) s = discardCardFromKingdom(s, chosenInstId);
+
+  // Objeto que debía unirse a un Héroe (Polvo de Hada, Burla, Espada de la Verdad, Buen Disfraz…)
+  // y no tenía ninguno: su efecto ya lo ha descartado sin aplicar nada. Se deja constancia en el
+  // registro (y la UI lo muestra en el centro y lo hace arder, como un Efecto).
+  if (card.cardType === CardType.ITEM
+      && getPlayer(s, targetPlayer.id).fateDiscardInstIds.includes(chosenInstId)) {
+    s = addLog(s, `${card.name} no tiene Héroe al que unirse: se descarta.`);
+  }
 
   return checkWin(s);
 }

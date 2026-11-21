@@ -130,3 +130,11 @@ No, la carta se queda en tu Reino.
 
 **¿Puedo mirar las pilas de descartes?**
 Sí, todas las pilas de descartes son públicas.
+
+---
+
+## Créditos
+
+- **Efectos de sonido:** packs *Casino Audio* y *RPG Audio* de **Kenney** (kenney.nl), licencia CC0.
+- **Música de victoria y derrota:** **Pixabay** (pixabay.com), licencia de Pixabay.
+- *Disney Villainous* es un juego de Ravensburger y Wonder Forge. Esta es una versión digital no oficial, sin ánimo de lucro.

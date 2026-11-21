@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { GameState } from '../core/types';
 import { assetUrl } from '../lib/assets';
 import { ModalStage } from './shared/ModalStage';
+import { playSound, stopSound } from '../lib/sound';
 
 interface Props {
   state: GameState;
@@ -16,7 +17,9 @@ export function StartRevealModal({ state, startingPlayerIndex, onContinue }: Pro
   const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setRevealed(true), SPIN_MS);
+    playSound('coinSpin');                       // la moneda empieza a girar…
+    // …y cae: el sonido de giro (más largo que la animación) se apaga y suena la caída.
+    const t = setTimeout(() => { setRevealed(true); stopSound('coinSpin'); playSound('coinLand'); }, SPIN_MS);
     return () => clearTimeout(t);
   }, []);
 

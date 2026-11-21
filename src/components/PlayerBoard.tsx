@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import type { GameState, PlayerState, CardInstId } from '../core/types';
+import { LocationIndicator } from './LocationIndicator';
 import { getPlugin } from '../core/villains/registry';
 import { assetUrl } from '../lib/assets';
 
@@ -17,6 +19,8 @@ interface Props {
   isActive: boolean;
   /** Aviso "contra ti": ubicación → clave que cambia en cada aviso (reinicia el pulso rojo). */
   alertLocKeys?: Record<string, number>;
+  /** Turno de la IA: ubicación donde acaba de actuar → clave (reinicia el pulso dorado). */
+  focusLocKeys?: Record<string, number>;
   onCardClick: (id: CardInstId) => void;
   selectedCardId: CardInstId | null;
   /** ACTIVATE phase: called with slot index when a token is clicked */
@@ -47,8 +51,15 @@ interface Props {
   onSherifDragEnd?: () => void;
 }
 
-export function PlayerBoard({ state, player, isActive, alertLocKeys, onCardClick, selectedCardId, onActionSlotClick, onLocationClick, movableLocIds, playHighlights, onCardDrop, onVillainCardDragStart, onVillainCardDragEnd, onHeroCardDragStart, onHeroCardDragEnd, onFateLocationClick, ravenInstId, onRavenDragStart, onRavenDragEnd, sherifInstId, onSherifDragStart, onSherifDragEnd }: Props) {
+export function PlayerBoard({ state, player, isActive, alertLocKeys, focusLocKeys, onCardClick, selectedCardId, onActionSlotClick, onLocationClick, movableLocIds, playHighlights, onCardDrop, onVillainCardDragStart, onVillainCardDragEnd, onHeroCardDragStart, onHeroCardDragEnd, onFateLocationClick, ravenInstId, onRavenDragStart, onRavenDragEnd, sherifInstId, onSherifDragStart, onSherifDragEnd }: Props) {
   const plugin        = getPlugin(player.villainId);
+  const scrollerRef   = useRef<HTMLDivElement>(null);
+  // Ubicaciones iluminadas ahora mismo (destino válido de la carta elegida o del peón), para
+  // marcarlas también en el indicador de móvil.
+  const litLocIds = [
+    ...Object.entries(playHighlights ?? {}).filter(([, h]) => h.playState === 'valid').map(([id]) => id),
+    ...(movableLocIds ?? []),
+  ];
 
   // Héroes Agrandados (Reina de Corazones) de este Reino, indexados por la ubicación VECINA que
   // tapan — ver `isEnlarged`/`enlargedTargetLocationId`/`enlargedTargetSlotIndex` en CardInst y
@@ -76,7 +87,8 @@ export function PlayerBoard({ state, player, isActive, alertLocKeys, onCardClick
       {/* Retrato (vertical): 1 ubicación a la vez, a todo el ancho, con scroll-snap. Horizontal
           (landscape, incluido desktop): sin cambios, las 4 en grid como siempre — el criterio es
           la orientación real, no el ancho, para que un móvil en landscape también quede como antes. */}
-      <div className="overflow-x-auto landscape:overflow-x-visible snap-x snap-mandatory landscape:snap-none pb-2 scrollbar-hide">
+      <LocationIndicator state={state} player={player} locations={plugin.locations} scrollerRef={scrollerRef} highlightedLocIds={litLocIds} />
+      <div ref={scrollerRef} className="overflow-x-auto landscape:overflow-x-visible snap-x snap-mandatory landscape:snap-none pb-2 scrollbar-hide">
         <div className="flex landscape:grid landscape:grid-cols-4 gap-3 md:gap-5 landscape:min-w-160 items-start relative z-20">
           {plugin.locations.map((locDef, locIndex) => {
             const locState      = player.locationStates[locDef.id];
@@ -91,7 +103,7 @@ export function PlayerBoard({ state, player, isActive, alertLocKeys, onCardClick
             const isMovable      = movableLocIds?.includes(locDef.id) ?? false;
             const boardImageUrl  = BOARD_IMAGES[player.villainId] ?? null;
             return (
-              <div key={locDef.id} className="w-full shrink-0 snap-center landscape:snap-align-none">
+              <div key={locDef.id} data-loc-id={locDef.id} className="w-full shrink-0 snap-center landscape:snap-align-none">
               <LocationTile
                 locDef={locDef}
                 locState={locState}
@@ -103,6 +115,7 @@ export function PlayerBoard({ state, player, isActive, alertLocKeys, onCardClick
                 usedSlotIndices={isActive && isPawnHere ? state.usedActionSlotIndices : undefined}
                 hissChoiceSlotIndices={hissChoices}
                 alertKey={alertLocKeys?.[locDef.id]}
+                focusKey={focusLocKeys?.[locDef.id]}
                 selectedCardId={selectedCardId}
                 onCardClick={onCardClick}
                 onSlotClick={onActionSlotClick}

@@ -4,10 +4,9 @@ import { CardType } from '../core/types';
 import type { GameState } from '../core/types';
 import { getCardDef, getEffectDef } from '../core/villains/registry';
 import { CardComponent } from './CardComponent';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 // En táctil no hay arrastre: el toque elige y el segundo toque (en la ubicación) coloca.
-const IS_COARSE_POINTER =
-  typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 
 interface Props {
   state: GameState;
@@ -29,6 +28,7 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
   const { pendingFate } = state;
   const [chosenId, setChosenId]       = useState<string | null>(null);
   const [cardsHidden, setCardsHidden] = useState(false);
+  const isCoarsePointer = useMediaQuery('(pointer: coarse)');
   const [dragging, setDragging]       = useState(false);
 
   if (!pendingFate) return null;
@@ -65,7 +65,8 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
   if (chosenCard && !dragging) {
     return (
       <div className="fate-pill">
-        <div className="shrink-0">
+        {/* data-fly-source: de aquí sale volando la carta al colocarla (ver GameBoard). */}
+        <div className="shrink-0" data-fly-source={chosenCard.instId}>
           <CardComponent card={chosenCard} state={state} sizeClassName="card-size-fate-thumb" />
         </div>
         <div className="min-w-0 flex flex-col">
@@ -128,7 +129,7 @@ export function FateModal({ state, onFateDragStart, onFateDragEnd, onFateSelect 
                     state={state}
                     sizeClassName="card-size-fate"
                     // Arrastre directo a una ubicación del rival (ratón): el panel se oculta mientras.
-                    draggable={!IS_COARSE_POINTER}
+                    draggable={!isCoarsePointer}
                     onDragStart={() => {
                       setChosenId(card.instId);
                       setDragging(true);

@@ -1,7 +1,9 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { CardDeck } from '../core/types';
 import type { LocationDef, LocationState, GameState, CardInstId, CardInst } from '../core/types';
 import { CardComponent } from './CardComponent';
+import { AttachTargetModal } from './AttachTargetModal';
+import { createPortal } from 'react-dom';
 import { useDropTarget } from '../hooks/dragCore';
 import { Crown } from 'lucide-react';
 import { ACTION_IMG } from './shared/actionImages';
@@ -64,6 +66,8 @@ interface Props {
   remoteEnlargedCoverage?: { slotIndex: number; card: CardInst }[];
   /** Aviso "contra ti": clave que cambia en cada aviso sobre esta ubicación (reinicia el pulso rojo). */
   alertKey?: number;
+  /** Turno de la IA: clave que cambia cada vez que actúa aquí (reinicia el pulso dorado). */
+  focusKey?: number;
   selectedCardId: CardInstId | null;
   onSlotClick?: (slotIndex: number) => void;
   onCardClick: (cardInstId: CardInstId) => void;
@@ -99,7 +103,7 @@ interface Props {
 
 export function LocationTile({
   locDef, locState, state, villainColor, isCurrentPawn,
-  coveredSlotIndices, availableSlotIndices, usedSlotIndices = [], hissChoiceSlotIndices = [], remoteEnlargedCoverage = [], alertKey, selectedCardId,
+  coveredSlotIndices, availableSlotIndices, usedSlotIndices = [], hissChoiceSlotIndices = [], remoteEnlargedCoverage = [], alertKey, focusKey, selectedCardId,
   onSlotClick, onCardClick,
   onLocationClick, isMovableTarget, playHighlight, onCardDrop,
   boardImageUrl, locationIndex = 0,
@@ -125,6 +129,16 @@ export function LocationTile({
   const topCards       = [...heroCards.filter(c => !c.isShrunk), ...fateItemCards];
   // BOTTOM ally zone: villain deck cards only (allies, items, curses, effects)
   const allyZoneCards  = villainCards;
+
+  // Pila de Héroes: con 2+ cartas arriba, se apilan como un mazo (la de delante entera, las demás
+  // asomando por arriba) y al tocarla se abren todas en grande (AttachTargetModal). Desde ahí se puede
+  // traer una al frente, p. ej. para arrastrarla con Mover Héroe.
+  const [frontId, setFrontId] = useState<string | null>(null);
+  const [pileOpen, setPileOpen] = useState(false);
+  const isPile = topCards.length > 1;
+  const pileCards = isPile && frontId && topCards.some(c => c.instId === frontId)
+    ? [...topCards.filter(c => c.instId !== frontId), topCards.find(c => c.instId === frontId)!]
+    : topCards;
 
   // Sir Hiss: con el peón aquí, puede usarse UNA casilla tapada por Héroes. Mientras esa elección
   // esté disponible, las cartas de Héroe se deslizan hacia arriba lo justo para dejar a la vista
@@ -176,37 +190,60 @@ export function LocationTile({
     <div ref={dropRef} className="flex flex-col gap-2">
 
       {/* ── Location card ─────────────────────────────────── */}
-      <div ref={tileRef} className={`relative w-full aspect-3/4 ${hissLiftActive ? 'hiss-lift-tile' : ''}`}>
+      <div ref={tileRef} className={`loc-tile-box relative w-full aspect-3/4 ${hissLiftActive ? 'hiss-lift-tile' : ''}`}>
 
         {/* ── Top overlay: hero cards + fate items ─────────────── */}
+        {/* Una carta: centrada, como siempre. Varias: pila tipo mazo — la de delante entera y las
+            demás asomando por arriba (-13 px por carta). Tocar la pila abre todas en grande. */}
         {topCards.length > 0 && (
-          <div data-hero-layer className={`absolute top-0 inset-x-0 z-30 flex pointer-events-none hiss-lift-layer ${topCards.length === 1 ? 'justify-center' : ''}`}
-            style={{
-              marginLeft: topCards.length > 1 ? '2px' : '0px',
-              marginRight: topCards.length > 1 ? `${(topCards.length - 1) * 20}px` : '0px',
-              transform: liftTransform,
-            }}>
-            {topCards.map((card, idx) => {
-              const isHero = heroCards.includes(card);
-              return (
-                <div key={card.instId}
-                  className="pointer-events-auto hover:z-10 shrink-0"
-                  style={{ marginLeft: idx === 0 ? '0px' : '-40px' }}
-                >
-                  <CardComponent
-                    card={card}
-                    state={state}
-                    inspectable
-                    selected={selectedCardId === card.instId}
-                    onClick={() => onCardClick(card.instId)}
-                    draggable={isHero && !!onHeroCardDragStart}
-                    onDragStart={isHero && onHeroCardDragStart ? () => onHeroCardDragStart(card.instId) : undefined}
-                    onDragEnd={isHero ? () => onHeroCardDragEnd?.() : undefined}
-                  />
-                </div>
-              );
-            })}
+          <div data-hero-layer className="absolute top-0 inset-x-0 z-30 flex justify-center pointer-events-none hiss-lift-layer"
+            style={{ transform: liftTransform, paddingTop: isPile ? `${(pileCards.length - 1) * 13}px` : undefined }}>
+            <div className="relative">
+              {pileCards.map((card, idx) => {
+                const isHero = heroCards.includes(card);
+                const depth = pileCards.length - 1 - idx;   // 0 = la de delante
+                const isFront = depth === 0;
+                return (
+                  <div key={card.instId}
+                    className={`pointer-events-auto ${isFront ? 'relative' : 'absolute inset-x-0 top-0'}`}
+                    style={isFront ? { zIndex: pileCards.length } : {
+                      zIndex: idx,
+                      transform: `translateY(${-depth * 13}px) scale(${1 - depth * 0.03})`,
+                      transformOrigin: 'top center',
+                      filter: `brightness(${1 - depth * 0.12})`,
+                    }}
+                  >
+                    <CardComponent
+                      card={card}
+                      state={state}
+                      inspectable
+                      selected={selectedCardId === card.instId}
+                      onClick={() => (isPile ? setPileOpen(true) : onCardClick(card.instId))}
+                      // Solo la de delante se arrastra (Mover Héroe); para otra, traerla al frente.
+                      draggable={isFront && isHero && !!onHeroCardDragStart}
+                      onDragStart={isFront && isHero && onHeroCardDragStart ? () => onHeroCardDragStart(card.instId) : undefined}
+                      onDragEnd={isFront && isHero ? () => onHeroCardDragEnd?.() : undefined}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
+        )}
+        {/* Mismo modal que "Elige un Héroe" (cartas grandes, Ver tablero, Cancelar): tocar una la
+            pone delante de la pila. Portal a <body>: la pila vive dentro de capas con transform
+            (Sir Hiss) que romperían el position: fixed del modal. */}
+        {pileOpen && isPile && createPortal(
+          <AttachTargetModal
+            state={state}
+            cardName={locDef.name}
+            reqTarget="HERO"
+            candidates={[...pileCards].reverse().map(c => c.instId)}
+            subtitle="El que elijas se pondrá delante de la pila."
+            onSelect={id => { setFrontId(id); setPileOpen(false); }}
+            onCancel={() => setPileOpen(false)}
+          />,
+          document.body,
         )}
 
         {/* ── Héroes Menguados: en miniatura, sobre la única casilla que siguen tapando ── */}
@@ -274,6 +311,8 @@ export function LocationTile({
 
           {/* Aviso "contra ti": pulso rojo cuando el rival acaba de tocar esta ubicación */}
           {alertKey ? <span key={alertKey} className="loc-alert-ring" aria-hidden="true" /> : null}
+          {/* Turno de la IA: pulso dorado donde acaba de actuar */}
+          {focusKey ? <span key={`f${focusKey}`} className="loc-focus-ring" aria-hidden="true" /> : null}
 
           {/* Locked overlay */}
           {locState.isLocked && (
@@ -389,7 +428,7 @@ export function LocationTile({
       </div>
 
       {/* ── Ally / villain card zone — heroes NOT here ──────── */}
-      <div className="card-slot ally-zone group">
+      <div className={`card-slot ally-zone group ${allyZoneCards.length === 0 ? 'is-empty' : ''}`}>
         {allyZoneCards.length === 0 ? (
           <span className="absolute bottom-1 left-2 font-serif text-[7px] font-semibold text-gold/35 uppercase tracking-[0.2em] group-hover:text-gold/60 transition-colors">
             Aliados y objetos
@@ -514,11 +553,10 @@ function ActionToken({ slotType, slotValue, covered, available, used = false, hi
         )}
       </button>
 
-      {/* Usada: sello fuera del botón para que no lo apague su filtro */}
-      {used && !blocked && (
-        <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-gold-bright/85 text-lg font-bold"
-          style={{ textShadow: '0 1px 3px rgba(0,0,0,1), 0 0 8px rgba(0,0,0,0.8)' }}>✓</span>
-      )}
+      {/* Usada: sello dorado con ✓ (fuera del botón para que no lo apague su filtro). */}
+      {used && !blocked && <span className="action-token-used-mark" aria-hidden="true">✓</span>}
+      {/* Tapada por un Héroe: banda roja en diagonal — se distingue de "usada" de un vistazo. */}
+      {blocked && <span className="action-token-blocked-mark" aria-hidden="true" />}
 
       {/* Tooltip — appears above the token on hover */}
       {/* hidden (no solo opacity-0): oculto pero presente ensanchaba la página en móviles estrechos

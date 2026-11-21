@@ -43,6 +43,8 @@ export function AttachTargetModal({ state, cardName, reqTarget, candidates, onSe
       eyebrow={cardName}
       title={`Elige ${label}`}
       subtitle={subtitle ?? `${cardName} se unirá a la carta que elijas.`}
+      // Ancho para 3 cartas grandes en una fila (con 768 px la 3ª bajaba y quedaba cortada).
+      widthClass="max-w-5xl"
       actions={<>
         <button onClick={() => setHidden(true)} className="btn btn--secondary btn--sm">
           <EyeOff className="w-3.5 h-3.5" /> Ver tablero

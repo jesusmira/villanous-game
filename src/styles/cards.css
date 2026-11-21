@@ -45,6 +45,12 @@
   @media (min-width: 1024px) {
     .villainous-card { width: 112px; height: 168px; }
   }
+  /* Móvil vertical: una ubicación ocupa toda la pantalla y a 80×120 el texto de las cartas del
+     tablero no se leía. Las demás vistas (mano, modales, enfoque) usan sus propias clases de
+     tamaño con !important, así que esto solo afecta a las cartas del tablero. */
+  @media (orientation: portrait) and (max-width: 639.98px) {
+    .villainous-card { width: 116px; height: 174px; }
+  }
 
   /* Reina de Corazones: Héroe Menguado — miniatura posicionada sobre una única casilla
      (ver LocationTile.tsx), no la carta de tamaño normal. */

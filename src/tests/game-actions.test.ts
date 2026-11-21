@@ -155,10 +155,11 @@ describe('vanquish', () => {
     const id = hookId(s);
     s = setCurrentPlayer(s, id);
     const ppId   = findCard(s, 'hook_fate_peter_pan')!;
-    const maton1 = findInDeck(s, id, 'hook_v_maton')!;
-    const maton2 = Object.keys(s.allCards).find(
-      k => s.allCards[k]?.defId.startsWith('hook_v_maton') && k !== maton1,
-    )!;
+    // Los dos Matones Pirata, estén en el mazo o en la mano inicial (se reparte al azar: buscar
+    // solo en el mazo fallaba de vez en cuando, cuando un Matón había salido en la mano).
+    const [maton1, maton2] = Object.keys(s.allCards)
+      .filter(k => s.allCards[k]?.ownerId === id && s.allCards[k]?.defId.startsWith('hook_v_maton'));
+    expect(maton1 && maton2).toBeTruthy();
     s = placeHeroInLoc(s, id, 'jollyroger', ppId);
     s = placeVillainCard(s, id, 'jollyroger', maton1);
     s = placeVillainCard(s, id, 'jollyroger', maton2);
